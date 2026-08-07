@@ -23,7 +23,15 @@ type Envelope struct {
 	Success bool       `json:"success"`
 	Message string     `json:"message,omitempty"`
 	Data    any        `json:"data,omitempty"`
+	Meta    *MetaBody  `json:"meta,omitempty"`
 	Error   *ErrorBody `json:"error,omitempty"`
+}
+
+type MetaBody struct {
+	Page       int `json:"page"`
+	Limit      int `json:"limit"`
+	TotalItems int `json:"total_items"`
+	TotalPages int `json:"total_pages"`
 }
 
 type ErrorBody struct {
@@ -50,6 +58,15 @@ func OK(w http.ResponseWriter, data any) {
 
 func Created(w http.ResponseWriter, data any) {
 	WriteJSON(w, http.StatusCreated, Envelope{Success: true, Data: data})
+}
+
+// Paginated sends a 200 OK response with data and pagination metadata.
+func Paginated(w http.ResponseWriter, data any, meta *MetaBody) {
+	WriteJSON(w, http.StatusOK, Envelope{
+		Success: true,
+		Data:    data,
+		Meta:    meta,
+	})
 }
 
 func Success(w http.ResponseWriter, status int, data any) {

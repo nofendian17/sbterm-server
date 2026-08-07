@@ -653,6 +653,64 @@ Dependency direction should remain:
 HTTP handler -> usecase -> repository contract <- infrastructure repository
 ```
 
+## Managing Transactions (ACID)
+
+To execute database operations within an ACID transaction, `sbterm-server` provides the `TxManager` interface in the `repository` layer. This ensures that operations are safely committed on success and rolled back on error or panic.
+
+### 1. The `TxManager` and `Querier` Pattern
+
+Usecases should depend on `repository.TxManager` to start transactions. Repositories should accept a `repository.Querier` instead of a concrete database pool. `Querier` is an interface satisfied by both the connection pool (for non-transactional queries) and the transaction object (for transactional queries).
+
+### 2. Example: Using Transactions in a Usecase
+
+When a usecase needs to perform multiple repository actions atomically, it calls `WithTx`:
+
+```go
+type transferUsecase struct {
+    txMgr       repository.TxManager
+    accountRepo repository.AccountRepository
+}
+
+func (u *transferUsecase) Transfer(ctx context.Context, from, to int64, amount int64) error {
+    // Start the transaction
+    return u.txMgr.WithTx(ctx, func(tx repository.Querier) error {
+        // Pass the `tx` (which implements Querier) to repository methods
+        if err := u.accountRepo.Debit(ctx, tx, from, amount); err != nil {
+            return err // Returning an error automatically rolls back the transaction
+        }
+        if err := u.accountRepo.Credit(ctx, tx, to, amount); err != nil {
+            return err
+        }
+        return nil // Returning nil commits the transaction
+    })
+}
+```
+
+### 3. Custom Isolation Levels
+
+If you need a specific isolation level (e.g., `SERIALIZABLE` for strict financial operations), use `WithTxOptions`:
+
+```go
+func (u *transferUsecase) StrictTransfer(ctx context.Context, from, to int64, amount int64) error {
+    opts := pgx.TxOptions{IsoLevel: pgx.Serializable}
+    return u.txMgr.WithTxOptions(ctx, opts, func(tx repository.Querier) error {
+        // ...
+        return nil
+    })
+}
+```
+
+### 4. Repository Implementation
+
+Repository methods should accept `repository.Querier` as an argument to support running both inside and outside of a transaction. If a query doesn't need to be part of a transaction, you can pass the regular database pool to it:
+
+```go
+func (r *accountRepository) Debit(ctx context.Context, db repository.Querier, id int64, amount int64) error {
+    _, err := db.Exec(ctx, "UPDATE accounts SET balance = balance - $1 WHERE id = $2", amount, id)
+    return err
+}
+```
+
 ## Known Caveats
 
 ### Rate limiting behind proxies

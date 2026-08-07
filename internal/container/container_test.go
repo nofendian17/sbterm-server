@@ -23,26 +23,41 @@ import (
 
 func testConfig(databaseURL, redisURL string) *config.Config {
 	return &config.Config{
-		Port:              ":0",
-		DatabaseURL:       databaseURL,
-		DBMaxConns:        10,
-		DBMinConns:        0,
-		DBMaxConnLifetime: 30 * time.Minute,
-		DBMaxConnIdleTime: 5 * time.Minute,
-		RedisURL:          redisURL,
-		RedisMaxRetries:   1,
-		RedisPoolSize:     1,
-		RedisMinIdleConns: 0,
-		RedisDialTimeout:  time.Second,
-		RedisReadTimeout:  time.Second,
-		RedisWriteTimeout: time.Second,
-		LogLevel:          "info",
-		LogFormat:         "text",
-		RateLimitRate:     100,
-		RateLimitBurst:    200,
-		HTTPReadTimeout:   10 * time.Second,
-		HTTPWriteTimeout:  10 * time.Second,
-		HTTPIdleTimeout:   60 * time.Second,
+		App: config.AppConfig{
+			Name:    "test-app",
+			Version: "1.0.0",
+		},
+		Port: ":9999",
+		Database: config.DatabaseConfig{
+			URL:             databaseURL,
+			MaxConns:        10,
+			MinConns:        0,
+			MaxConnLifetime: 30 * time.Minute,
+			MaxConnIdleTime: 5 * time.Minute,
+		},
+		Redis: config.RedisConfig{
+			URL:           redisURL,
+			MaxRetries:    1,
+			PoolSize:      1,
+			MinIdleConns:  0,
+			DialTimeout:   time.Second,
+			ReadTimeout:   time.Second,
+			WriteTimeout:  time.Second,
+		},
+		Log: config.LogConfig{
+			Level:     "info",
+			Format:    "text",
+			AddSource: false,
+		},
+		RateLimit: config.RateLimitConfig{
+			Rate:  100,
+			Burst: 200,
+		},
+		HTTP: config.HTTPConfig{
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+		},
 	}
 }
 

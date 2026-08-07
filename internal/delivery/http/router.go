@@ -10,6 +10,7 @@ import (
 
 	mw "github.com/nofendian17/sbterm-server/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 )
 
 type RouterOption func(*routerOptions)
@@ -26,7 +27,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *HealthHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)

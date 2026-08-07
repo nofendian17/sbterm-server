@@ -21,6 +21,7 @@ func TestResponses(t *testing.T) {
 		wantErrCode string
 		wantDetails map[string]string
 		wantData    bool
+		wantMeta    *MetaBody
 		wantNoBody  bool
 	}{
 		{
@@ -89,6 +90,26 @@ func TestResponses(t *testing.T) {
 			wantErrCode: CodeValidation,
 			wantDetails: map[string]string{"email": "must be a valid email address"},
 		},
+		{
+			name: "paginated writes data and meta",
+			write: func(w http.ResponseWriter) {
+				Paginated(w, []string{"item1", "item2"}, &MetaBody{
+					Page:       1,
+					Limit:      10,
+					TotalItems: 100,
+					TotalPages: 10,
+				})
+			},
+			wantStatus:  http.StatusOK,
+			wantSuccess: true,
+			wantData:    true,
+			wantMeta: &MetaBody{
+				Page:       1,
+				Limit:      10,
+				TotalItems: 100,
+				TotalPages: 10,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -107,6 +128,7 @@ func TestResponses(t *testing.T) {
 				Success bool            `json:"success"`
 				Message string          `json:"message"`
 				Data    json.RawMessage `json:"data"`
+				Meta    *MetaBody       `json:"meta"`
 				Error   *struct {
 					Code    string            `json:"code"`
 					Message string            `json:"message"`
@@ -133,6 +155,10 @@ func TestResponses(t *testing.T) {
 			if tt.wantDetails != nil {
 				require.NotNil(t, env.Error)
 				assert.Equal(t, tt.wantDetails, env.Error.Details)
+			}
+			if tt.wantMeta != nil {
+				require.NotNil(t, env.Meta)
+				assert.Equal(t, tt.wantMeta, env.Meta)
 			}
 		})
 	}

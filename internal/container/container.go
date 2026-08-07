@@ -62,6 +62,11 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		return nil, fmt.Errorf("container: construct redis: %w", err)
 	}
 
+	do.Provide(injector, func(i do.Injector) (*infraRepo.TxManagerImpl, error) {
+		return infraRepo.NewTxManager(do.MustInvoke[*database.Postgres](i)), nil
+	})
+	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
 		return infraRepo.NewHealthRepository(
 			do.MustInvoke[*database.Postgres](i),

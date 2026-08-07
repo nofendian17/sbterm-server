@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Pool is the narrow interface *Postgres depends on. It is satisfied by
 // *pgxpool.Pool in production and by *pgxmock.PgxPool in tests.
+// Begin starts a transaction; *pgxpool.Pool and *pgxmock.PgxPool both satisfy it.
 type Pool interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	Ping(ctx context.Context) error
 	Close()
 }
@@ -85,6 +89,14 @@ func NewWithPool(pool Pool) *Postgres {
 
 func (p *Postgres) Ping(ctx context.Context) error {
 	return p.pool.Ping(ctx)
+}
+
+func (p *Postgres) Begin(ctx context.Context) (pgx.Tx, error) {
+	return p.pool.Begin(ctx)
+}
+
+func (p *Postgres) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
+	return p.pool.BeginTx(ctx, txOptions)
 }
 
 // HealthCheck implements the samber/do health check hook.

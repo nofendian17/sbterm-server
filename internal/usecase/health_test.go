@@ -17,23 +17,27 @@ func TestHealthUsecaseGetHealth(t *testing.T) {
 		name               string
 		pingErr            error
 		pingRedisErr       error
+		wantStatus         string
 		wantDBConnected    bool
 		wantRedisConnected bool
 	}{
 		{
 			name:               "database and redis connected",
+			wantStatus:         statusOK,
 			wantDBConnected:    true,
 			wantRedisConnected: true,
 		},
 		{
 			name:               "database unavailable",
 			pingErr:            errors.New("connection refused"),
+			wantStatus:         statusDegraded,
 			wantDBConnected:    false,
 			wantRedisConnected: true,
 		},
 		{
 			name:               "redis unavailable",
 			pingRedisErr:       errors.New("connection refused"),
+			wantStatus:         statusDegraded,
 			wantDBConnected:    true,
 			wantRedisConnected: false,
 		},
@@ -41,6 +45,7 @@ func TestHealthUsecaseGetHealth(t *testing.T) {
 			name:               "database and redis unavailable",
 			pingErr:            errors.New("db down"),
 			pingRedisErr:       errors.New("redis down"),
+			wantStatus:         statusDegraded,
 			wantDBConnected:    false,
 			wantRedisConnected: false,
 		},
@@ -58,7 +63,7 @@ func TestHealthUsecaseGetHealth(t *testing.T) {
 			uc := NewHealthUsecase(repo)
 			status, err := uc.GetHealth(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, statusOK, status.Status)
+			assert.Equal(t, tt.wantStatus, status.Status)
 			assert.Equal(t, tt.wantDBConnected, status.DBConnected)
 			assert.Equal(t, tt.wantRedisConnected, status.RedisConnected)
 		})

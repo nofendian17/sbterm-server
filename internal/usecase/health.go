@@ -7,7 +7,10 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/repository"
 )
 
-const statusOK = "ok"
+const (
+	statusOK       = "ok"
+	statusDegraded = "degraded"
+)
 
 //go:generate go run go.uber.org/mock/mockgen -source=health.go -destination=../mocks/mock_health_usecase.go -package=mocks -typed
 type HealthUsecase interface {
@@ -23,9 +26,17 @@ func NewHealthUsecase(repo repository.HealthRepository) *healthUsecase {
 }
 
 func (u *healthUsecase) GetHealth(ctx context.Context) (*domain.HealthStatus, error) {
+	dbConnected := u.repo.Ping(ctx) == nil
+	redisConnected := u.repo.PingRedis(ctx) == nil
+
+	status := statusOK
+	if !dbConnected || !redisConnected {
+		status = statusDegraded
+	}
+
 	return &domain.HealthStatus{
-		Status:         statusOK,
-		DBConnected:    u.repo.Ping(ctx) == nil,
-		RedisConnected: u.repo.PingRedis(ctx) == nil,
+		Status:         status,
+		DBConnected:    dbConnected,
+		RedisConnected: redisConnected,
 	}, nil
 }

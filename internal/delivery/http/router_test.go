@@ -27,7 +27,7 @@ func TestRouter(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/health",
 			setup: func(uc *mocks.MockHealthUsecase) {
-				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true}, nil)
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil)
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -72,7 +72,7 @@ func TestRouterRateLimit(t *testing.T) {
 	defer ctrl.Finish()
 
 	uc := mocks.NewMockHealthUsecase(ctrl)
-	uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true}, nil).AnyTimes()
+	uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 	logger := log.New(log.WithWriter(io.Discard))
 	router := NewRouter(NewHealthHandler(uc), logger, WithRateLimit(1, 1))

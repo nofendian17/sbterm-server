@@ -290,21 +290,29 @@ Rules:
   "success": true,
   "data": {
     "status": "ok",
-    "database": "up"
+    "database": "up",
+    "redis": "up"
   }
 }
 ```
 
-If the database is down, the response still uses HTTP 200 with:
+If the database or Redis is down, the response uses HTTP 503 with status `degraded`:
 
 ```json
-"database": "down"
+{
+  "success": true,
+  "data": {
+    "status": "degraded",
+    "database": "down",
+    "redis": "up"
+  }
+}
 ```
 
 Rationale:
 
-- The health endpoint reports application status and database dependency status separately.
-- A database outage does not automatically mean the HTTP server itself is down.
+- The health endpoint reports application status and each dependency status separately.
+- A dependency outage makes the service unavailable (503) so load balancers / orchestrators can react, while each dependency's status is still reported individually.
 
 #### Router
 

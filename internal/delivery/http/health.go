@@ -18,6 +18,7 @@ func NewHealthHandler(uc usecase.HealthUsecase) *HealthHandler {
 type healthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database"`
+	Redis    string `json:"redis"`
 }
 
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +31,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, healthResponse{
 		Status:   status.Status,
 		Database: dbStatus(status.DBConnected),
+		Redis:    dbStatus(status.RedisConnected),
 	})
 }
 

@@ -21,23 +21,35 @@ func TestHealthHandlerHealth(t *testing.T) {
 		setup        func(uc *mocks.MockHealthUsecase)
 		wantStatus   int
 		wantDatabase string
+		wantRedis    string
 		wantErrCode  string
 	}{
 		{
-			name: "database up returns 200",
+			name: "database and redis up returns 200",
 			setup: func(uc *mocks.MockHealthUsecase) {
-				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true}, nil)
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil)
 			},
 			wantStatus:   http.StatusOK,
 			wantDatabase: "up",
+			wantRedis:    "up",
 		},
 		{
 			name: "database down still returns 200",
 			setup: func(uc *mocks.MockHealthUsecase) {
-				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: false}, nil)
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: false, RedisConnected: true}, nil)
 			},
 			wantStatus:   http.StatusOK,
 			wantDatabase: "down",
+			wantRedis:    "up",
+		},
+		{
+			name: "redis down still returns 200",
+			setup: func(uc *mocks.MockHealthUsecase) {
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: false}, nil)
+			},
+			wantStatus:   http.StatusOK,
+			wantDatabase: "up",
+			wantRedis:    "down",
 		},
 		{
 			name: "usecase error returns 500",
@@ -68,6 +80,7 @@ func TestHealthHandlerHealth(t *testing.T) {
 				Success bool `json:"success"`
 				Data    struct {
 					Database string `json:"database"`
+					Redis    string `json:"redis"`
 				} `json:"data"`
 				Error *struct {
 					Code string `json:"code"`
@@ -77,6 +90,9 @@ func TestHealthHandlerHealth(t *testing.T) {
 
 			if tt.wantDatabase != "" {
 				assert.Equal(t, tt.wantDatabase, env.Data.Database)
+			}
+			if tt.wantRedis != "" {
+				assert.Equal(t, tt.wantRedis, env.Data.Redis)
 			}
 			if tt.wantErrCode != "" {
 				require.NotNil(t, env.Error)

@@ -72,11 +72,13 @@ func TestNew(t *testing.T) {
 					Data struct {
 						Status   string `json:"status"`
 						Database string `json:"database"`
+						Redis    string `json:"redis"`
 					} `json:"data"`
 				}
 				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
 				assert.Equal(t, "ok", env.Data.Status)
 				assert.Equal(t, "down", env.Data.Database)
+				assert.Equal(t, "up", env.Data.Redis)
 			},
 		},
 		{
@@ -94,13 +96,14 @@ func TestNew(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := log.New(log.WithWriter(io.Discard))
-			injector := New(tt.cfg, logger)
-
-			srv, err := do.Invoke[*deliveryhttp.Server](injector)
+			injector, err := New(tt.cfg, logger)
 			if tt.wantBuildErr {
 				require.Error(t, err)
 				return
 			}
+			require.NoError(t, err)
+
+			srv, err := do.Invoke[*deliveryhttp.Server](injector)
 			require.NoError(t, err)
 			tt.check(t, srv)
 		})
@@ -109,7 +112,8 @@ func TestNew(t *testing.T) {
 
 func TestShutdownReportIncludesServices(t *testing.T) {
 	logger := log.New(log.WithWriter(io.Discard))
-	injector := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+	injector, err := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+	require.NoError(t, err)
 
 	srv, err := do.Invoke[*deliveryhttp.Server](injector)
 	require.NoError(t, err)

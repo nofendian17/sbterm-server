@@ -453,7 +453,7 @@ main()
   → container.Run()
     → config.Load()
     → log.New(...)
-    → container.New(cfg, logger)
+    → container.New(cfg, logger)   // constructs Postgres and Redis eagerly
     → invoke *delivery/http.Server
     → server.ListenAndServe()
     → wait for SIGTERM / interrupt

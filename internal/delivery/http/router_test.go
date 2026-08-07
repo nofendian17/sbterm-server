@@ -12,6 +12,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/mocks"
 	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 )
 
 func TestRouter(t *testing.T) {
@@ -56,7 +57,8 @@ func TestRouter(t *testing.T) {
 			}
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(NewHealthHandler(uc), logger)
+			handler := health.NewHealthHandler(uc)
+			router := NewRouter(handler, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -75,7 +77,7 @@ func TestRouterRateLimit(t *testing.T) {
 	uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 	logger := log.New(log.WithWriter(io.Discard))
-	router := NewRouter(NewHealthHandler(uc), logger, WithRateLimit(1, 1))
+	router := NewRouter(health.NewHealthHandler(uc), logger, WithRateLimit(1, 1))
 
 	rec1 := httptest.NewRecorder()
 	router.ServeHTTP(rec1, httptest.NewRequest(http.MethodGet, "/health", nil))

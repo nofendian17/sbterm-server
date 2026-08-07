@@ -12,6 +12,7 @@ import (
 	"github.com/samber/do/v2"
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/database"
@@ -30,24 +31,24 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 	do.Provide(injector, func(i do.Injector) (*database.Postgres, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return database.New(ctx, cfg.DatabaseURL,
-			database.WithMaxConns(cfg.DBMaxConns),
-			database.WithMinConns(cfg.DBMinConns),
-			database.WithMaxConnLifetime(cfg.DBMaxConnLifetime),
-			database.WithMaxConnIdleTime(cfg.DBMaxConnIdleTime),
+		return database.New(ctx, cfg.Database.URL,
+			database.WithMaxConns(cfg.Database.MaxConns),
+			database.WithMinConns(cfg.Database.MinConns),
+			database.WithMaxConnLifetime(cfg.Database.MaxConnLifetime),
+			database.WithMaxConnIdleTime(cfg.Database.MaxConnIdleTime),
 		)
 	})
 
 	do.Provide(injector, func(i do.Injector) (*cache.Redis, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return cache.New(ctx, cfg.RedisURL,
-			cache.WithMaxRetries(cfg.RedisMaxRetries),
-			cache.WithPoolSize(cfg.RedisPoolSize),
-			cache.WithMinIdleConns(cfg.RedisMinIdleConns),
-			cache.WithDialTimeout(cfg.RedisDialTimeout),
-			cache.WithReadTimeout(cfg.RedisReadTimeout),
-			cache.WithWriteTimeout(cfg.RedisWriteTimeout),
+		return cache.New(ctx, cfg.Redis.URL,
+			cache.WithMaxRetries(cfg.Redis.MaxRetries),
+			cache.WithPoolSize(cfg.Redis.PoolSize),
+			cache.WithMinIdleConns(cfg.Redis.MinIdleConns),
+			cache.WithDialTimeout(cfg.Redis.DialTimeout),
+			cache.WithReadTimeout(cfg.Redis.ReadTimeout),
+			cache.WithWriteTimeout(cfg.Redis.WriteTimeout),
 		)
 	})
 
@@ -79,21 +80,21 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		return usecase.NewHealthUsecase(do.MustInvoke[repository.HealthRepository](i)), nil
 	})
 
-	do.Provide(injector, func(i do.Injector) (*deliveryhttp.HealthHandler, error) {
-		return deliveryhttp.NewHealthHandler(do.MustInvoke[usecase.HealthUsecase](i)), nil
+	do.Provide(injector, func(i do.Injector) (*health.HealthHandler, error) {
+		return health.NewHealthHandler(do.MustInvoke[usecase.HealthUsecase](i)), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
-		handler := do.MustInvoke[*deliveryhttp.HealthHandler](i)
+		handler := do.MustInvoke[*health.HealthHandler](i)
 		logger := do.MustInvoke[log.Logger](i)
 		router := deliveryhttp.NewRouter(handler, logger,
-			deliveryhttp.WithRateLimit(cfg.RateLimitRate, cfg.RateLimitBurst),
+			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,
 			deliveryhttp.WithAddr(cfg.Port),
-			deliveryhttp.WithReadTimeout(cfg.HTTPReadTimeout),
-			deliveryhttp.WithWriteTimeout(cfg.HTTPWriteTimeout),
-			deliveryhttp.WithIdleTimeout(cfg.HTTPIdleTimeout),
+			deliveryhttp.WithReadTimeout(cfg.HTTP.ReadTimeout),
+			deliveryhttp.WithWriteTimeout(cfg.HTTP.WriteTimeout),
+			deliveryhttp.WithIdleTimeout(cfg.HTTP.IdleTimeout),
 		), nil
 	})
 
@@ -106,11 +107,11 @@ func Run() error {
 		return err
 	}
 
-	level, err := log.ParseLevel(cfg.LogLevel)
+	level, err := log.ParseLevel(cfg.Log.Level)
 	if err != nil {
 		return err
 	}
-	format, err := log.ParseFormat(cfg.LogFormat)
+	format, err := log.ParseFormat(cfg.Log.Format)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func Run() error {
 	logger := log.New(
 		log.WithLevel(level),
 		log.WithFormat(format),
-		log.WithAddSource(cfg.LogAddSource),
+		log.WithAddSource(cfg.Log.AddSource),
 	)
 	log.SetDefault(logger)
 
@@ -134,8 +135,8 @@ func Run() error {
 		}
 	}()
 	logger.Info("server started",
-		"app", cfg.AppName,
-		"version", cfg.AppVersion,
+		"app", cfg.App.Name,
+		"version", cfg.App.Version,
 		"addr", cfg.Port,
 	)
 

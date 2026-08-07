@@ -22,35 +22,53 @@ const (
 var version = "dev"
 
 type Config struct {
-	AppName    string
-	AppVersion string
+	App       AppConfig       `mapstructure:"app"`
+	Port      string          `mapstructure:"port"`
+	Database  DatabaseConfig  `mapstructure:"db"`
+	Redis     RedisConfig     `mapstructure:"redis"`
+	Log       LogConfig       `mapstructure:"log"`
+	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+	HTTP      HTTPConfig      `mapstructure:"http"`
+}
 
-	Port string
+type AppConfig struct {
+	Name    string `mapstructure:"name"`
+	Version string `mapstructure:"version"`
+}
 
-	DatabaseURL       string
-	DBMaxConns        int32
-	DBMinConns        int32
-	DBMaxConnLifetime time.Duration
-	DBMaxConnIdleTime time.Duration
+type DatabaseConfig struct {
+	URL             string        `mapstructure:"url"`
+	MaxConns        int32         `mapstructure:"max_conns"`
+	MinConns        int32         `mapstructure:"min_conns"`
+	MaxConnLifetime time.Duration `mapstructure:"max_conn_lifetime"`
+	MaxConnIdleTime time.Duration `mapstructure:"max_conn_idle_time"`
+}
 
-	RedisURL          string
-	RedisMaxRetries   int
-	RedisPoolSize     int
-	RedisMinIdleConns int
-	RedisDialTimeout  time.Duration
-	RedisReadTimeout  time.Duration
-	RedisWriteTimeout time.Duration
+type RedisConfig struct {
+	URL           string        `mapstructure:"url"`
+	MaxRetries    int           `mapstructure:"max_retries"`
+	PoolSize      int           `mapstructure:"pool_size"`
+	MinIdleConns  int           `mapstructure:"min_idle_conns"`
+	DialTimeout   time.Duration `mapstructure:"dial_timeout"`
+	ReadTimeout   time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout  time.Duration `mapstructure:"write_timeout"`
+}
 
-	LogLevel     string
-	LogFormat    string
-	LogAddSource bool
+type LogConfig struct {
+	Level     string `mapstructure:"level"`
+	Format    string `mapstructure:"format"`
+	AddSource bool   `mapstructure:"add_source"`
+}
 
-	RateLimitRate  int
-	RateLimitBurst int
+type RateLimitConfig struct {
+	Rate  int `mapstructure:"rate"`
+	Burst int `mapstructure:"burst"`
+}
 
-	HTTPReadTimeout  time.Duration
-	HTTPWriteTimeout time.Duration
-	HTTPIdleTimeout  time.Duration
+type HTTPConfig struct {
+	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
 }
 
 // Load reads configuration using viper with the precedence:
@@ -76,14 +94,19 @@ func Load() (*Config, error) {
 		}
 	}
 
-	return loadFrom(v), nil
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("config: unmarshal: %w", err)
+	}
+
+	return &cfg, nil
 }
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.name", "sbterm-server")
 	v.SetDefault("app.version", version)
 	v.SetDefault("port", ":8080")
-	v.SetDefault("database.url", "")
+	v.SetDefault("db.url", "")
 	v.SetDefault("db.max_conns", 10)
 	v.SetDefault("db.min_conns", 0)
 	v.SetDefault("db.max_conn_lifetime", 30*time.Minute)
@@ -103,32 +126,4 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("http.read_timeout", 10*time.Second)
 	v.SetDefault("http.write_timeout", 10*time.Second)
 	v.SetDefault("http.idle_timeout", 60*time.Second)
-}
-
-func loadFrom(v *viper.Viper) *Config {
-	return &Config{
-		AppName:           v.GetString("app.name"),
-		AppVersion:        v.GetString("app.version"),
-		Port:              v.GetString("port"),
-		DatabaseURL:       v.GetString("database.url"),
-		DBMaxConns:        v.GetInt32("db.max_conns"),
-		DBMinConns:        v.GetInt32("db.min_conns"),
-		DBMaxConnLifetime: v.GetDuration("db.max_conn_lifetime"),
-		DBMaxConnIdleTime: v.GetDuration("db.max_conn_idle_time"),
-		RedisURL:          v.GetString("redis.url"),
-		RedisMaxRetries:   v.GetInt("redis.max_retries"),
-		RedisPoolSize:     v.GetInt("redis.pool_size"),
-		RedisMinIdleConns: v.GetInt("redis.min_idle_conns"),
-		RedisDialTimeout:  v.GetDuration("redis.dial_timeout"),
-		RedisReadTimeout:  v.GetDuration("redis.read_timeout"),
-		RedisWriteTimeout: v.GetDuration("redis.write_timeout"),
-		LogLevel:          v.GetString("log.level"),
-		LogFormat:         v.GetString("log.format"),
-		LogAddSource:      v.GetBool("log.add_source"),
-		RateLimitRate:     v.GetInt("rate_limit.rate"),
-		RateLimitBurst:    v.GetInt("rate_limit.burst"),
-		HTTPReadTimeout:   v.GetDuration("http.read_timeout"),
-		HTTPWriteTimeout:  v.GetDuration("http.write_timeout"),
-		HTTPIdleTimeout:   v.GetDuration("http.idle_timeout"),
-	}
 }

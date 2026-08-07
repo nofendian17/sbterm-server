@@ -23,9 +23,9 @@ func NewHealthUsecase(repo repository.HealthRepository) *healthUsecase {
 }
 
 func (u *healthUsecase) GetHealth(ctx context.Context) (*domain.HealthStatus, error) {
-	dbConnected := u.repo.Ping(ctx) == nil
 	return &domain.HealthStatus{
-		Status:      statusOK,
-		DBConnected: dbConnected,
+		Status:         statusOK,
+		DBConnected:    u.repo.Ping(ctx) == nil,
+		RedisConnected: u.repo.PingRedis(ctx) == nil,
 	}, nil
 }

@@ -14,19 +14,35 @@ import (
 
 func TestHealthUsecaseGetHealth(t *testing.T) {
 	tests := []struct {
-		name          string
-		pingErr       error
-		wantConnected bool
+		name               string
+		pingErr            error
+		pingRedisErr       error
+		wantDBConnected    bool
+		wantRedisConnected bool
 	}{
 		{
-			name:          "database connected",
-			pingErr:       nil,
-			wantConnected: true,
+			name:               "database and redis connected",
+			wantDBConnected:    true,
+			wantRedisConnected: true,
 		},
 		{
-			name:          "database unavailable",
-			pingErr:       errors.New("connection refused"),
-			wantConnected: false,
+			name:               "database unavailable",
+			pingErr:            errors.New("connection refused"),
+			wantDBConnected:    false,
+			wantRedisConnected: true,
+		},
+		{
+			name:               "redis unavailable",
+			pingRedisErr:       errors.New("connection refused"),
+			wantDBConnected:    true,
+			wantRedisConnected: false,
+		},
+		{
+			name:               "database and redis unavailable",
+			pingErr:            errors.New("db down"),
+			pingRedisErr:       errors.New("redis down"),
+			wantDBConnected:    false,
+			wantRedisConnected: false,
 		},
 	}
 
@@ -37,12 +53,14 @@ func TestHealthUsecaseGetHealth(t *testing.T) {
 
 			repo := mocks.NewMockHealthRepository(ctrl)
 			repo.EXPECT().Ping(gomock.Any()).Return(tt.pingErr)
+			repo.EXPECT().PingRedis(gomock.Any()).Return(tt.pingRedisErr)
 
 			uc := NewHealthUsecase(repo)
 			status, err := uc.GetHealth(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, statusOK, status.Status)
-			assert.Equal(t, tt.wantConnected, status.DBConnected)
+			assert.Equal(t, tt.wantDBConnected, status.DBConnected)
+			assert.Equal(t, tt.wantRedisConnected, status.RedisConnected)
 		})
 	}
 }

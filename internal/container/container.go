@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"syscall"
@@ -20,7 +21,7 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-func New(cfg *config.Config, logger log.Logger) *do.RootScope {
+func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 	injector := do.New()
 
 	do.ProvideValue(injector, cfg)
@@ -50,8 +51,22 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		)
 	})
 
+	// Construct infrastructure eagerly so that a malformed database or Redis
+	// URL fails fast at startup instead of surfacing lazily on first use.
+	// Both services are registered before this point, so the invoke below
+	// materializes them and registers their health check / shutdown hooks.
+	if _, err := do.Invoke[*database.Postgres](injector); err != nil {
+		return nil, fmt.Errorf("container: construct postgres: %w", err)
+	}
+	if _, err := do.Invoke[*cache.Redis](injector); err != nil {
+		return nil, fmt.Errorf("container: construct redis: %w", err)
+	}
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
-		return infraRepo.NewHealthRepository(do.MustInvoke[*database.Postgres](i)), nil
+		return infraRepo.NewHealthRepository(
+			do.MustInvoke[*database.Postgres](i),
+			do.MustInvoke[*cache.Redis](i),
+		), nil
 	})
 	do.MustAs[*infraRepo.HealthRepository, repository.HealthRepository](injector)
 
@@ -64,7 +79,6 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
-		_ = do.MustInvoke[*cache.Redis](i)
 		handler := do.MustInvoke[*deliveryhttp.HealthHandler](i)
 		logger := do.MustInvoke[log.Logger](i)
 		router := deliveryhttp.NewRouter(handler, logger,
@@ -78,7 +92,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		), nil
 	})
 
-	return injector
+	return injector, nil
 }
 
 func Run() error {
@@ -103,7 +117,10 @@ func Run() error {
 	)
 	log.SetDefault(logger)
 
-	injector := New(cfg, logger)
+	injector, err := New(cfg, logger)
+	if err != nil {
+		return err
+	}
 	server := do.MustInvoke[*deliveryhttp.Server](injector)
 
 	go func() {

@@ -28,7 +28,12 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.OK(w, healthResponse{
+	httpStatus := http.StatusOK
+	if !status.DBConnected || !status.RedisConnected {
+		httpStatus = http.StatusServiceUnavailable
+	}
+
+	response.Success(w, httpStatus, healthResponse{
 		Status:   status.Status,
 		Database: dbStatus(status.DBConnected),
 		Redis:    dbStatus(status.RedisConnected),

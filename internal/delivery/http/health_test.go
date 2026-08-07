@@ -17,39 +17,43 @@ import (
 
 func TestHealthHandlerHealth(t *testing.T) {
 	tests := []struct {
-		name         string
-		setup        func(uc *mocks.MockHealthUsecase)
-		wantStatus   int
-		wantDatabase string
-		wantRedis    string
-		wantErrCode  string
+		name          string
+		setup         func(uc *mocks.MockHealthUsecase)
+		wantStatus    int
+		wantStatusVal string
+		wantDatabase  string
+		wantRedis     string
+		wantErrCode   string
 	}{
 		{
-			name: "database and redis up returns 200",
+			name: "database and redis up returns 200 ok",
 			setup: func(uc *mocks.MockHealthUsecase) {
 				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil)
 			},
-			wantStatus:   http.StatusOK,
-			wantDatabase: "up",
-			wantRedis:    "up",
+			wantStatus:    http.StatusOK,
+			wantStatusVal: "ok",
+			wantDatabase:  "up",
+			wantRedis:     "up",
 		},
 		{
-			name: "database down still returns 200",
+			name: "database down returns 503 degraded",
 			setup: func(uc *mocks.MockHealthUsecase) {
-				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: false, RedisConnected: true}, nil)
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "degraded", DBConnected: false, RedisConnected: true}, nil)
 			},
-			wantStatus:   http.StatusOK,
-			wantDatabase: "down",
-			wantRedis:    "up",
+			wantStatus:    http.StatusServiceUnavailable,
+			wantStatusVal: "degraded",
+			wantDatabase:  "down",
+			wantRedis:     "up",
 		},
 		{
-			name: "redis down still returns 200",
+			name: "redis down returns 503 degraded",
 			setup: func(uc *mocks.MockHealthUsecase) {
-				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: false}, nil)
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "degraded", DBConnected: true, RedisConnected: false}, nil)
 			},
-			wantStatus:   http.StatusOK,
-			wantDatabase: "up",
-			wantRedis:    "down",
+			wantStatus:    http.StatusServiceUnavailable,
+			wantStatusVal: "degraded",
+			wantDatabase:  "up",
+			wantRedis:     "down",
 		},
 		{
 			name: "usecase error returns 500",
@@ -58,6 +62,16 @@ func TestHealthHandlerHealth(t *testing.T) {
 			},
 			wantStatus:  http.StatusInternalServerError,
 			wantErrCode: "INTERNAL_ERROR",
+		},
+		{
+			name: "both dependencies down returns 503 degraded",
+			setup: func(uc *mocks.MockHealthUsecase) {
+				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "degraded", DBConnected: false, RedisConnected: false}, nil)
+			},
+			wantStatus:    http.StatusServiceUnavailable,
+			wantStatusVal: "degraded",
+			wantDatabase:  "down",
+			wantRedis:     "down",
 		},
 	}
 
@@ -79,6 +93,7 @@ func TestHealthHandlerHealth(t *testing.T) {
 			var env struct {
 				Success bool `json:"success"`
 				Data    struct {
+					Status   string `json:"status"`
 					Database string `json:"database"`
 					Redis    string `json:"redis"`
 				} `json:"data"`
@@ -88,6 +103,9 @@ func TestHealthHandlerHealth(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
 
+			if tt.wantStatusVal != "" {
+				assert.Equal(t, tt.wantStatusVal, env.Data.Status)
+			}
 			if tt.wantDatabase != "" {
 				assert.Equal(t, tt.wantDatabase, env.Data.Database)
 			}

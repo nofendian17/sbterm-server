@@ -59,14 +59,14 @@ func TestNew(t *testing.T) {
 		check        func(t *testing.T, srv *deliveryhttp.Server)
 	}{
 		{
-			name: "dead database still serves health 200 with database down",
+			name: "dead database returns 503 degraded with database down",
 			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
 			check: func(t *testing.T, srv *deliveryhttp.Server) {
 				rec := httptest.NewRecorder()
 				req := httptest.NewRequest(http.MethodGet, "/health", nil)
 				srv.Handler().ServeHTTP(rec, req)
 
-				assert.Equal(t, http.StatusOK, rec.Code)
+				assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 
 				var env struct {
 					Data struct {
@@ -76,7 +76,7 @@ func TestNew(t *testing.T) {
 					} `json:"data"`
 				}
 				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
-				assert.Equal(t, "ok", env.Data.Status)
+				assert.Equal(t, "degraded", env.Data.Status)
 				assert.Equal(t, "down", env.Data.Database)
 				assert.Equal(t, "up", env.Data.Redis)
 			},

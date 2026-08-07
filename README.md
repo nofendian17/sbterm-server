@@ -64,7 +64,7 @@ Configuration is loaded through [viper](https://github.com/spf13/viper) with thi
 - Environment variables use the `APP_` prefix, for example `APP_PORT`, `APP_DATABASE_URL`, `APP_REDIS_URL`, `APP_RATE_LIMIT_RATE`, and `APP_RATE_LIMIT_BURST`. See `.env.example` for the full list.
 - Optional `config.yaml` can be placed at the repository root. It uses dotted/nested keys such as `port`, `database.url`, `redis.url`, `db.max_conns`, `log.level`, `rate_limit.rate`, and `http.read_timeout`. See `config.yaml.example`.
 
-The server can still run when the database is unreachable — the health endpoint reports `database: down` with HTTP 200.
+The server can still run when a dependency is unreachable — the health endpoint reports `database: down` / `redis: down` with status `degraded` and HTTP 503.
 
 ## Middleware
 
@@ -95,5 +95,5 @@ Every file with behavior should have table-driven tests using [testify](https://
 - `internal/infrastructure/database`: pgxmock for PostgreSQL wrapper behavior
 - `internal/infrastructure/cache`: miniredis for Redis wrapper behavior
 - `internal/delivery/http`: httptest + gomock `MockHealthUsecase`
-- `internal/container`: DI wiring smoke tests (dead DSN → health 200)
+- `internal/container`: DI wiring smoke tests (dead DSN → health 503 degraded)
 - `pkg/response`: response envelope + validation error behavior

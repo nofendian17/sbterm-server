@@ -1,0 +1,49 @@
+# Application metadata.
+app:
+  name: sbterm-server
+  version: dev
+
+# HTTP listen address. Use ":8080" to listen on all interfaces inside a container.
+port: ":8080"
+
+# PostgreSQL connection URL.
+# In Docker Compose, use host "postgres". When running locally, use "localhost".
+database:
+  url: postgres://postgres:postgres@localhost:5432/sbterm?sslmode=disable
+
+# PostgreSQL connection pool settings.
+db:
+  max_conns: 10
+  min_conns: 0
+  max_conn_idle_time: 5m
+  max_conn_lifetime: 30m
+
+# Redis connection URL and client settings.
+# In Docker Compose, use host "redis". When running locally, use "localhost".
+redis:
+  url: redis://localhost:6379/0
+  max_retries: 3
+  pool_size: 10
+  min_idle_conns: 0
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+
+# Logging settings.
+# format supports "text" and "json".
+log:
+  level: info
+  format: text
+  add_source: false
+
+# Per-client HTTP rate limit settings.
+# Set rate <= 0 to disable rate limiting.
+rate_limit:
+  rate: 10
+  burst: 20
+
+# HTTP server timeout settings.
+http:
+  read_timeout: 10s
+  write_timeout: 10s
+  idle_timeout: 60s

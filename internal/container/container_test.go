@@ -18,6 +18,7 @@ import (
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
+	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
@@ -164,3 +165,19 @@ func containsService(names []string, suffix string) bool {
 	}
 	return false
 }
+
+func TestStockbitClientIsAuthenticatedWhenResolvedFirst(t *testing.T) {
+	logger := log.New(log.WithWriter(io.Discard))
+	injector := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+
+	client, err := do.Invoke[*stockbit.Client](injector)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	refresher, err := do.Invoke[*stockbit.Refresher](injector)
+	require.NoError(t, err)
+	require.NotNil(t, refresher)
+
+	assert.Same(t, client, refresher.Client(), "resolving client directly must return the same authenticated instance as refresher.Client()")
+}
+

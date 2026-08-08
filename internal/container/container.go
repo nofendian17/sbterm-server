@@ -84,11 +84,7 @@ func provideRepositories(injector *do.RootScope) {
 }
 
 func provideStockbit(injector *do.RootScope) {
-	// The client is built without an authenticator; the Refresher provider
-	// below attaches itself to the client. Invoking *stockbit.Client before
-	// *stockbit.Refresher would leave the client unauthenticated, so callers
-	// must resolve the Refresher first.
-	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
+	do.Provide(injector, func(i do.Injector) (*stockbit.Refresher, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 
@@ -100,13 +96,7 @@ func provideStockbit(injector *do.RootScope) {
 		if cfg.Stockbit.BaseURL != "" {
 			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))
 		}
-		return stockbit.New(opts...), nil
-	})
-
-	do.Provide(injector, func(i do.Injector) (*stockbit.Refresher, error) {
-		cfg := do.MustInvoke[*config.Config](i)
-		logger := do.MustInvoke[log.Logger](i)
-		client := do.MustInvoke[*stockbit.Client](i)
+		client := stockbit.New(opts...)
 
 		cmd := do.MustInvoke[*cache.Redis](i).Cmdable()
 		if cmd == nil {
@@ -120,6 +110,14 @@ func provideStockbit(injector *do.RootScope) {
 		}, logger)
 		client.SetAuthenticator(refresher)
 		return refresher, nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
+		refresher, err := do.Invoke[*stockbit.Refresher](i)
+		if err != nil {
+			return nil, err
+		}
+		return refresher.Client(), nil
 	})
 }
 
@@ -213,6 +211,7 @@ func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger l
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, os.Interrupt)
+	defer signal.Stop(sigChan)
 
 	select {
 	case err := <-errChan:

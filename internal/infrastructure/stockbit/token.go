@@ -48,7 +48,13 @@ func (s *RedisTokenStore) Set(ctx context.Context, td *TokenData) error {
 	if err != nil {
 		return fmt.Errorf("stockbit: encode token: %w", err)
 	}
-	if err := s.client.Set(ctx, tokenKey, raw, 0).Err(); err != nil {
+	// Use the refresh token's expiry as the Redis TTL so stale tokens
+	// are cleaned up automatically.
+	ttl := time.Until(td.refreshExpiry())
+	if ttl <= 0 {
+		ttl = 24 * time.Hour // fallback when expiry is unknown
+	}
+	if err := s.client.Set(ctx, tokenKey, raw, ttl).Err(); err != nil {
 		return fmt.Errorf("stockbit: save token: %w", err)
 	}
 	return nil

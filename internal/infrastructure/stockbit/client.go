@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	pkghttpclient "github.com/nofendian17/sbterm-server/pkg/httpclient"
 	"github.com/nofendian17/sbterm-server/pkg/log"
@@ -222,17 +223,17 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		}
 
 		if c.logger != nil {
-			// The login request body carries the account password, so it is
-			// never logged.
 			reqBody := ""
-			if path != loginPath {
+			respBody := ""
+			if path != loginPath && path != refreshPath {
 				reqBody = truncate(string(bodyBytes))
+				respBody = truncate(string(respBytes))
 			}
 			c.logger.Debug("stockbit request",
 				"method", method, "path", path, "status", resp.StatusCode,
 				"duration", time.Since(start).Round(time.Millisecond).String(),
 				"request_body", reqBody,
-				"response_body", truncate(string(respBytes)))
+				"response_body", respBody)
 		}
 
 		if resp.StatusCode == http.StatusUnauthorized && autoAuth && attempt == 0 {
@@ -247,7 +248,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
 				method, path, resp.StatusCode, strings.TrimSpace(msg))
 			if resp.StatusCode == http.StatusUnauthorized {
-				return fmt.Errorf("%w: %v", ErrUnauthorized, err)
+				return errors.Join(ErrUnauthorized, err)
 			}
 			return err
 		}
@@ -262,10 +263,14 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	return nil
 }
 
-// truncate caps a debug-log payload to keep logs readable.
+// truncate caps a debug-log payload to keep logs readable. It cuts at a rune
+// boundary so truncated UTF-8 stays valid.
 func truncate(s string) string {
-	if len(s) > 4096 {
-		return s[:4096] + "..."
+	const max = 4096
+	if len(s) <= max {
+		return s
 	}
-	return s
+	s = s[:max]
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size] + "..."
 }

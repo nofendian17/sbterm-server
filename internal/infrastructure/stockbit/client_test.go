@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -198,21 +199,35 @@ func TestDoLogsRequestAndResponseBodies(t *testing.T) {
 	assert.Contains(t, line, `response_body="{\"id\":\"1\"}"`)
 }
 
-func TestLoginPasswordIsNotLogged(t *testing.T) {
+func TestLoginAndPasswordAndTokenAreNotLogged(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		writeLoginResponse(w, "at-1", "rt-1")
+		if r.URL.Path == loginPath {
+			writeLoginResponse(w, "secret-access-token-123", "secret-refresh-token-456")
+			return
+		}
+		if r.URL.Path == refreshPath {
+			writeRefreshResponse(w, "secret-access-token-789", "secret-refresh-token-999")
+			return
+		}
 	}))
 	defer srv.Close()
 
 	var buf strings.Builder
 	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
-	_, err := New(WithBaseURL(srv.URL), WithLogger(logger)).Login(
-		context.Background(), LoginRequest{PlayerID: "p1", User: "budi", Password: "secret"})
+	client := New(WithBaseURL(srv.URL), WithLogger(logger))
+
+	_, err := client.Login(context.Background(), LoginRequest{PlayerID: "p1", User: "budi", Password: "secret-password-123"})
 	require.NoError(t, err)
 
-	line := buf.String()
-	assert.NotContains(t, line, "secret")
-	assert.Contains(t, line, `request_body=`)
+	_, err = client.Refresh(context.Background(), "secret-refresh-token-456")
+	require.NoError(t, err)
+
+	logs := buf.String()
+	assert.NotContains(t, logs, "secret-password-123")
+	assert.NotContains(t, logs, "secret-access-token-123")
+	assert.NotContains(t, logs, "secret-refresh-token-456")
+	assert.NotContains(t, logs, "secret-access-token-789")
+	assert.NotContains(t, logs, "secret-refresh-token-999")
 }
 
 func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
@@ -225,4 +240,12 @@ func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
 	err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/stocks", nil, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUnauthorized)
+}
+
+func TestTruncateStaysAtRuneBoundary(t *testing.T) {
+	long := strings.Repeat("é", 5000)
+	out := truncate(long)
+	assert.Equal(t, "...", out[len(out)-3:])
+	assert.True(t, utf8.ValidString(out), "truncated string must stay valid UTF-8")
+	assert.Less(t, len(out), 5000)
 }

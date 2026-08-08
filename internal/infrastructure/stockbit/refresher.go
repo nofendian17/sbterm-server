@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nofendian17/sbterm-server/pkg/log"
@@ -35,10 +36,11 @@ type Refresher struct {
 	creds  Credentials
 	logger log.Logger
 
-	mu     sync.Mutex
-	skew   time.Duration
-	ctx    context.Context
-	cancel context.CancelFunc
+	mu      sync.Mutex
+	skew    time.Duration
+	ctx     context.Context
+	cancel  context.CancelFunc
+	started atomic.Bool
 }
 
 func NewRefresher(client *Client, store TokenStore, creds Credentials, logger log.Logger) *Refresher {
@@ -54,13 +56,18 @@ func NewRefresher(client *Client, store TokenStore, creds Credentials, logger lo
 	}
 }
 
+// Client returns the underlying Stockbit HTTP client.
+func (r *Refresher) Client() *Client {
+	return r.client
+}
+
 // EnsureToken returns a valid access token, refreshing or logging in if needed.
 func (r *Refresher) EnsureToken(ctx context.Context) (string, error) {
 	td, err := r.store.Get(ctx)
 	if err != nil {
 		return "", err
 	}
-	if td != nil && time.Now().Before(td.accessExpiry().Add(-r.skew)) {
+	if r.accessValid(td) {
 		return td.Access.Token, nil
 	}
 	return r.refresh(ctx, false)
@@ -73,6 +80,11 @@ func (r *Refresher) Refresh(ctx context.Context) (string, error) {
 	return r.refresh(ctx, true)
 }
 
+// accessValid reports whether the stored access token is still fresh.
+func (r *Refresher) accessValid(td *TokenData) bool {
+	return td != nil && time.Now().Before(td.accessExpiry().Add(-r.skew))
+}
+
 // refresh serializes refreshes and, unless forced, skips when another caller
 // already produced a valid token.
 func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
@@ -83,7 +95,7 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !force && td != nil && time.Now().Before(td.accessExpiry().Add(-r.skew)) {
+	if !force && r.accessValid(td) {
 		return td.Access.Token, nil
 	}
 	if td != nil && td.Refresh.Token != "" {
@@ -125,7 +137,11 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 }
 
 // Start runs the proactive refresh loop until Shutdown is called.
+// It is idempotent: calling Start more than once has no effect.
 func (r *Refresher) Start() {
+	if !r.started.CompareAndSwap(false, true) {
+		return
+	}
 	go func() {
 		backoff := backoffInitial
 		for {

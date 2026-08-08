@@ -13,19 +13,36 @@ import (
 )
 
 func TestNewServerOptions(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	srv := NewServer(handler,
-		WithAddr("127.0.0.1:0"),
-		WithReadTimeout(time.Second),
-		WithWriteTimeout(2*time.Second),
-		WithIdleTimeout(3*time.Second),
-	)
+	tests := []struct {
+		name      string
+		opts      []Option
+		wantAddr  string
+		wantRead  time.Duration
+		wantWrite time.Duration
+		wantIdle  time.Duration
+	}{
+		{
+			name:      "all options are applied",
+			opts:      []Option{WithAddr("127.0.0.1:0"), WithReadTimeout(time.Second), WithWriteTimeout(2 * time.Second), WithIdleTimeout(3 * time.Second)},
+			wantAddr:  "127.0.0.1:0",
+			wantRead:  time.Second,
+			wantWrite: 2 * time.Second,
+			wantIdle:  3 * time.Second,
+		},
+	}
 
-	assert.NotNil(t, srv.Handler())
-	assert.Equal(t, "127.0.0.1:0", srv.httpServer.Addr)
-	assert.Equal(t, time.Second, srv.httpServer.ReadTimeout)
-	assert.Equal(t, 2*time.Second, srv.httpServer.WriteTimeout)
-	assert.Equal(t, 3*time.Second, srv.httpServer.IdleTimeout)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+			srv := NewServer(handler, tt.opts...)
+
+			assert.NotNil(t, srv.Handler())
+			assert.Equal(t, tt.wantAddr, srv.httpServer.Addr)
+			assert.Equal(t, tt.wantRead, srv.httpServer.ReadTimeout)
+			assert.Equal(t, tt.wantWrite, srv.httpServer.WriteTimeout)
+			assert.Equal(t, tt.wantIdle, srv.httpServer.IdleTimeout)
+		})
+	}
 }
 
 func TestServerShutdown(t *testing.T) {

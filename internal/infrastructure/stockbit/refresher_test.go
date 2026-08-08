@@ -85,143 +85,165 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition not met before deadline")
 }
 
-func TestEnsureTokenUsesValidStoredToken(t *testing.T) {
+func TestEnsureToken(t *testing.T) {
 	ctx := context.Background()
-	store, _ := newTestStore(t)
-	require.NoError(t, store.Set(ctx, &TokenData{
-		Access:  TokenPair{Token: "at-ok", ExpiredAt: notAfter},
-		Refresh: TokenPair{Token: "rt-ok", ExpiredAt: notAfter},
-	}))
+	tests := []struct {
+		name            string
+		setup           func(t *testing.T, store TokenStore)
+		login           http.HandlerFunc
+		refresh         http.HandlerFunc
+		wantToken       string
+		wantLogins      int32
+		wantRefreshes   int32
+		wantStoredToken string
+	}{
+		{
+			name: "uses valid stored token",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					Access:  TokenPair{Token: "at-ok", ExpiredAt: notAfter},
+					Refresh: TokenPair{Token: "rt-ok", ExpiredAt: notAfter},
+				}))
+			},
+			login:     func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+			refresh:   func(w http.ResponseWriter, r *http.Request) { t.Error("refresh must not be called") },
+			wantToken: "at-ok",
+		},
+		{
+			name: "refreshes expired access token",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
+					Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
+				}))
+			},
+			login:           func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+			refresh:         func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
+			wantToken:       "at-2",
+			wantRefreshes:   1,
+			wantStoredToken: "rt-2",
+		},
+		{
+			name:       "logs in when no tokens",
+			login:      func(w http.ResponseWriter, r *http.Request) { writeLoginResponse(w, "at-1", "rt-1") },
+			refresh:    func(w http.ResponseWriter, r *http.Request) { t.Error("refresh must not be called") },
+			wantToken:  "at-1",
+			wantLogins: 1,
+		},
+		{
+			name: "falls back to login when refresh rejected",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
+					Refresh: TokenPair{Token: "rt-old", ExpiredAt: notAfter},
+				}))
+			},
+			login:         func(w http.ResponseWriter, r *http.Request) { writeLoginResponse(w, "at-3", "rt-3") },
+			refresh:       func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusUnauthorized) },
+			wantToken:     "at-3",
+			wantLogins:    1,
+			wantRefreshes: 1,
+		},
+	}
 
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
-		func(w http.ResponseWriter, r *http.Request) { t.Error("refresh must not be called") },
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, _ := newTestStore(t)
+			if tt.setup != nil {
+				tt.setup(t, store)
+			}
 
-	tok, err := newRefresher(t, as, store).EnsureToken(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "at-ok", tok)
-	assert.Equal(t, int32(0), as.logins.Load())
-	assert.Equal(t, int32(0), as.refreshes.Load())
-}
+			as := newAuthServer(t, tt.login, tt.refresh)
+			tok, err := newRefresher(t, as, store).EnsureToken(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantToken, tok)
+			assert.Equal(t, tt.wantLogins, as.logins.Load())
+			assert.Equal(t, tt.wantRefreshes, as.refreshes.Load())
 
-func TestEnsureTokenRefreshesExpiredAccessToken(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-	require.NoError(t, store.Set(ctx, &TokenData{
-		Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
-		Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
-	}))
-
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
-		func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
-	)
-
-	r := newRefresher(t, as, store)
-	tok, err := r.EnsureToken(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "at-2", tok)
-	assert.Equal(t, int32(0), as.logins.Load())
-	assert.Equal(t, int32(1), as.refreshes.Load())
-
-	td, err := store.Get(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "rt-2", td.Refresh.Token)
-}
-
-func TestEnsureTokenLogsInWhenNoTokens(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { writeLoginResponse(w, "at-1", "rt-1") },
-		func(w http.ResponseWriter, r *http.Request) { t.Error("refresh must not be called") },
-	)
-
-	r := newRefresher(t, as, store)
-	tok, err := r.EnsureToken(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "at-1", tok)
-	assert.Equal(t, int32(1), as.logins.Load())
-}
-
-func TestEnsureTokenFallsBackToLoginWhenRefreshRejected(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-	require.NoError(t, store.Set(ctx, &TokenData{
-		Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
-		Refresh: TokenPair{Token: "rt-old", ExpiredAt: notAfter},
-	}))
-
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { writeLoginResponse(w, "at-3", "rt-3") },
-		func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusUnauthorized) },
-	)
-
-	tok, err := newRefresher(t, as, store).EnsureToken(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "at-3", tok)
-	assert.Equal(t, int32(1), as.logins.Load())
-	assert.Equal(t, int32(1), as.refreshes.Load())
+			if tt.wantStoredToken != "" {
+				td, err := store.Get(ctx)
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantStoredToken, td.Refresh.Token)
+			}
+		})
+	}
 }
 
 func TestConcurrentEnsureTokenRefreshesOnce(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-	require.NoError(t, store.Set(ctx, &TokenData{
-		Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
-		Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
-	}))
+	tests := []struct {
+		name          string
+		concurrency   int
+		wantRefreshes int32
+		wantLogins    int32
+	}{
+		{name: "ten concurrent calls refresh once", concurrency: 10, wantRefreshes: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			store, _ := newTestStore(t)
+			require.NoError(t, store.Set(ctx, &TokenData{
+				Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
+				Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
+			}))
 
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
-		func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
-	)
+			as := newAuthServer(t,
+				func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+				func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
+			)
 
-	r := newRefresher(t, as, store)
+			r := newRefresher(t, as, store)
 
-	var wg sync.WaitGroup
-	errs := make(chan error, 10)
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if _, err := r.EnsureToken(ctx); err != nil {
-				errs <- err
+			var wg sync.WaitGroup
+			errs := make(chan error, tt.concurrency)
+			for i := 0; i < tt.concurrency; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if _, err := r.EnsureToken(ctx); err != nil {
+						errs <- err
+					}
+				}()
 			}
-		}()
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		t.Errorf("EnsureToken: %v", err)
-	}
+			wg.Wait()
+			close(errs)
+			for err := range errs {
+				t.Errorf("EnsureToken: %v", err)
+			}
 
-	assert.Equal(t, int32(1), as.refreshes.Load())
-	assert.Equal(t, int32(0), as.logins.Load())
+			assert.Equal(t, tt.wantRefreshes, as.refreshes.Load())
+			assert.Equal(t, tt.wantLogins, as.logins.Load())
+		})
+	}
 }
 
 func TestStartRefreshesAheadOfExpiryAndStopsOnShutdown(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-	require.NoError(t, store.Set(ctx, &TokenData{
-		Access:  TokenPair{Token: "at-old", ExpiredAt: time.Now().Add(50 * time.Millisecond).Format(time.RFC3339)},
-		Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
-	}))
+	tests := []struct {
+		name string
+	}{{name: "refreshes ahead of expiry and stops on shutdown"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			store, _ := newTestStore(t)
+			require.NoError(t, store.Set(ctx, &TokenData{
+				Access:  TokenPair{Token: "at-old", ExpiredAt: time.Now().Add(50 * time.Millisecond).Format(time.RFC3339)},
+				Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
+			}))
 
-	as := newAuthServer(t,
-		func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
-		func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
-	)
+			as := newAuthServer(t,
+				func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+				func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
+			)
 
-	r := newRefresher(t, as, store)
-	r.Start()
-	defer r.Shutdown()
+			r := newRefresher(t, as, store)
+			r.Start()
+			defer r.Shutdown()
 
-	waitFor(t, func() bool {
-		td, err := store.Get(ctx)
-		return err == nil && td != nil && td.Access.Token == "at-2"
-	})
-	assert.Equal(t, int32(1), as.refreshes.Load())
+			waitFor(t, func() bool {
+				td, err := store.Get(ctx)
+				return err == nil && td != nil && td.Access.Token == "at-2"
+			})
+			assert.Equal(t, int32(1), as.refreshes.Load())
+		})
+	}
 }

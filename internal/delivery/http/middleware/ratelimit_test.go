@@ -120,60 +120,111 @@ func TestClientIP(t *testing.T) {
 }
 
 func TestRateLimitCleanupOptions(t *testing.T) {
-	rl := NewRateLimit(
-		WithRatePerSecond(1),
-		WithBurst(1),
-		WithCleanupInterval(time.Millisecond),
-		WithClientTTL(time.Millisecond),
-	)
-	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-
-	rec := httptest.NewRecorder()
-	rl(ok).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
-
-func TestRateLimitCleanupExpired(t *testing.T) {
-	rl := &RateLimit{
-		cleanupInterval: time.Minute,
-		clientTTL:       time.Minute,
-		clients: map[string]*rateLimitClient{
-			"fresh": {limiter: nil, lastSeen: time.Now()},
-			"stale": {limiter: nil, lastSeen: time.Now().Add(-2 * time.Minute)},
+	tests := []struct {
+		name string
+		opts []Option
+	}{
+		{
+			name: "cleanup options are accepted",
+			opts: []Option{
+				WithRatePerSecond(1),
+				WithBurst(1),
+				WithCleanupInterval(time.Millisecond),
+				WithClientTTL(time.Millisecond),
+			},
 		},
 	}
 
-	rl.cleanupExpired(time.Now())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rl := NewRateLimit(tt.opts...)
+			ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 
-	assert.Contains(t, rl.clients, "fresh")
-	assert.NotContains(t, rl.clients, "stale")
+			rec := httptest.NewRecorder()
+			rl(ok).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+			assert.Equal(t, http.StatusOK, rec.Code)
+		})
+	}
+}
+
+func TestRateLimitCleanupExpired(t *testing.T) {
+	tests := []struct {
+		name    string
+		clients map[string]*rateLimitClient
+		now     time.Time
+		want    map[string]bool
+	}{
+		{
+			name: "expired clients are removed and fresh clients retained",
+			clients: map[string]*rateLimitClient{
+				"fresh": {limiter: nil, lastSeen: time.Now()},
+				"stale": {limiter: nil, lastSeen: time.Now().Add(-2 * time.Minute)},
+			},
+			now:  time.Now(),
+			want: map[string]bool{"fresh": true, "stale": false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rl := &RateLimit{
+				cleanupInterval: time.Minute,
+				clientTTL:       time.Minute,
+				clients:         tt.clients,
+			}
+
+			rl.cleanupExpired(tt.now)
+
+			for name, present := range tt.want {
+				if present {
+					assert.Contains(t, rl.clients, name)
+				} else {
+					assert.NotContains(t, rl.clients, name)
+				}
+			}
+		})
+	}
 }
 
 func TestRateLimitResponseShape(t *testing.T) {
-	rl := NewRateLimit(WithRatePerSecond(1), WithBurst(1))
-
-	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-
-	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
-	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
-
-	rec1 := httptest.NewRecorder()
-	rl(ok).ServeHTTP(rec1, req1)
-	require.Equal(t, http.StatusOK, rec1.Code)
-
-	rec2 := httptest.NewRecorder()
-	rl(ok).ServeHTTP(rec2, req2)
-	require.Equal(t, http.StatusTooManyRequests, rec2.Code)
-
-	var env struct {
-		Success bool `json:"success"`
-		Error   *struct {
-			Code string `json:"code"`
-		} `json:"error"`
+	tests := []struct {
+		name string
+		opts []Option
+	}{
+		{
+			name: "rate limited response has the expected shape",
+			opts: []Option{WithRatePerSecond(1), WithBurst(1)},
+		},
 	}
-	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &env))
-	assert.False(t, env.Success)
-	require.NotNil(t, env.Error)
-	assert.Equal(t, "TOO_MANY_REQUESTS", env.Error.Code)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rl := NewRateLimit(tt.opts...)
+
+			ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+			req1 := httptest.NewRequest(http.MethodGet, "/", nil)
+			req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			rec1 := httptest.NewRecorder()
+			rl(ok).ServeHTTP(rec1, req1)
+			require.Equal(t, http.StatusOK, rec1.Code)
+
+			rec2 := httptest.NewRecorder()
+			rl(ok).ServeHTTP(rec2, req2)
+			require.Equal(t, http.StatusTooManyRequests, rec2.Code)
+
+			var env struct {
+				Success bool `json:"success"`
+				Error   *struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &env))
+			assert.False(t, env.Success)
+			require.NotNil(t, env.Error)
+			assert.Equal(t, "TOO_MANY_REQUESTS", env.Error.Code)
+		})
+	}
 }

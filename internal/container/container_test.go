@@ -126,35 +126,74 @@ func TestNew(t *testing.T) {
 }
 
 func TestPingInfraFailsWhenDatabaseUnreachable(t *testing.T) {
-	logger := log.New(log.WithWriter(io.Discard))
-	injector := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		wantErr string
+	}{
+		{
+			name:    "dead database makes ping infra fail",
+			cfg:     testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
+			wantErr: "postgres unreachable",
+		},
+	}
 
-	err := pingInfra(injector)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "postgres unreachable")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := log.New(log.WithWriter(io.Discard))
+			injector := New(tt.cfg, logger)
+
+			err := pingInfra(injector)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestShutdownReportIncludesServices(t *testing.T) {
-	logger := log.New(log.WithWriter(io.Discard))
-	injector := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
-
-	srv, err := do.Invoke[*deliveryhttp.Server](injector)
-	require.NoError(t, err)
-	assert.NotNil(t, srv)
-
-	report := injector.ShutdownWithContext(context.Background())
-	assert.True(t, report.Succeed, "shutdown errors: %v", report.Errors)
-
-	names := make([]string, 0, len(report.Services))
-	for _, svc := range report.Services {
-		names = append(names, svc.Service)
+	tests := []struct {
+		name  string
+		cfg   *config.Config
+		wants []struct {
+			service string
+			msg     string
+		}
+	}{
+		{
+			name: "shutdown report includes http server, database, and redis",
+			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
+			wants: []struct {
+				service string
+				msg     string
+			}{
+				{service: "delivery/http.Server", msg: "shutdown report should include the http server, got: %v"},
+				{service: "database.Postgres", msg: "shutdown report should include the database, got: %v"},
+				{service: "cache.Redis", msg: "shutdown report should include redis, got: %v"},
+			},
+		},
 	}
-	assert.True(t, containsService(names, "delivery/http.Server"),
-		"shutdown report should include the http server, got: %v", names)
-	assert.True(t, containsService(names, "database.Postgres"),
-		"shutdown report should include the database, got: %v", names)
-	assert.True(t, containsService(names, "cache.Redis"),
-		"shutdown report should include redis, got: %v", names)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := log.New(log.WithWriter(io.Discard))
+			injector := New(tt.cfg, logger)
+
+			srv, err := do.Invoke[*deliveryhttp.Server](injector)
+			require.NoError(t, err)
+			assert.NotNil(t, srv)
+
+			report := injector.ShutdownWithContext(context.Background())
+			assert.True(t, report.Succeed, "shutdown errors: %v", report.Errors)
+
+			names := make([]string, 0, len(report.Services))
+			for _, svc := range report.Services {
+				names = append(names, svc.Service)
+			}
+			for _, want := range tt.wants {
+				assert.True(t, containsService(names, want.service), want.msg, names)
+			}
+		})
+	}
 }
 
 func containsService(names []string, suffix string) bool {
@@ -167,17 +206,30 @@ func containsService(names []string, suffix string) bool {
 }
 
 func TestStockbitClientIsAuthenticatedWhenResolvedFirst(t *testing.T) {
-	logger := log.New(log.WithWriter(io.Discard))
-	injector := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+	tests := []struct {
+		name string
+		cfg  *config.Config
+	}{
+		{
+			name: "resolving client directly matches refresher client",
+			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
+		},
+	}
 
-	client, err := do.Invoke[*stockbit.Client](injector)
-	require.NoError(t, err)
-	require.NotNil(t, client)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger := log.New(log.WithWriter(io.Discard))
+			injector := New(tt.cfg, logger)
 
-	refresher, err := do.Invoke[*stockbit.Refresher](injector)
-	require.NoError(t, err)
-	require.NotNil(t, refresher)
+			client, err := do.Invoke[*stockbit.Client](injector)
+			require.NoError(t, err)
+			require.NotNil(t, client)
 
-	assert.Same(t, client, refresher.Client(), "resolving client directly must return the same authenticated instance as refresher.Client()")
+			refresher, err := do.Invoke[*stockbit.Refresher](injector)
+			require.NoError(t, err)
+			require.NotNil(t, refresher)
+
+			assert.Same(t, client, refresher.Client(), "resolving client directly must return the same authenticated instance as refresher.Client()")
+		})
+	}
 }
-

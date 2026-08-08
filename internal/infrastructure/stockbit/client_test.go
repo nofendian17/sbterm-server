@@ -116,136 +116,184 @@ func TestGet(t *testing.T) {
 }
 
 func TestPost(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "POST", r.Method)
-		assert.Equal(t, "/v1/watchlist", r.URL.Path)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		body, _ := io.ReadAll(r.Body)
-		assert.JSONEq(t, `{"name":"growth"}`, string(body))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"1"}`))
-	}))
-	defer srv.Close()
-
-	var out struct {
-		ID string `json:"id"`
+	tests := []struct {
+		name string
+	}{
+		{name: "posts a json body and parses response"},
 	}
-	err := New(WithBaseURL(srv.URL)).Post(
-		context.Background(), "/v1/watchlist", strings.NewReader(`{"name":"growth"}`), &out,
-	)
-	require.NoError(t, err)
-	assert.Equal(t, "1", out.ID)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/v1/watchlist", r.URL.Path)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+				body, _ := io.ReadAll(r.Body)
+				assert.JSONEq(t, `{"name":"growth"}`, string(body))
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"id":"1"}`))
+			}))
+			defer srv.Close()
+
+			var out struct {
+				ID string `json:"id"`
+			}
+			err := New(WithBaseURL(srv.URL)).Post(
+				context.Background(), "/v1/watchlist", strings.NewReader(`{"name":"growth"}`), &out,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, "1", out.ID)
+		})
+	}
 }
 
 func TestDefaultBaseURL(t *testing.T) {
-	assert.Equal(t, "https://exodus.stockbit.com", New().baseURL)
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "is exodus.stockbit.com", want: "https://exodus.stockbit.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, New().baseURL)
+		})
+	}
 }
 
-func TestDoLogsRequestsAtDebugLevel(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
+func TestDoLogsRequests(t *testing.T) {
+	tests := []struct {
+		name    string
+		level   log.Level
+		wantLog bool
+	}{
+		{name: "logs requests at debug level", level: log.LevelDebug, wantLog: true},
+		{name: "skips requests at info level", level: log.LevelInfo, wantLog: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{}`))
+			}))
+			defer srv.Close()
 
-	var buf strings.Builder
-	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
-	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Get(
-		context.Background(), "/v1/stocks/bbca", nil, nil)
-	require.NoError(t, err)
+			var buf strings.Builder
+			logger := log.New(log.WithWriter(&buf), log.WithLevel(tt.level))
+			err := New(WithBaseURL(srv.URL), WithLogger(logger)).Get(
+				context.Background(), "/v1/stocks/bbca", nil, nil)
+			require.NoError(t, err)
 
-	line := buf.String()
-	assert.Contains(t, line, "stockbit request")
-	assert.Contains(t, line, "path=/v1/stocks/bbca")
-	assert.Contains(t, line, "status=200")
-}
-
-func TestDoLogsRequestsAtInfoLevelSkips(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
-
-	var buf strings.Builder
-	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelInfo))
-	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Get(
-		context.Background(), "/v1/stocks/bbca", nil, nil)
-	require.NoError(t, err)
-	assert.NotContains(t, buf.String(), "stockbit request")
+			line := buf.String()
+			if tt.wantLog {
+				assert.Contains(t, line, "stockbit request")
+				assert.Contains(t, line, "path=/v1/stocks/bbca")
+				assert.Contains(t, line, "status=200")
+			} else {
+				assert.NotContains(t, line, "stockbit request")
+			}
+		})
+	}
 }
 
 func TestDoLogsRequestAndResponseBodies(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		assert.JSONEq(t, `{"name":"growth"}`, string(body))
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"1"}`))
-	}))
-	defer srv.Close()
+	tests := []struct {
+		name string
+	}{{name: "logs request and response bodies at debug level"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				assert.JSONEq(t, `{"name":"growth"}`, string(body))
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"id":"1"}`))
+			}))
+			defer srv.Close()
 
-	var buf strings.Builder
-	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
-	var out struct {
-		ID string `json:"id"`
+			var buf strings.Builder
+			logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
+			var out struct {
+				ID string `json:"id"`
+			}
+			err := New(WithBaseURL(srv.URL), WithLogger(logger)).Post(
+				context.Background(), "/v1/watchlist", strings.NewReader(`{"name":"growth"}`), &out)
+			require.NoError(t, err)
+			assert.Equal(t, "1", out.ID)
+
+			line := buf.String()
+			assert.Contains(t, line, `request_body="{\"name\":\"growth\"}"`)
+			assert.Contains(t, line, `response_body="{\"id\":\"1\"}"`)
+		})
 	}
-	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Post(
-		context.Background(), "/v1/watchlist", strings.NewReader(`{"name":"growth"}`), &out)
-	require.NoError(t, err)
-	assert.Equal(t, "1", out.ID)
-
-	line := buf.String()
-	assert.Contains(t, line, `request_body="{\"name\":\"growth\"}"`)
-	assert.Contains(t, line, `response_body="{\"id\":\"1\"}"`)
 }
 
 func TestLoginAndPasswordAndTokenAreNotLogged(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == loginPath {
-			writeLoginResponse(w, "secret-access-token-123", "secret-refresh-token-456")
-			return
-		}
-		if r.URL.Path == refreshPath {
-			writeRefreshResponse(w, "secret-access-token-789", "secret-refresh-token-999")
-			return
-		}
-	}))
-	defer srv.Close()
+	tests := []struct {
+		name string
+	}{{name: "login and refresh secrets stay out of logs"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == loginPath {
+					writeLoginResponse(w, "secret-access-token-123", "secret-refresh-token-456")
+					return
+				}
+				if r.URL.Path == refreshPath {
+					writeRefreshResponse(w, "secret-access-token-789", "secret-refresh-token-999")
+					return
+				}
+			}))
+			defer srv.Close()
 
-	var buf strings.Builder
-	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
-	client := New(WithBaseURL(srv.URL), WithLogger(logger))
+			var buf strings.Builder
+			logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
+			client := New(WithBaseURL(srv.URL), WithLogger(logger))
 
-	_, err := client.Login(context.Background(), LoginRequest{PlayerID: "p1", User: "budi", Password: "secret-password-123"})
-	require.NoError(t, err)
+			_, err := client.Login(context.Background(), LoginRequest{PlayerID: "p1", User: "budi", Password: "secret-password-123"})
+			require.NoError(t, err)
 
-	_, err = client.Refresh(context.Background(), "secret-refresh-token-456")
-	require.NoError(t, err)
+			_, err = client.Refresh(context.Background(), "secret-refresh-token-456")
+			require.NoError(t, err)
 
-	logs := buf.String()
-	assert.NotContains(t, logs, "secret-password-123")
-	assert.NotContains(t, logs, "secret-access-token-123")
-	assert.NotContains(t, logs, "secret-refresh-token-456")
-	assert.NotContains(t, logs, "secret-access-token-789")
-	assert.NotContains(t, logs, "secret-refresh-token-999")
+			logs := buf.String()
+			assert.NotContains(t, logs, "secret-password-123")
+			assert.NotContains(t, logs, "secret-access-token-123")
+			assert.NotContains(t, logs, "secret-refresh-token-456")
+			assert.NotContains(t, logs, "secret-access-token-789")
+			assert.NotContains(t, logs, "secret-refresh-token-999")
+		})
+	}
 }
 
 func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"expired"}`))
-	}))
-	defer srv.Close()
+	tests := []struct {
+		name string
+	}{{name: "get returns ErrUnauthorized on 401"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"error":"expired"}`))
+			}))
+			defer srv.Close()
 
-	err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/stocks", nil, nil)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrUnauthorized)
+			err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/stocks", nil, nil)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrUnauthorized)
+		})
+	}
 }
 
 func TestTruncateStaysAtRuneBoundary(t *testing.T) {
-	long := strings.Repeat("é", 5000)
-	out := truncate(long)
-	assert.Equal(t, "...", out[len(out)-3:])
-	assert.True(t, utf8.ValidString(out), "truncated string must stay valid UTF-8")
-	assert.Less(t, len(out), 5000)
+	tests := []struct {
+		name string
+	}{{name: "truncated string stays valid utf-8"}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			long := strings.Repeat("é", 5000)
+			out := truncate(long)
+			assert.Equal(t, "...", out[len(out)-3:])
+			assert.True(t, utf8.ValidString(out), "truncated string must stay valid UTF-8")
+			assert.Less(t, len(out), 5000)
+		})
+	}
 }

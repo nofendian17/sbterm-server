@@ -164,19 +164,43 @@ func TestResponses(t *testing.T) {
 	}
 }
 
-func TestWriteJSONContentType(t *testing.T) {
-	rec := httptest.NewRecorder()
-	WriteJSON(rec, http.StatusOK, map[string]string{"a": "b"})
+func TestWriteJSON(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   int
+		body     any
+		wantType string
+		check    func(t *testing.T, rec *httptest.ResponseRecorder)
+	}{
+		{
+			name:     "sets content type and encodes body",
+			status:   http.StatusOK,
+			body:     map[string]string{"a": "b"},
+			wantType: "application/json",
+			check: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				assert.Contains(t, bytes.NewBuffer(rec.Body.Bytes()).String(), `"a":"b"`)
+			},
+		},
+		{
+			name:   "encode error returns internal server error",
+			status: http.StatusOK,
+			body:   map[string]any{"bad": make(chan struct{})},
+			check: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				assert.Equal(t, http.StatusInternalServerError, rec.Code)
+				assert.Equal(t, "text/plain; charset=utf-8", rec.Header().Get("Content-Type"))
+				assert.Contains(t, rec.Body.String(), http.StatusText(http.StatusInternalServerError))
+			},
+		},
+	}
 
-	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-	assert.Contains(t, bytes.NewBuffer(rec.Body.Bytes()).String(), `"a":"b"`)
-}
-
-func TestWriteJSONEncodeError(t *testing.T) {
-	rec := httptest.NewRecorder()
-	WriteJSON(rec, http.StatusOK, map[string]any{"bad": make(chan struct{})})
-
-	assert.Equal(t, http.StatusInternalServerError, rec.Code)
-	assert.Equal(t, "text/plain; charset=utf-8", rec.Header().Get("Content-Type"))
-	assert.Contains(t, rec.Body.String(), http.StatusText(http.StatusInternalServerError))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			WriteJSON(rec, tt.status, tt.body)
+			if tt.wantType != "" {
+				assert.Equal(t, tt.wantType, rec.Header().Get("Content-Type"))
+			}
+			tt.check(t, rec)
+		})
+	}
 }

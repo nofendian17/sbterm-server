@@ -123,12 +123,23 @@ func TestLogger(t *testing.T) {
 }
 
 func TestSlogEscapeHatch(t *testing.T) {
-	var buf bytes.Buffer
-	l := New(WithWriter(&buf))
+	tests := []struct {
+		name string
+		msg  string
+	}{
+		{name: "writes through the underlying slog logger", msg: "raw-slog-msg"},
+	}
 
-	s := l.Slog()
-	require.NotNil(t, s, "Slog() returned nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			l := New(WithWriter(&buf))
 
-	s.Info("raw-slog-msg")
-	assert.Contains(t, buf.String(), "raw-slog-msg")
+			s := l.Slog()
+			require.NotNil(t, s, "Slog() returned nil")
+
+			s.Info(tt.msg)
+			assert.Contains(t, buf.String(), tt.msg)
+		})
+	}
 }

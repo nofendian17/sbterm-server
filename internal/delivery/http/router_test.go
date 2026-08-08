@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/mocks"
 	"github.com/nofendian17/sbterm-server/pkg/log"
-	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 )
 
 func TestRouter(t *testing.T) {
@@ -70,21 +70,35 @@ func TestRouter(t *testing.T) {
 }
 
 func TestRouterRateLimit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	tests := []struct {
+		name      string
+		wantCodes []int
+	}{
+		{
+			name:      "requests beyond burst are rejected",
+			wantCodes: []int{http.StatusOK, http.StatusTooManyRequests},
+		},
+	}
 
-	uc := mocks.NewMockHealthUsecase(ctrl)
-	uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	logger := log.New(log.WithWriter(io.Discard))
-	router := NewRouter(health.NewHealthHandler(uc), logger, WithRateLimit(1, 1))
+			uc := mocks.NewMockHealthUsecase(ctrl)
+			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
-	rec1 := httptest.NewRecorder()
-	router.ServeHTTP(rec1, httptest.NewRequest(http.MethodGet, "/health", nil))
-	assert.Equal(t, http.StatusOK, rec1.Code)
+			logger := log.New(log.WithWriter(io.Discard))
+			router := NewRouter(health.NewHealthHandler(uc), logger, WithRateLimit(1, 1))
 
-	rec2 := httptest.NewRecorder()
-	router.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/health", nil))
-	assert.Equal(t, http.StatusTooManyRequests, rec2.Code)
-	assert.Equal(t, "1", rec2.Header().Get("Retry-After"))
+			for _, want := range tt.wantCodes {
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+				assert.Equal(t, want, rec.Code)
+				if want == http.StatusTooManyRequests {
+					assert.Equal(t, "1", rec.Header().Get("Retry-After"))
+				}
+			}
+		})
+	}
 }

@@ -26,51 +26,70 @@ func (f doerFunc) Do(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestClientWithHTTPClient(t *testing.T) {
-	var called atomic.Bool
-	c := NewClient(WithHTTPClient(doerFunc(func(req *http.Request) (*http.Response, error) {
-		called.Store(true)
-		assert.Equal(t, http.MethodGet, req.Method)
-		return &http.Response{
-			StatusCode: http.StatusAccepted,
-			Body:       io.NopCloser(strings.NewReader("custom")),
-			Header:     make(http.Header),
-			Request:    req,
-		}, nil
-	})))
+func TestClientOptions(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(t *testing.T)
+	}{
+		{
+			name: "with http client uses injected doer",
+			call: func(t *testing.T) {
+				var called atomic.Bool
+				c := NewClient(WithHTTPClient(doerFunc(func(req *http.Request) (*http.Response, error) {
+					called.Store(true)
+					assert.Equal(t, http.MethodGet, req.Method)
+					return &http.Response{
+						StatusCode: http.StatusAccepted,
+						Body:       io.NopCloser(strings.NewReader("custom")),
+						Header:     make(http.Header),
+						Request:    req,
+					}, nil
+				})))
 
-	res, err := c.Do(httptest.NewRequest(http.MethodGet, "http://example.com", nil))
-	require.NoError(t, err)
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
+				res, err := c.Do(httptest.NewRequest(http.MethodGet, "http://example.com", nil))
+				require.NoError(t, err)
+				defer res.Body.Close()
+				body, err := io.ReadAll(res.Body)
+				require.NoError(t, err)
 
-	assert.True(t, called.Load())
-	assert.Equal(t, http.StatusAccepted, res.StatusCode)
-	assert.Equal(t, "custom", string(body))
-}
+				assert.True(t, called.Load())
+				assert.Equal(t, http.StatusAccepted, res.StatusCode)
+				assert.Equal(t, "custom", string(body))
+			},
+		},
+		{
+			name: "with timeout aborts slow responses",
+			call: func(t *testing.T) {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					time.Sleep(50 * time.Millisecond)
+					fmt.Fprint(w, "late")
+				}))
+				defer srv.Close()
 
-func TestClientWithTimeout(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(50 * time.Millisecond)
-		fmt.Fprint(w, "late")
-	}))
-	defer srv.Close()
+				c := NewClient(WithTimeout(time.Millisecond))
+				_, err := c.Get(srv.URL, nil)
+				assert.Error(t, err)
+			},
+		},
+		{
+			name: "with exponential backoff retries",
+			call: func(t *testing.T) {
+				c := NewClient(
+					WithRetryCount(1),
+					WithExponentialBackoff(time.Millisecond, 2*time.Millisecond, 2, time.Millisecond),
+				)
+				req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1", nil)
+				_, err := c.Do(req)
+				assert.Error(t, err)
+			},
+		},
+	}
 
-	c := NewClient(WithTimeout(time.Millisecond))
-	_, err := c.Get(srv.URL, nil)
-	assert.Error(t, err)
-}
-
-func TestClientWithExponentialBackoff(t *testing.T) {
-	c := NewClient(
-		WithRetryCount(1),
-		WithExponentialBackoff(time.Millisecond, 2*time.Millisecond, 2, time.Millisecond),
-	)
-
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:1", nil)
-	_, err := c.Do(req)
-	assert.Error(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.call(t)
+		})
+	}
 }
 
 func TestClient(t *testing.T) {

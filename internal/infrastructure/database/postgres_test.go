@@ -13,20 +13,28 @@ import (
 )
 
 func TestOptionsApply(t *testing.T) {
-	cfg, err := pgxpool.ParseConfig("postgres://user:pass@localhost:5432/db?sslmode=disable")
-	require.NoError(t, err)
+	tests := []struct {
+		name string
+		opt  Option
+		want func(t *testing.T, cfg *pgxpool.Config)
+	}{
+		{name: "max conns", opt: WithMaxConns(20), want: func(t *testing.T, cfg *pgxpool.Config) { assert.Equal(t, int32(20), cfg.MaxConns) }},
+		{name: "min conns", opt: WithMinConns(2), want: func(t *testing.T, cfg *pgxpool.Config) { assert.Equal(t, int32(2), cfg.MinConns) }},
+		{name: "max conn lifetime", opt: WithMaxConnLifetime(time.Hour), want: func(t *testing.T, cfg *pgxpool.Config) { assert.Equal(t, time.Hour, cfg.MaxConnLifetime) }},
+		{name: "max conn idle time", opt: WithMaxConnIdleTime(10 * time.Minute), want: func(t *testing.T, cfg *pgxpool.Config) { assert.Equal(t, 10*time.Minute, cfg.MaxConnIdleTime) }},
+	}
 
-	o := &options{}
-	WithMaxConns(20)(o)
-	WithMinConns(2)(o)
-	WithMaxConnLifetime(time.Hour)(o)
-	WithMaxConnIdleTime(10 * time.Minute)(o)
-	o.apply(cfg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := pgxpool.ParseConfig("postgres://user:pass@localhost:5432/db?sslmode=disable")
+			require.NoError(t, err)
 
-	assert.Equal(t, int32(20), cfg.MaxConns)
-	assert.Equal(t, int32(2), cfg.MinConns)
-	assert.Equal(t, time.Hour, cfg.MaxConnLifetime)
-	assert.Equal(t, 10*time.Minute, cfg.MaxConnIdleTime)
+			o := &options{}
+			tt.opt(o)
+			o.apply(cfg)
+			tt.want(t, cfg)
+		})
+	}
 }
 
 func TestNew(t *testing.T) {
@@ -134,9 +142,19 @@ func TestHealthCheck(t *testing.T) {
 }
 
 func TestShutdown(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	require.NoError(t, err)
+	tests := []struct {
+		name string
+	}{
+		{name: "shutdown succeeds"},
+	}
 
-	pg := NewWithPool(mock)
-	assert.NoError(t, pg.Shutdown())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, err := pgxmock.NewPool()
+			require.NoError(t, err)
+
+			pg := NewWithPool(mock)
+			assert.NoError(t, pg.Shutdown())
+		})
+	}
 }

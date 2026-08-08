@@ -19,34 +19,65 @@ func newTestStore(t *testing.T) (*RedisTokenStore, *miniredis.Miniredis) {
 	return NewRedisTokenStore(client), srv
 }
 
-func TestRedisTokenStoreRoundTrip(t *testing.T) {
+func TestRedisTokenStore(t *testing.T) {
 	ctx := context.Background()
-	store, _ := newTestStore(t)
-
-	td := &TokenData{
-		Access:  TokenPair{Token: "at1", ExpiredAt: "2026-01-01T00:00:00Z"},
-		Refresh: TokenPair{Token: "rt1", ExpiredAt: "2026-02-01T00:00:00Z"},
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, store *RedisTokenStore)
+		want  *TokenData
+	}{
+		{
+			name: "round trips a token",
+			setup: func(t *testing.T, store *RedisTokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					Access:  TokenPair{Token: "at1", ExpiredAt: "2026-01-01T00:00:00Z"},
+					Refresh: TokenPair{Token: "rt1", ExpiredAt: "2026-02-01T00:00:00Z"},
+				}))
+			},
+			want: &TokenData{
+				Access:  TokenPair{Token: "at1", ExpiredAt: "2026-01-01T00:00:00Z"},
+				Refresh: TokenPair{Token: "rt1", ExpiredAt: "2026-02-01T00:00:00Z"},
+			},
+		},
+		{
+			name: "returns nil when empty",
+			want: nil,
+		},
 	}
-	require.NoError(t, store.Set(ctx, td))
 
-	got, err := store.Get(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, got)
-	assert.Equal(t, td, got)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, _ := newTestStore(t)
+			if tt.setup != nil {
+				tt.setup(t, store)
+			}
 
-func TestRedisTokenStoreGetEmpty(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t)
-
-	got, err := store.Get(ctx)
-	require.NoError(t, err)
-	assert.Nil(t, got)
+			got, err := store.Get(ctx)
+			require.NoError(t, err)
+			if tt.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func TestParseExpiry(t *testing.T) {
-	got := parseExpiry("2026-01-01T00:00:00Z")
-	assert.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), got)
-	assert.True(t, parseExpiry("").IsZero())
-	assert.True(t, parseExpiry("garbage").IsZero())
+	tests := []struct {
+		name  string
+		input string
+		want  time.Time
+	}{
+		{name: "parses a valid timestamp", input: "2026-01-01T00:00:00Z", want: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)},
+		{name: "empty string returns zero time", input: "", want: time.Time{}},
+		{name: "invalid string returns zero time", input: "garbage", want: time.Time{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseExpiry(tt.input))
+		})
+	}
 }

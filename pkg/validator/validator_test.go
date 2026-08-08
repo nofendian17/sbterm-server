@@ -82,12 +82,23 @@ func TestValidate(t *testing.T) {
 }
 
 func TestValidateNonStruct(t *testing.T) {
-	v := New()
-	err := v.Validate("not a struct")
+	tests := []struct {
+		name string
+		in   any
+	}{
+		{name: "string input is rejected", in: "not a struct"},
+	}
 
-	require.Error(t, err)
-	_, ok := AsValidationError(err)
-	assert.False(t, ok, "non-struct input should not produce *ValidationError")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := New()
+			err := v.Validate(tt.in)
+
+			require.Error(t, err)
+			_, ok := AsValidationError(err)
+			assert.False(t, ok, "non-struct input should not produce *ValidationError")
+		})
+	}
 }
 
 func TestValidationErrorError(t *testing.T) {
@@ -119,15 +130,33 @@ func TestValidationErrorError(t *testing.T) {
 }
 
 func TestAsValidationError(t *testing.T) {
-	ve := &ValidationError{Fields: map[string]string{"a": "b"}}
-	var target *ValidationError
-	require.True(t, errors.As(ve, &target))
-	assert.Equal(t, ve, target)
+	tests := []struct {
+		name string
+		err  error
+		want *ValidationError
+	}{
+		{
+			name: "matches validation error",
+			err:  &ValidationError{Fields: map[string]string{"a": "b"}},
+			want: &ValidationError{Fields: map[string]string{"a": "b"}},
+		},
+		{
+			name: "does not match plain error",
+			err:  errors.New("plain"),
+		},
+	}
 
-	assert.False(t, func() bool {
-		var out *ValidationError
-		return errors.As(errors.New("plain"), &out)
-	}())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var target *ValidationError
+			if tt.want != nil {
+				require.True(t, errors.As(tt.err, &target))
+				assert.Equal(t, tt.want, target)
+				return
+			}
+			assert.False(t, errors.As(tt.err, &target))
+		})
+	}
 }
 
 func TestValidateWithOptions(t *testing.T) {
@@ -137,26 +166,46 @@ func TestValidateWithOptions(t *testing.T) {
 			ID string `form:"id" validate:"required"`
 		} `form:"meta" validate:"required"`
 	}
+	type disabled struct {
+		Meta struct{} `json:"meta" validate:"required"`
+	}
 
-	t.Run("custom tag name", func(t *testing.T) {
-		v := New(WithTagName("form"))
-		err := v.Validate(payload{})
+	tests := []struct {
+		name       string
+		opts       []Option
+		in         any
+		wantFields map[string]string // nil means expect success
+	}{
+		{
+			name:       "custom tag name",
+			opts:       []Option{WithTagName("form")},
+			in:         payload{},
+			wantFields: map[string]string{"display_name": "is required"},
+		},
+		{
+			name: "required struct can be disabled",
+			opts: []Option{WithRequiredStructEnabled(false)},
+			in:   disabled{},
+		},
+	}
 
-		ve, ok := AsValidationError(err)
-		require.True(t, ok)
-		assert.Equal(t, "is required", ve.Fields["display_name"])
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := New(tt.opts...)
+			err := v.Validate(tt.in)
 
-	t.Run("required struct can be disabled", func(t *testing.T) {
-		type input struct {
-			Meta struct{} `json:"meta" validate:"required"`
-		}
+			if tt.wantFields == nil {
+				assert.NoError(t, err)
+				return
+			}
 
-		v := New(WithRequiredStructEnabled(false))
-		err := v.Validate(input{})
-
-		assert.NoError(t, err)
-	})
+			ve, ok := AsValidationError(err)
+			require.True(t, ok)
+			for field, want := range tt.wantFields {
+				assert.Equal(t, want, ve.Fields[field])
+			}
+		})
+	}
 }
 
 func TestValidateMessageTags(t *testing.T) {
@@ -169,26 +218,42 @@ func TestValidateMessageTags(t *testing.T) {
 		Even  int    `json:"even" validate:"oneof=2 4 6"`
 	}
 
-	v := New()
-	err := v.Validate(payload{
-		Short: "ab",
-		Long:  "abcd",
-		Code:  "abc",
-		URL:   "not-url",
-		ID:    "not-uuid",
-		Even:  3,
-	})
+	tests := []struct {
+		name string
+		in   any
+		want map[string]string
+	}{
+		{
+			name: "built-in tags produce friendly messages",
+			in: payload{
+				Short: "ab",
+				Long:  "abcd",
+				Code:  "abc",
+				URL:   "not-url",
+				ID:    "not-uuid",
+				Even:  3,
+			},
+			want: map[string]string{
+				"short": "must be at least 3",
+				"long":  "must be at most 3",
+				"code":  "must be exactly 4 characters",
+				"url":   "must be a valid URL",
+				"id":    "must be a valid UUID",
+				"even":  "must be one of: 2 4 6",
+			},
+		},
+	}
 
-	ve, ok := AsValidationError(err)
-	require.True(t, ok)
-	assert.Equal(t, map[string]string{
-		"short": "must be at least 3",
-		"long":  "must be at most 3",
-		"code":  "must be exactly 4 characters",
-		"url":   "must be a valid URL",
-		"id":    "must be a valid UUID",
-		"even":  "must be one of: 2 4 6",
-	}, ve.Fields)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := New()
+			err := v.Validate(tt.in)
+
+			ve, ok := AsValidationError(err)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, ve.Fields)
+		})
+	}
 }
 
 func TestValidateDefaultMessage(t *testing.T) {
@@ -196,10 +261,26 @@ func TestValidateDefaultMessage(t *testing.T) {
 		Value string `json:"value" validate:"startswith=APP_"`
 	}
 
-	v := New()
-	err := v.Validate(payload{Value: "NOPE"})
+	tests := []struct {
+		name string
+		in   any
+		want map[string]string
+	}{
+		{
+			name: "unknown tag yields default message",
+			in:   payload{Value: "NOPE"},
+			want: map[string]string{"value": `failed on validation tag "startswith"`},
+		},
+	}
 
-	ve, ok := AsValidationError(err)
-	require.True(t, ok)
-	assert.Equal(t, map[string]string{"value": "failed on validation tag \"startswith\""}, ve.Fields)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := New()
+			err := v.Validate(tt.in)
+
+			ve, ok := AsValidationError(err)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, ve.Fields)
+		})
+	}
 }

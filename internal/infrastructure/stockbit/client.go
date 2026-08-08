@@ -2,6 +2,7 @@
 package stockbit
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,6 +19,13 @@ import (
 
 // defaultBaseURL is the third-party endpoint the client talks to.
 const defaultBaseURL = "https://exodus.stockbit.com"
+
+// Authenticator supplies a valid access token, refreshing as needed. It is
+// implemented by *Refresher and faked in tests.
+type Authenticator interface {
+	EnsureToken(ctx context.Context) (string, error)
+	Refresh(ctx context.Context) (string, error)
+}
 
 // ErrUnauthorized marks responses whose bearer token was rejected (HTTP 401).
 var ErrUnauthorized = errors.New("stockbit: unauthorized")
@@ -36,11 +44,12 @@ var defaultHeaders = map[string]string{
 type Option func(*options)
 
 type options struct {
-	baseURL     string
-	timeout     time.Duration
-	retryCount  int
-	doer        pkghttpclient.Doer
-	headers     map[string]string
+	baseURL    string
+	timeout    time.Duration
+	retryCount int
+	doer       pkghttpclient.Doer
+	headers    map[string]string
+	auth       Authenticator
 }
 
 func WithBaseURL(u string) Option {
@@ -68,10 +77,18 @@ func WithHeader(name, value string) Option {
 	}
 }
 
+// WithAuthenticator enables automatic bearer-token management: requests get an
+// Authorization header (except the login endpoint, which has no token), and a
+// 401 response triggers one refresh-and-retry.
+func WithAuthenticator(a Authenticator) Option {
+	return func(o *options) { o.auth = a }
+}
+
 type Client struct {
 	h       pkghttpclient.Client
 	baseURL string
 	headers map[string]string
+	auth    Authenticator
 }
 
 func New(opts ...Option) *Client {
@@ -99,6 +116,7 @@ func New(opts ...Option) *Client {
 		h:       pkghttpclient.NewClient(copts...),
 		baseURL: strings.TrimRight(o.baseURL, "/"),
 		headers: o.headers,
+		auth:    o.auth,
 	}
 }
 
@@ -125,37 +143,85 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		u.RawQuery = query.Encode()
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
-	if err != nil {
-		return fmt.Errorf("stockbit: build request: %w", err)
-	}
-	for name, value := range c.headers {
-		req.Header.Set(name, value)
-	}
-	for name, value := range extra {
-		req.Header.Set(name, value)
-	}
-
-	resp, err := c.h.Do(req)
-	if err != nil {
-		return fmt.Errorf("stockbit: request %s %s: %w", method, path, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
-			method, path, resp.StatusCode, strings.TrimSpace(string(msg)))
-		if resp.StatusCode == http.StatusUnauthorized {
-			return fmt.Errorf("%w: %v", ErrUnauthorized, err)
+	// Buffer the body so the request can be rebuilt for a 401 retry.
+	var bodyBytes []byte
+	if body != nil {
+		if bodyBytes, err = io.ReadAll(body); err != nil {
+			return fmt.Errorf("stockbit: read body: %w", err)
 		}
-		return err
 	}
 
-	if out != nil {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return fmt.Errorf("stockbit: decode %s %s: %w", method, path, err)
+	build := func(access string) (*http.Request, error) {
+		var rd io.Reader
+		if bodyBytes != nil {
+			rd = bytes.NewReader(bodyBytes)
 		}
+		req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
+		if err != nil {
+			return nil, fmt.Errorf("stockbit: build request: %w", err)
+		}
+		for name, value := range c.headers {
+			req.Header.Set(name, value)
+		}
+		if access != "" {
+			req.Header.Set("Authorization", "Bearer "+access)
+		}
+		for name, value := range extra {
+			req.Header.Set(name, value)
+		}
+		return req, nil
+	}
+
+	_, explicitAuth := extra["Authorization"]
+	autoAuth := c.auth != nil && path != loginPath && !explicitAuth
+
+	attempts := 1
+	if autoAuth {
+		attempts = 2
+	}
+	for attempt := 0; attempt < attempts; attempt++ {
+		var access string
+		if autoAuth {
+			if access, err = c.auth.EnsureToken(ctx); err != nil {
+				return fmt.Errorf("stockbit: authenticate %s %s: %w", method, path, err)
+			}
+		}
+
+		req, err := build(access)
+		if err != nil {
+			return err
+		}
+
+		resp, err := c.h.Do(req)
+		if err != nil {
+			return fmt.Errorf("stockbit: request %s %s: %w", method, path, err)
+		}
+
+		if resp.StatusCode == http.StatusUnauthorized && autoAuth && attempt == 0 {
+			resp.Body.Close()
+			if _, err := c.auth.Refresh(ctx); err != nil {
+				return fmt.Errorf("stockbit: %s %s: unauthorized and refresh failed: %w", method, path, err)
+			}
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+			err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
+				method, path, resp.StatusCode, strings.TrimSpace(string(msg)))
+			if resp.StatusCode == http.StatusUnauthorized {
+				return fmt.Errorf("%w: %v", ErrUnauthorized, err)
+			}
+			return err
+		}
+
+		if out != nil {
+			if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+				return fmt.Errorf("stockbit: decode %s %s: %w", method, path, err)
+			}
+		}
+		return nil
 	}
 	return nil
 }

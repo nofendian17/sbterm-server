@@ -214,25 +214,38 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			}
 			return fmt.Errorf("stockbit: request %s %s: %w", method, path, err)
 		}
+
+		respBytes, rerr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if rerr != nil {
+			return fmt.Errorf("stockbit: read response %s %s: %w", method, path, rerr)
+		}
+
 		if c.logger != nil {
+			// The login request body carries the account password, so it is
+			// never logged.
+			reqBody := ""
+			if path != loginPath {
+				reqBody = truncate(string(bodyBytes))
+			}
 			c.logger.Debug("stockbit request",
 				"method", method, "path", path, "status", resp.StatusCode,
-				"duration", time.Since(start).Round(time.Millisecond).String())
+				"duration", time.Since(start).Round(time.Millisecond).String(),
+				"request_body", reqBody,
+				"response_body", truncate(string(respBytes)))
 		}
 
 		if resp.StatusCode == http.StatusUnauthorized && autoAuth && attempt == 0 {
-			resp.Body.Close()
 			if _, err := c.auth.Refresh(ctx); err != nil {
 				return fmt.Errorf("stockbit: %s %s: unauthorized and refresh failed: %w", method, path, err)
 			}
 			continue
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+			msg := truncate(string(respBytes))
 			err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
-				method, path, resp.StatusCode, strings.TrimSpace(string(msg)))
+				method, path, resp.StatusCode, strings.TrimSpace(msg))
 			if resp.StatusCode == http.StatusUnauthorized {
 				return fmt.Errorf("%w: %v", ErrUnauthorized, err)
 			}
@@ -240,11 +253,19 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		}
 
 		if out != nil {
-			if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+			if err := json.Unmarshal(respBytes, out); err != nil {
 				return fmt.Errorf("stockbit: decode %s %s: %w", method, path, err)
 			}
 		}
 		return nil
 	}
 	return nil
+}
+
+// truncate caps a debug-log payload to keep logs readable.
+func truncate(s string) string {
+	if len(s) > 4096 {
+		return s[:4096] + "..."
+	}
+	return s
 }

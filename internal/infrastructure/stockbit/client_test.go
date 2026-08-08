@@ -174,6 +174,47 @@ func TestDoLogsRequestsAtInfoLevelSkips(t *testing.T) {
 	assert.NotContains(t, buf.String(), "stockbit request")
 }
 
+func TestDoLogsRequestAndResponseBodies(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		assert.JSONEq(t, `{"name":"growth"}`, string(body))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"1"}`))
+	}))
+	defer srv.Close()
+
+	var buf strings.Builder
+	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
+	var out struct {
+		ID string `json:"id"`
+	}
+	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Post(
+		context.Background(), "/v1/watchlist", strings.NewReader(`{"name":"growth"}`), &out)
+	require.NoError(t, err)
+	assert.Equal(t, "1", out.ID)
+
+	line := buf.String()
+	assert.Contains(t, line, `request_body="{\"name\":\"growth\"}"`)
+	assert.Contains(t, line, `response_body="{\"id\":\"1\"}"`)
+}
+
+func TestLoginPasswordIsNotLogged(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeLoginResponse(w, "at-1", "rt-1")
+	}))
+	defer srv.Close()
+
+	var buf strings.Builder
+	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
+	_, err := New(WithBaseURL(srv.URL), WithLogger(logger)).Login(
+		context.Background(), LoginRequest{PlayerID: "p1", User: "budi", Password: "secret"})
+	require.NoError(t, err)
+
+	line := buf.String()
+	assert.NotContains(t, line, "secret")
+	assert.Contains(t, line, `request_body=`)
+}
+
 func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

@@ -29,6 +29,12 @@ redis:
   read_timeout: 3s
   write_timeout: 3s
 
+# Exodus Stockbit REST API client settings.
+stockbit:
+  base_url: https://exodus.stockbit.com
+  timeout: 30s
+  retry_count: 3
+
 # Logging settings.
 # format supports "text" and "json".
 log:

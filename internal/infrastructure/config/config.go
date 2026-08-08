@@ -26,6 +26,7 @@ type Config struct {
 	Port      string          `mapstructure:"port"`
 	Database  DatabaseConfig  `mapstructure:"db"`
 	Redis     RedisConfig     `mapstructure:"redis"`
+	Stockbit  StockbitConfig  `mapstructure:"stockbit"`
 	Log       LogConfig       `mapstructure:"log"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
 	HTTP      HTTPConfig      `mapstructure:"http"`
@@ -45,13 +46,19 @@ type DatabaseConfig struct {
 }
 
 type RedisConfig struct {
-	URL           string        `mapstructure:"url"`
-	MaxRetries    int           `mapstructure:"max_retries"`
-	PoolSize      int           `mapstructure:"pool_size"`
-	MinIdleConns  int           `mapstructure:"min_idle_conns"`
-	DialTimeout   time.Duration `mapstructure:"dial_timeout"`
-	ReadTimeout   time.Duration `mapstructure:"read_timeout"`
-	WriteTimeout  time.Duration `mapstructure:"write_timeout"`
+	URL          string        `mapstructure:"url"`
+	MaxRetries   int           `mapstructure:"max_retries"`
+	PoolSize     int           `mapstructure:"pool_size"`
+	MinIdleConns int           `mapstructure:"min_idle_conns"`
+	DialTimeout  time.Duration `mapstructure:"dial_timeout"`
+	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout time.Duration `mapstructure:"write_timeout"`
+}
+
+type StockbitConfig struct {
+	BaseURL    string        `mapstructure:"base_url"`
+	Timeout    time.Duration `mapstructure:"timeout"`
+	RetryCount int           `mapstructure:"retry_count"`
 }
 
 type LogConfig struct {
@@ -118,6 +125,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.dial_timeout", 5*time.Second)
 	v.SetDefault("redis.read_timeout", 3*time.Second)
 	v.SetDefault("redis.write_timeout", 3*time.Second)
+	v.SetDefault("stockbit.base_url", "https://exodus.stockbit.com")
+	v.SetDefault("stockbit.timeout", 30*time.Second)
+	v.SetDefault("stockbit.retry_count", 3)
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

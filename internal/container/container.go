@@ -17,6 +17,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/database"
 	infraRepo "github.com/nofendian17/sbterm-server/internal/infrastructure/repository"
+	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	"github.com/nofendian17/sbterm-server/internal/repository"
 	"github.com/nofendian17/sbterm-server/internal/usecase"
 	"github.com/nofendian17/sbterm-server/pkg/log"
@@ -67,6 +68,17 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		return infraRepo.NewTxManager(do.MustInvoke[*database.Postgres](i)), nil
 	})
 	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
+
+	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
+		opts := []stockbit.Option{
+			stockbit.WithTimeout(cfg.Stockbit.Timeout),
+			stockbit.WithRetryCount(cfg.Stockbit.RetryCount),
+		}
+		if cfg.Stockbit.BaseURL != "" {
+			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))
+		}
+		return stockbit.New(opts...), nil
+	})
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
 		return infraRepo.NewHealthRepository(

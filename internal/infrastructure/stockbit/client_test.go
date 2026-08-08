@@ -137,3 +137,15 @@ func TestPost(t *testing.T) {
 func TestDefaultBaseURL(t *testing.T) {
 	assert.Equal(t, "https://exodus.stockbit.com", New().baseURL)
 }
+
+func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"expired"}`))
+	}))
+	defer srv.Close()
+
+	err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/stocks", nil, nil)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrUnauthorized)
+}

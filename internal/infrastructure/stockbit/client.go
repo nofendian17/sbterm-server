@@ -4,6 +4,7 @@ package stockbit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -17,6 +18,9 @@ import (
 
 // defaultBaseURL is the third-party endpoint the client talks to.
 const defaultBaseURL = "https://exodus.stockbit.com"
+
+// ErrUnauthorized marks responses whose bearer token was rejected (HTTP 401).
+var ErrUnauthorized = errors.New("stockbit: unauthorized")
 
 // defaultHeaders are sent with every request. Individual values can be
 // overridden through WithHeader.
@@ -140,8 +144,12 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
+		err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
 			method, path, resp.StatusCode, strings.TrimSpace(string(msg)))
+		if resp.StatusCode == http.StatusUnauthorized {
+			return fmt.Errorf("%w: %v", ErrUnauthorized, err)
+		}
+		return err
 	}
 
 	if out != nil {

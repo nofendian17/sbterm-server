@@ -27,10 +27,14 @@ redis:
   write_timeout: 3s
 
 # Exodus Stockbit REST API client settings.
+# player_id, username, and password are used to obtain and refresh the token.
 stockbit:
   base_url: https://exodus.stockbit.com
   timeout: 30s
   retry_count: 3
+  player_id: ""
+  username: ""
+  password: ""
 
 # Logging settings.
 # format supports "text" and "json".

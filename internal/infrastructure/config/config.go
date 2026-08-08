@@ -59,6 +59,9 @@ type StockbitConfig struct {
 	BaseURL    string        `mapstructure:"base_url"`
 	Timeout    time.Duration `mapstructure:"timeout"`
 	RetryCount int           `mapstructure:"retry_count"`
+	PlayerID   string        `mapstructure:"player_id"`
+	Username   string        `mapstructure:"username"`
+	Password   string        `mapstructure:"password"`
 }
 
 type LogConfig struct {
@@ -128,6 +131,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stockbit.base_url", "https://exodus.stockbit.com")
 	v.SetDefault("stockbit.timeout", 30*time.Second)
 	v.SetDefault("stockbit.retry_count", 3)
+	v.SetDefault("stockbit.player_id", "")
+	v.SetDefault("stockbit.username", "")
+	v.SetDefault("stockbit.password", "")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

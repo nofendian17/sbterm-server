@@ -84,6 +84,10 @@ func WithAuthenticator(a Authenticator) Option {
 	return func(o *options) { o.auth = a }
 }
 
+// SetAuthenticator attaches the token provider used for automatic auth. It
+// exists so the authenticator can be built from the client itself.
+func (c *Client) SetAuthenticator(a Authenticator) { c.auth = a }
+
 type Client struct {
 	h       pkghttpclient.Client
 	baseURL string

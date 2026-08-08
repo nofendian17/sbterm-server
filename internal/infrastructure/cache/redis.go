@@ -99,6 +99,16 @@ func (r *Redis) Ping(ctx context.Context) error {
 	return r.client.Ping(ctx).Err()
 }
 
+// Cmdable exposes the underlying Redis client for advanced operations such as
+// the Stockbit token store. Returns nil when a non-Redis fake was injected.
+func (r *Redis) Cmdable() redis.Cmdable {
+	c, ok := r.client.(redis.Cmdable)
+	if !ok {
+		return nil
+	}
+	return c
+}
+
 // HealthCheck implements the samber/do health check hook.
 func (r *Redis) HealthCheck(ctx context.Context) error {
 	return r.Ping(ctx)

@@ -69,6 +69,10 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 	})
 	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
 
+	// The Stockbit client is wired with a token refresher. The refresher is
+	// captured in a shared variable because building it requires the client and
+	// attaching it back to the client would otherwise be circular.
+	var refresher *stockbit.Refresher
 	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
 		opts := []stockbit.Option{
 			stockbit.WithTimeout(cfg.Stockbit.Timeout),
@@ -77,7 +81,24 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		if cfg.Stockbit.BaseURL != "" {
 			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))
 		}
-		return stockbit.New(opts...), nil
+		client := stockbit.New(opts...)
+
+		cmd := do.MustInvoke[*cache.Redis](i).Cmdable()
+		if cmd == nil {
+			return nil, fmt.Errorf("container: redis client unavailable for token store")
+		}
+		store := stockbit.NewRedisTokenStore(cmd)
+		refresher = stockbit.NewRefresher(client, store, stockbit.Credentials{
+			PlayerID: cfg.Stockbit.PlayerID,
+			Username: cfg.Stockbit.Username,
+			Password: cfg.Stockbit.Password,
+		}, logger)
+		client.SetAuthenticator(refresher)
+		return client, nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*stockbit.Refresher, error) {
+		return refresher, nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
@@ -139,6 +160,12 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	// Materialize the Stockbit client so the shared refresher is built, then
+	// start its proactive token-refresh loop.
+	if _, err := do.Invoke[*stockbit.Client](injector); err != nil {
+		return fmt.Errorf("container: construct stockbit client: %w", err)
+	}
+	do.MustInvoke[*stockbit.Refresher](injector).Start()
 	server := do.MustInvoke[*deliveryhttp.Server](injector)
 
 	go func() {

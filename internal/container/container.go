@@ -156,12 +156,6 @@ func Run() error {
 		log.WithAddSource(cfg.Log.AddSource),
 	)
 	log.SetDefault(logger)
-	logger.Debug("configuration loaded",
-		"log_level", cfg.Log.Level,
-		"port", cfg.Port,
-		"database_configured", cfg.Database.URL != "",
-		"redis_configured", cfg.Redis.URL != "",
-		"stockbit_configured", cfg.Stockbit.Username != "")
 
 	injector, err := New(cfg, logger)
 	if err != nil {

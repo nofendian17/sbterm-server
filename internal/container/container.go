@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/samber/do/v2"
+	"golang.org/x/sync/errgroup"
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
@@ -23,13 +25,24 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
+func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	injector := do.New()
 
 	do.ProvideValue(injector, cfg)
 	do.ProvideValue(injector, logger)
 
+	provideInfrastructure(injector)
+	provideStockbit(injector)
+	provideRepositories(injector)
+	provideUsecases(injector)
+	provideHandlers(injector)
+
+	return injector
+}
+
+func provideInfrastructure(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (*database.Postgres, error) {
+		cfg := do.MustInvoke[*config.Config](i)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return database.New(ctx, cfg.Database.URL,
@@ -41,6 +54,7 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 	})
 
 	do.Provide(injector, func(i do.Injector) (*cache.Redis, error) {
+		cfg := do.MustInvoke[*config.Config](i)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return cache.New(ctx, cfg.Redis.URL,
@@ -52,55 +66,13 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 			cache.WithWriteTimeout(cfg.Redis.WriteTimeout),
 		)
 	})
+}
 
-	// Construct infrastructure eagerly so that a malformed database or Redis
-	// URL fails fast at startup instead of surfacing lazily on first use.
-	// Both services are registered before this point, so the invoke below
-	// materializes them and registers their health check / shutdown hooks.
-	if _, err := do.Invoke[*database.Postgres](injector); err != nil {
-		return nil, fmt.Errorf("container: construct postgres: %w", err)
-	}
-	if _, err := do.Invoke[*cache.Redis](injector); err != nil {
-		return nil, fmt.Errorf("container: construct redis: %w", err)
-	}
-
+func provideRepositories(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (*infraRepo.TxManagerImpl, error) {
 		return infraRepo.NewTxManager(do.MustInvoke[*database.Postgres](i)), nil
 	})
 	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
-
-	// The Stockbit client is wired with a token refresher. The refresher is
-	// captured in a shared variable because building it requires the client and
-	// attaching it back to the client would otherwise be circular.
-	var refresher *stockbit.Refresher
-	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
-		opts := []stockbit.Option{
-			stockbit.WithTimeout(cfg.Stockbit.Timeout),
-			stockbit.WithRetryCount(cfg.Stockbit.RetryCount),
-			stockbit.WithLogger(logger),
-		}
-		if cfg.Stockbit.BaseURL != "" {
-			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))
-		}
-		client := stockbit.New(opts...)
-
-		cmd := do.MustInvoke[*cache.Redis](i).Cmdable()
-		if cmd == nil {
-			return nil, fmt.Errorf("container: redis client unavailable for token store")
-		}
-		store := stockbit.NewRedisTokenStore(cmd)
-		refresher = stockbit.NewRefresher(client, store, stockbit.Credentials{
-			PlayerID: cfg.Stockbit.PlayerID,
-			Username: cfg.Stockbit.Username,
-			Password: cfg.Stockbit.Password,
-		}, logger)
-		client.SetAuthenticator(refresher)
-		return client, nil
-	})
-
-	do.Provide(injector, func(i do.Injector) (*stockbit.Refresher, error) {
-		return refresher, nil
-	})
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
 		return infraRepo.NewHealthRepository(
@@ -109,18 +81,64 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		), nil
 	})
 	do.MustAs[*infraRepo.HealthRepository, repository.HealthRepository](injector)
+}
 
+func provideStockbit(injector *do.RootScope) {
+	// The client is built without an authenticator; the Refresher provider
+	// below attaches itself to the client. Invoking *stockbit.Client before
+	// *stockbit.Refresher would leave the client unauthenticated, so callers
+	// must resolve the Refresher first.
+	do.Provide(injector, func(i do.Injector) (*stockbit.Client, error) {
+		cfg := do.MustInvoke[*config.Config](i)
+		logger := do.MustInvoke[log.Logger](i)
+
+		opts := []stockbit.Option{
+			stockbit.WithTimeout(cfg.Stockbit.Timeout),
+			stockbit.WithRetryCount(cfg.Stockbit.RetryCount),
+			stockbit.WithLogger(logger),
+		}
+		if cfg.Stockbit.BaseURL != "" {
+			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))
+		}
+		return stockbit.New(opts...), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*stockbit.Refresher, error) {
+		cfg := do.MustInvoke[*config.Config](i)
+		logger := do.MustInvoke[log.Logger](i)
+		client := do.MustInvoke[*stockbit.Client](i)
+
+		cmd := do.MustInvoke[*cache.Redis](i).Cmdable()
+		if cmd == nil {
+			return nil, fmt.Errorf("container: redis client unavailable for token store")
+		}
+		store := stockbit.NewRedisTokenStore(cmd)
+		refresher := stockbit.NewRefresher(client, store, stockbit.Credentials{
+			PlayerID: cfg.Stockbit.PlayerID,
+			Username: cfg.Stockbit.Username,
+			Password: cfg.Stockbit.Password,
+		}, logger)
+		client.SetAuthenticator(refresher)
+		return refresher, nil
+	})
+}
+
+func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.HealthUsecase, error) {
 		return usecase.NewHealthUsecase(do.MustInvoke[repository.HealthRepository](i)), nil
 	})
+}
 
+func provideHandlers(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (*health.HealthHandler, error) {
 		return health.NewHealthHandler(do.MustInvoke[usecase.HealthUsecase](i)), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
-		handler := do.MustInvoke[*health.HealthHandler](i)
+		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
+		handler := do.MustInvoke[*health.HealthHandler](i)
+
 		router := deliveryhttp.NewRouter(handler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
@@ -131,38 +149,48 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 			deliveryhttp.WithIdleTimeout(cfg.HTTP.IdleTimeout),
 		), nil
 	})
-
-	return injector, nil
 }
 
-// requireInfra fails when PostgreSQL or Redis cannot be reached, enforcing them
-// as mandatory dependencies at startup.
-func requireInfra(injector *do.RootScope) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+type pinger interface {
+	Ping(context.Context) error
+}
 
-	if err := do.MustInvoke[*database.Postgres](injector).Ping(ctx); err != nil {
-		return fmt.Errorf("container: postgres unreachable: %w", err)
+func pingService[T pinger](ctx context.Context, injector *do.RootScope, name string) error {
+	svc, err := do.Invoke[T](injector)
+	if err != nil {
+		return fmt.Errorf("container: resolve %s: %w", name, err)
 	}
-	if err := do.MustInvoke[*cache.Redis](injector).Ping(ctx); err != nil {
-		return fmt.Errorf("container: redis unreachable: %w", err)
+	if err := svc.Ping(ctx); err != nil {
+		return fmt.Errorf("container: %s unreachable: %w", name, err)
 	}
 	return nil
 }
 
-func Run() error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
+// pingInfra verifies database and Redis connectivity before the server starts.
+func pingInfra(injector *do.RootScope) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
+	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return pingService[*database.Postgres](ctx, injector, "postgres")
+	})
+	g.Go(func() error {
+		return pingService[*cache.Redis](ctx, injector, "redis")
+	})
+
+	return g.Wait()
+}
+
+func newLogger(cfg *config.Config) (log.Logger, error) {
 	level, err := log.ParseLevel(cfg.Log.Level)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	format, err := log.ParseFormat(cfg.Log.Format)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	logger := log.New(
@@ -172,28 +200,67 @@ func Run() error {
 	)
 	log.SetDefault(logger)
 
-	injector, err := New(cfg, logger)
+	return logger, nil
+}
+
+func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger log.Logger) error {
+	errChan := make(chan error, 1)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errChan <- fmt.Errorf("http server failed: %w", err)
+		}
+	}()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, os.Interrupt)
+
+	select {
+	case err := <-errChan:
+		logger.Error("server startup failed", "error", err)
+		if shutdownErr := injector.Shutdown(); shutdownErr != nil {
+			logger.Error("container shutdown failed", "error", shutdownErr)
+		}
+		return err
+	case sig := <-sigChan:
+		logger.Info("received shutdown signal", "signal", sig.String())
+		if shutdownErr := injector.Shutdown(); shutdownErr != nil {
+			logger.Error("container shutdown failed", "error", shutdownErr)
+			return shutdownErr
+		}
+	}
+
+	logger.Info("server stopped")
+	return nil
+}
+
+func Run() error {
+	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	// PostgreSQL and Redis are mandatory dependencies: the server must not
-	// start when either is unreachable.
-	if err := requireInfra(injector); err != nil {
+
+	logger, err := newLogger(cfg)
+	if err != nil {
 		return err
 	}
-	// Materialize the Stockbit client so the shared refresher is built, then
-	// start its proactive token-refresh loop.
-	if _, err := do.Invoke[*stockbit.Client](injector); err != nil {
-		return fmt.Errorf("container: construct stockbit client: %w", err)
-	}
-	do.MustInvoke[*stockbit.Refresher](injector).Start()
-	server := do.MustInvoke[*deliveryhttp.Server](injector)
 
-	go func() {
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("http server failed", "error", err)
-		}
-	}()
+	injector := New(cfg, logger)
+
+	if err := pingInfra(injector); err != nil {
+		return err
+	}
+
+	refresher, err := do.Invoke[*stockbit.Refresher](injector)
+	if err != nil {
+		return fmt.Errorf("container: construct stockbit refresher: %w", err)
+	}
+	refresher.Start()
+
+	server, err := do.Invoke[*deliveryhttp.Server](injector)
+	if err != nil {
+		return fmt.Errorf("container: construct server: %w", err)
+	}
+
 	logger.Info("server started",
 		"app", cfg.App.Name,
 		"version", cfg.App.Version,
@@ -214,8 +281,5 @@ func Run() error {
 		logger.Info("health check complete", "services", len(statuses), "failed", failed)
 	}()
 
-	injector.ShutdownOnSignals(syscall.SIGTERM, os.Interrupt)
-	logger.Info("server stopped")
-
-	return nil
+	return awaitShutdown(server, injector, logger)
 }

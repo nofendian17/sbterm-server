@@ -153,6 +153,13 @@ func (r *Refresher) Start() {
 				if w := time.Until(td.accessExpiry().Add(-r.skew)); w > 0 {
 					wait = w
 				}
+				r.logger.Debug("stockbit token state",
+					"valid", time.Now().Before(td.accessExpiry()),
+					"access_expires_at", td.Access.ExpiredAt,
+					"refresh_expires_at", td.Refresh.ExpiredAt,
+					"next_refresh_in", wait.String())
+			} else {
+				r.logger.Debug("stockbit token state", "valid", false, "note", "no stored token")
 			}
 			if !sleepCtx(r.ctx, wait) {
 				return

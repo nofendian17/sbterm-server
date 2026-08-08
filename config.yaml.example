@@ -6,13 +6,10 @@ app:
 # HTTP listen address. Use ":8080" to listen on all interfaces inside a container.
 port: ":8080"
 
-# PostgreSQL connection URL.
+# PostgreSQL connection URL and connection pool settings.
 # In Docker Compose, use host "postgres". When running locally, use "localhost".
 database:
   url: postgres://postgres:postgres@localhost:5432/sbterm?sslmode=disable
-
-# PostgreSQL connection pool settings.
-db:
   max_conns: 10
   min_conns: 0
   max_conn_idle_time: 5m

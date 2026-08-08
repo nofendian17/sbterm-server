@@ -184,13 +184,14 @@ func Run() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		statuses := injector.HealthCheckWithContext(ctx)
+		failed := 0
 		for name, err := range statuses {
 			if err != nil {
+				failed++
 				logger.Warn("service health check failed", "service", name, "error", err)
-			} else {
-				logger.Info("service healthy", "service", name)
 			}
 		}
+		logger.Info("health check complete", "services", len(statuses), "failed", failed)
 	}()
 
 	injector.ShutdownOnSignals(syscall.SIGTERM, os.Interrupt)

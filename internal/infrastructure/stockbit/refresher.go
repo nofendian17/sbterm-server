@@ -93,6 +93,8 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 			if err := r.store.Set(ctx, fresh); err != nil {
 				return "", err
 			}
+			r.logger.Info("stockbit access token refreshed",
+				"expires_at", fresh.Access.ExpiredAt)
 			return fresh.Access.Token, nil
 		}
 		if !errors.Is(err, ErrUnauthorized) {
@@ -115,6 +117,10 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 	if err := r.store.Set(ctx, td); err != nil {
 		return "", err
 	}
+	r.logger.Info("stockbit logged in",
+		"username", r.creds.Username,
+		"access_expires_at", td.Access.ExpiredAt,
+		"refresh_expires_at", td.Refresh.ExpiredAt)
 	return td.Access.Token, nil
 }
 

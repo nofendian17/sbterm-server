@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
 func TestGet(t *testing.T) {
@@ -136,6 +138,40 @@ func TestPost(t *testing.T) {
 
 func TestDefaultBaseURL(t *testing.T) {
 	assert.Equal(t, "https://exodus.stockbit.com", New().baseURL)
+}
+
+func TestDoLogsRequestsAtDebugLevel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	var buf strings.Builder
+	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
+	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Get(
+		context.Background(), "/v1/stocks/bbca", nil, nil)
+	require.NoError(t, err)
+
+	line := buf.String()
+	assert.Contains(t, line, "stockbit request")
+	assert.Contains(t, line, "path=/v1/stocks/bbca")
+	assert.Contains(t, line, "status=200")
+}
+
+func TestDoLogsRequestsAtInfoLevelSkips(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	var buf strings.Builder
+	logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelInfo))
+	err := New(WithBaseURL(srv.URL), WithLogger(logger)).Get(
+		context.Background(), "/v1/stocks/bbca", nil, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, buf.String(), "stockbit request")
 }
 
 func TestGetUnauthorizedReturnsSentinel(t *testing.T) {

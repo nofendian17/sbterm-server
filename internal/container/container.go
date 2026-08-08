@@ -77,6 +77,7 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 		opts := []stockbit.Option{
 			stockbit.WithTimeout(cfg.Stockbit.Timeout),
 			stockbit.WithRetryCount(cfg.Stockbit.RetryCount),
+			stockbit.WithLogger(logger),
 		}
 		if cfg.Stockbit.BaseURL != "" {
 			opts = append(opts, stockbit.WithBaseURL(cfg.Stockbit.BaseURL))

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	pkghttpclient "github.com/nofendian17/sbterm-server/pkg/httpclient"
+	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
 // defaultBaseURL is the third-party endpoint the client talks to.
@@ -50,6 +51,7 @@ type options struct {
 	doer       pkghttpclient.Doer
 	headers    map[string]string
 	auth       Authenticator
+	logger     log.Logger
 }
 
 func WithBaseURL(u string) Option {
@@ -88,11 +90,17 @@ func WithAuthenticator(a Authenticator) Option {
 // exists so the authenticator can be built from the client itself.
 func (c *Client) SetAuthenticator(a Authenticator) { c.auth = a }
 
+// WithLogger enables per-request debug logging.
+func WithLogger(l log.Logger) Option {
+	return func(o *options) { o.logger = l }
+}
+
 type Client struct {
 	h       pkghttpclient.Client
 	baseURL string
 	headers map[string]string
 	auth    Authenticator
+	logger  log.Logger
 }
 
 func New(opts ...Option) *Client {
@@ -121,6 +129,7 @@ func New(opts ...Option) *Client {
 		baseURL: strings.TrimRight(o.baseURL, "/"),
 		headers: o.headers,
 		auth:    o.auth,
+		logger:  o.logger,
 	}
 }
 
@@ -196,9 +205,19 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			return err
 		}
 
+		start := time.Now()
 		resp, err := c.h.Do(req)
 		if err != nil {
+			if c.logger != nil {
+				c.logger.Debug("stockbit request",
+					"method", method, "path", path, "status", 0, "error", err.Error())
+			}
 			return fmt.Errorf("stockbit: request %s %s: %w", method, path, err)
+		}
+		if c.logger != nil {
+			c.logger.Debug("stockbit request",
+				"method", method, "path", path, "status", resp.StatusCode,
+				"duration", time.Since(start).Round(time.Millisecond).String())
 		}
 
 		if resp.StatusCode == http.StatusUnauthorized && autoAuth && attempt == 0 {

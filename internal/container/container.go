@@ -135,6 +135,21 @@ func New(cfg *config.Config, logger log.Logger) (*do.RootScope, error) {
 	return injector, nil
 }
 
+// requireInfra fails when PostgreSQL or Redis cannot be reached, enforcing them
+// as mandatory dependencies at startup.
+func requireInfra(injector *do.RootScope) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := do.MustInvoke[*database.Postgres](injector).Ping(ctx); err != nil {
+		return fmt.Errorf("container: postgres unreachable: %w", err)
+	}
+	if err := do.MustInvoke[*cache.Redis](injector).Ping(ctx); err != nil {
+		return fmt.Errorf("container: redis unreachable: %w", err)
+	}
+	return nil
+}
+
 func Run() error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -159,6 +174,11 @@ func Run() error {
 
 	injector, err := New(cfg, logger)
 	if err != nil {
+		return err
+	}
+	// PostgreSQL and Redis are mandatory dependencies: the server must not
+	// start when either is unreachable.
+	if err := requireInfra(injector); err != nil {
 		return err
 	}
 	// Materialize the Stockbit client so the shared refresher is built, then

@@ -125,6 +125,16 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestRequireInfraFailsWhenDatabaseUnreachable(t *testing.T) {
+	logger := log.New(log.WithWriter(io.Discard))
+	injector, err := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)
+	require.NoError(t, err)
+
+	err = requireInfra(injector)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "postgres unreachable")
+}
+
 func TestShutdownReportIncludesServices(t *testing.T) {
 	logger := log.New(log.WithWriter(io.Discard))
 	injector, err := New(testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)), logger)

@@ -11,6 +11,8 @@ import (
 	mw "github.com/nofendian17/sbterm-server/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm-server/pkg/log"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 )
 
 type RouterOption func(*routerOptions)
@@ -27,7 +29,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -54,6 +56,8 @@ func NewRouter(handler *health.HealthHandler, logger log.Logger, opts ...RouterO
 	}
 
 	r.Get("/health", handler.Health)
+	r.Get("/v1/trending", trendingHandler.Trending)
+	r.Get("/v1/market-mover", moverHandler.MarketMover)
 
 	return r
 }

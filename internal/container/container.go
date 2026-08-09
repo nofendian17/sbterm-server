@@ -15,6 +15,8 @@ import (
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/database"
@@ -23,6 +25,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/repository"
 	"github.com/nofendian17/sbterm-server/internal/usecase"
 	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm-server/pkg/validator"
 )
 
 func New(cfg *config.Config, logger log.Logger) *do.RootScope {
@@ -31,6 +34,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	do.ProvideValue(injector, cfg)
 	do.ProvideValue(injector, logger)
 
+	provideCommon(injector)
 	provideInfrastructure(injector)
 	provideStockbit(injector)
 	provideRepositories(injector)
@@ -38,6 +42,14 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	provideHandlers(injector)
 
 	return injector
+}
+
+// provideCommon registers shared cross-cutting providers such as the request
+// validator used by HTTP handlers.
+func provideCommon(injector *do.RootScope) {
+	do.Provide(injector, func(i do.Injector) (validator.Validator, error) {
+		return validator.New(), nil
+	})
 }
 
 func provideInfrastructure(injector *do.RootScope) {
@@ -81,6 +93,24 @@ func provideRepositories(injector *do.RootScope) {
 		), nil
 	})
 	do.MustAs[*infraRepo.HealthRepository, repository.HealthRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.TrendingRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewTrendingRepository(client), nil
+	})
+	do.MustAs[*infraRepo.TrendingRepository, repository.TrendingRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.MarketMoverRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewMarketMoverRepository(client), nil
+	})
+	do.MustAs[*infraRepo.MarketMoverRepository, repository.MarketMoverRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -125,6 +155,14 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.HealthUsecase, error) {
 		return usecase.NewHealthUsecase(do.MustInvoke[repository.HealthRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.TrendingUsecase, error) {
+		return usecase.NewTrendingUsecase(do.MustInvoke[repository.TrendingRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.MarketMoverUsecase, error) {
+		return usecase.NewMarketMoverUsecase(do.MustInvoke[repository.MarketMoverRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -132,12 +170,22 @@ func provideHandlers(injector *do.RootScope) {
 		return health.NewHealthHandler(do.MustInvoke[usecase.HealthUsecase](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*trending.TrendingHandler, error) {
+		return trending.NewTrendingHandler(do.MustInvoke[usecase.TrendingUsecase](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*mover.MarketMoverHandler, error) {
+		return mover.NewMarketMoverHandler(do.MustInvoke[usecase.MarketMoverUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 		handler := do.MustInvoke[*health.HealthHandler](i)
+		trendingHandler := do.MustInvoke[*trending.TrendingHandler](i)
+		moverHandler := do.MustInvoke[*mover.MarketMoverHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

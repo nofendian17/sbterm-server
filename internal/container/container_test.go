@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -192,6 +195,119 @@ func TestShutdownReportIncludesServices(t *testing.T) {
 			for _, want := range tt.wants {
 				assert.True(t, containsService(names, want.service), want.msg, names)
 			}
+		})
+	}
+}
+
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+	return addr
+}
+
+func waitHTTPReady(t *testing.T, addr string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://" + addr)
+		if err == nil {
+			resp.Body.Close()
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("server at %s did not become ready", addr)
+}
+
+func TestNewLogger(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *config.Config
+		wantErr  string
+	}{
+		{
+			name: "valid level and format",
+			cfg:  &config.Config{Log: config.LogConfig{Level: "debug", Format: "json", AddSource: true}},
+		},
+		{
+			name:    "invalid log level",
+			cfg:     &config.Config{Log: config.LogConfig{Level: "verbose", Format: "text"}},
+			wantErr: "invalid level",
+		},
+		{
+			name:    "invalid log format",
+			cfg:     &config.Config{Log: config.LogConfig{Level: "info", Format: "yaml"}},
+			wantErr: "invalid format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, err := newLogger(tt.cfg)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, logger)
+		})
+	}
+}
+
+func TestAwaitShutdown(t *testing.T) {
+	logger := log.New(log.WithWriter(io.Discard))
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) (*deliveryhttp.Server, *do.RootScope, string)
+		stop  func(t *testing.T, addr string)
+	}{
+		{
+			name: "returns error when server fails to start",
+			setup: func(t *testing.T) (*deliveryhttp.Server, *do.RootScope, string) {
+				ln, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err)
+				t.Cleanup(func() { ln.Close() })
+				addr := ln.Addr().String()
+				srv := deliveryhttp.NewServer(handler, deliveryhttp.WithAddr(addr))
+				return srv, do.New(), addr
+			},
+		},
+		{
+			name: "stops and returns after SIGTERM",
+			setup: func(t *testing.T) (*deliveryhttp.Server, *do.RootScope, string) {
+				addr := freeAddr(t)
+				srv := deliveryhttp.NewServer(handler, deliveryhttp.WithAddr(addr))
+				return srv, do.New(), addr
+			},
+			stop: func(t *testing.T, addr string) {
+				waitHTTPReady(t, addr)
+				require.NoError(t, syscall.Kill(os.Getpid(), syscall.SIGTERM))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, injector, addr := tt.setup(t)
+			if tt.stop == nil {
+				err := awaitShutdown(srv, injector, logger)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "http server failed")
+				return
+			}
+
+			done := make(chan error, 1)
+			go func() { done <- awaitShutdown(srv, injector, logger) }()
+
+			tt.stop(t, addr)
+			err := <-done
+			require.NoError(t, err)
 		})
 	}
 }

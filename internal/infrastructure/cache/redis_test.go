@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -116,6 +117,60 @@ func TestHealthCheck(t *testing.T) {
 				return
 			}
 			assert.NoError(t, rdb.HealthCheck(ctx))
+		})
+	}
+}
+
+type fakeClient struct{}
+
+func (f fakeClient) Ping(ctx context.Context) *redis.StatusCmd {
+	cmd := redis.NewStatusCmd(ctx)
+	cmd.SetErr(errors.New("boom"))
+	return cmd
+}
+
+func (f fakeClient) Close() error { return nil }
+
+func TestNewWithClientCmdable(t *testing.T) {
+	ctx := context.Background()
+	server := miniredis.RunT(t)
+
+	tests := []struct {
+		name         string
+		client       Client
+		wantCmdable  bool
+		wantPingErr  bool
+	}{
+		{
+			name:         "real redis client exposes cmdable",
+			client:       redis.NewClient(&redis.Options{Addr: server.Addr()}),
+			wantCmdable:  true,
+		},
+		{
+			name:        "non-cmdable fake hides cmdable",
+			client:      fakeClient{},
+			wantPingErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rdb := NewWithClient(tt.client)
+			defer rdb.Shutdown()
+
+			if tt.wantCmdable {
+				require.NotNil(t, rdb.Cmdable())
+				assert.NoError(t, rdb.Cmdable().Ping(ctx).Err())
+			} else {
+				assert.Nil(t, rdb.Cmdable())
+			}
+
+			err := rdb.Ping(ctx)
+			if tt.wantPingErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

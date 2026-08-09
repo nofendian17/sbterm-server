@@ -216,15 +216,15 @@ func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger l
 	select {
 	case err := <-errChan:
 		logger.Error("server startup failed", "error", err)
-		if shutdownErr := injector.Shutdown(); shutdownErr != nil {
-			logger.Error("container shutdown failed", "error", shutdownErr)
+		if report := injector.Shutdown(); !report.Succeed {
+			logger.Error("container shutdown failed", "error", report)
 		}
 		return err
 	case sig := <-sigChan:
 		logger.Info("received shutdown signal", "signal", sig.String())
-		if shutdownErr := injector.Shutdown(); shutdownErr != nil {
-			logger.Error("container shutdown failed", "error", shutdownErr)
-			return shutdownErr
+		if report := injector.Shutdown(); !report.Succeed {
+			logger.Error("container shutdown failed", "error", report)
+			return report
 		}
 	}
 

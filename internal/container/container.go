@@ -206,6 +206,14 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.MarketSessionUsecase, error) {
 		return usecase.NewMarketSessionUsecase(do.MustInvoke[repository.MarketSessionRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.IndexUsecase, error) {
+		return usecase.NewIndexUsecase(do.MustInvoke[repository.IndexRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.SectorsUsecase, error) {
+		return usecase.NewSectorsUsecase(do.MustInvoke[repository.SectorsRepository](i), do.MustInvoke[repository.SubsectorRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -229,16 +237,8 @@ func provideHandlers(injector *do.RootScope) {
 		return index.NewIndexHandler(do.MustInvoke[usecase.IndexUsecase](i)), nil
 	})
 
-	do.Provide(injector, func(i do.Injector) (usecase.IndexUsecase, error) {
-		return usecase.NewIndexUsecase(do.MustInvoke[repository.IndexRepository](i)), nil
-	})
-
 	do.Provide(injector, func(i do.Injector) (*sectors.SectorsHandler, error) {
 		return sectors.NewSectorsHandler(do.MustInvoke[usecase.SectorsUsecase](i)), nil
-	})
-
-	do.Provide(injector, func(i do.Injector) (usecase.SectorsUsecase, error) {
-		return usecase.NewSectorsUsecase(do.MustInvoke[repository.SectorsRepository](i), do.MustInvoke[repository.SubsectorRepository](i)), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {

@@ -12,7 +12,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 )
 
-const subsectorBody = `{"data":[{"avgvolume":"151621732.00","change":"+80.00","company_id":"26","last":"3160","marketcap":"75937216531000.00","name":"Aneka Tambang Tbk.","symbol":"ANTM","value":1403166616,"volume":108524600,"icon_url":"https://assets.stockbit.com/logos/companies/ANTM.png","percent":"2.60"}]}`
+const subsectorBody = `{"data":[{"avgvolume":"151621732.00","change":"+80.00","company_id":"26","company_status":"STATUS_ACTIVE","last":"3160","marketcap":"75937216531000.00","name":"Aneka Tambang Tbk.","symbol":"ANTM","value":1403166616,"volume":108524600,"icon_url":"https://assets.stockbit.com/logos/companies/ANTM.png","percent":"2.60","uma":true}]}`
 
 func TestSubsectorRepositoryGetCompanies(t *testing.T) {
 	tests := []struct {
@@ -61,6 +61,8 @@ func TestSubsectorRepositoryGetCompanies(t *testing.T) {
 			assert.Equal(t, int64(1403166616), c.Value)
 			assert.Equal(t, "75937216531000.00", c.MarketCap)
 			assert.Equal(t, "https://assets.stockbit.com/logos/companies/ANTM.png", c.IconURL)
+			assert.Equal(t, "STATUS_ACTIVE", c.CompanyStatus)
+			assert.True(t, c.IsUMA)
 		})
 	}
 }

@@ -15,17 +15,19 @@ type SubsectorCompaniesResponse struct {
 }
 
 type SubsectorCompany struct {
-	AvgVolume string `json:"avgvolume"`
-	Change    string `json:"change"`
-	CompanyID string `json:"company_id"`
-	Last      string `json:"last"`
-	MarketCap string `json:"marketcap"`
-	Name      string `json:"name"`
-	Symbol    string `json:"symbol"`
-	Value     int64  `json:"value"`
-	Volume    int64  `json:"volume"`
-	IconURL   string `json:"icon_url"`
-	Percent   string `json:"percent"`
+	AvgVolume     string `json:"avgvolume"`
+	Change        string `json:"change"`
+	CompanyID     string `json:"company_id"`
+	CompanyStatus string `json:"company_status"`
+	Last          string `json:"last"`
+	MarketCap     string `json:"marketcap"`
+	Name          string `json:"name"`
+	Symbol        string `json:"symbol"`
+	Value         int64  `json:"value"`
+	Volume        int64  `json:"volume"`
+	IconURL       string `json:"icon_url"`
+	Percent       string `json:"percent"`
+	UMA           bool   `json:"uma"`
 }
 
 // GetSubsectorCompanies returns the companies in a subsector. The access token

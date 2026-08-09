@@ -19,6 +19,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/stocks"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
@@ -150,6 +151,15 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewSubsectorRepository(client), nil
 	})
 	do.MustAs[*infraRepo.SubsectorRepository, repository.SubsectorRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.StocksRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewStocksRepository(client), nil
+	})
+	do.MustAs[*infraRepo.StocksRepository, repository.StocksRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -214,6 +224,10 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.SectorsUsecase, error) {
 		return usecase.NewSectorsUsecase(do.MustInvoke[repository.SectorsRepository](i), do.MustInvoke[repository.SubsectorRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.StocksUsecase, error) {
+		return usecase.NewStocksUsecase(do.MustInvoke[repository.StocksRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -241,6 +255,10 @@ func provideHandlers(injector *do.RootScope) {
 		return sectors.NewSectorsHandler(do.MustInvoke[usecase.SectorsUsecase](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*stocks.StocksHandler, error) {
+		return stocks.NewStocksHandler(do.MustInvoke[usecase.StocksUsecase](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
@@ -250,8 +268,9 @@ func provideHandlers(injector *do.RootScope) {
 		sessionHandler := do.MustInvoke[*session.MarketSessionHandler](i)
 		indexHandler := do.MustInvoke[*index.IndexHandler](i)
 		sectorsHandler := do.MustInvoke[*sectors.SectorsHandler](i)
+		stocksHandler := do.MustInvoke[*stocks.StocksHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

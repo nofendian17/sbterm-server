@@ -1,6 +1,6 @@
 package domain
 
-type SubsectorCompany struct {
+type Stock struct {
 	Symbol        string
 	Name          string
 	Last          string

@@ -14,6 +14,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/stocks"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/mocks"
@@ -23,11 +24,12 @@ import (
 
 func TestRouter(t *testing.T) {
 	tests := []struct {
-		name       string
-		method     string
-		path       string
-		setup      func(uc *mocks.MockHealthUsecase)
-		wantStatus int
+		name        string
+		method      string
+		path        string
+		setup       func(uc *mocks.MockHealthUsecase)
+		setupStocks func(uc *mocks.MockStocksUsecase)
+		wantStatus  int
 	}{
 		{
 			name:   "get health returns 200",
@@ -43,6 +45,15 @@ func TestRouter(t *testing.T) {
 			method:     http.MethodGet,
 			path:       "/unknown",
 			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "get stocks returns 200",
+			method: http.MethodGet,
+			path:   "/v1/stocks",
+			setupStocks: func(uc *mocks.MockStocksUsecase) {
+				uc.EXPECT().GetStocks(gomock.Any()).Return([]domain.Stock{{Symbol: "BBCA"}}, nil)
+			},
+			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "wrong method returns 405",
@@ -69,7 +80,12 @@ func TestRouter(t *testing.T) {
 			sessionHandler := session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl))
 			indexHandler := index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl))
 			sectorsHandler := sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl))
-			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, logger)
+			ucStocks := mocks.NewMockStocksUsecase(ctrl)
+			if tt.setupStocks != nil {
+				tt.setupStocks(ucStocks)
+			}
+			stocksHandler := stocks.NewStocksHandler(ucStocks)
+			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -100,7 +116,7 @@ func TestRouterRateLimit(t *testing.T) {
 			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), logger, WithRateLimit(1, 1))
+			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), logger, WithRateLimit(1, 1))
 
 			for _, want := range tt.wantCodes {
 				rec := httptest.NewRecorder()

@@ -27,15 +27,17 @@ type sectorResponse struct {
 }
 
 type companyResponse struct {
-	Symbol    string `json:"symbol"`
-	Name      string `json:"name"`
-	Last      string `json:"last"`
-	Change    string `json:"change"`
-	Percent   string `json:"percent"`
-	Volume    int64  `json:"volume"`
-	Value     int64  `json:"value"`
-	MarketCap string `json:"marketcap"`
-	IconURL   string `json:"icon_url"`
+	Symbol        string `json:"symbol"`
+	Name          string `json:"name"`
+	Last          string `json:"last"`
+	Change        string `json:"change"`
+	Percent       string `json:"percent"`
+	Volume        int64  `json:"volume"`
+	Value         int64  `json:"value"`
+	MarketCap     string `json:"marketcap"`
+	IconURL       string `json:"icon_url"`
+	CompanyStatus string `json:"company_status"`
+	IsUMA         bool   `json:"is_uma"`
 }
 
 func (h *SectorsHandler) Sectors(w http.ResponseWriter, r *http.Request) {
@@ -53,15 +55,17 @@ func toResponses(sectors []domain.Sector) []sectorResponse {
 		companies := make([]companyResponse, 0, len(s.Companies))
 		for _, c := range s.Companies {
 			companies = append(companies, companyResponse{
-				Symbol:    c.Symbol,
-				Name:      c.Name,
-				Last:      c.Last,
-				Change:    c.Change,
-				Percent:   c.Percent,
-				Volume:    c.Volume,
-				Value:     c.Value,
-				MarketCap: c.MarketCap,
-				IconURL:   c.IconURL,
+				Symbol:        c.Symbol,
+				Name:          c.Name,
+				Last:          c.Last,
+				Change:        c.Change,
+				Percent:       c.Percent,
+				Volume:        c.Volume,
+				Value:         c.Value,
+				MarketCap:     c.MarketCap,
+				IconURL:       c.IconURL,
+				CompanyStatus: c.CompanyStatus,
+				IsUMA:         c.IsUMA,
 			})
 		}
 		res = append(res, sectorResponse{

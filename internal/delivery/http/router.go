@@ -14,6 +14,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/stocks"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
@@ -32,7 +33,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -64,6 +65,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/v1/market-session", sessionHandler.MarketSession)
 	r.Get("/v1/indexes", indexHandler.Index)
 	r.Get("/v1/sectors", sectorsHandler.Sectors)
+	r.Get("/v1/stocks", stocksHandler.Stocks)
 
 	return r
 }

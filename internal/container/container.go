@@ -14,12 +14,17 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/shareholding"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/stocks"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/subsidiary"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
@@ -160,6 +165,51 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewStocksRepository(client), nil
 	})
 	do.MustAs[*infraRepo.StocksRepository, repository.StocksRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.CompanyProfileRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewCompanyProfileRepository(client), nil
+	})
+	do.MustAs[*infraRepo.CompanyProfileRepository, repository.CompanyProfileRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.SubsidiaryRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewSubsidiaryRepository(client), nil
+	})
+	do.MustAs[*infraRepo.SubsidiaryRepository, repository.SubsidiaryRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.ShareholdingCompositionRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewShareholdingCompositionRepository(client), nil
+	})
+	do.MustAs[*infraRepo.ShareholdingCompositionRepository, repository.ShareholdingCompositionRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.ShareholdingNetworkRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewShareholdingNetworkRepository(client), nil
+	})
+	do.MustAs[*infraRepo.ShareholdingNetworkRepository, repository.ShareholdingNetworkRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.MajorHolderRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewMajorHolderRepository(client), nil
+	})
+	do.MustAs[*infraRepo.MajorHolderRepository, repository.MajorHolderRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -228,6 +278,26 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.StocksUsecase, error) {
 		return usecase.NewStocksUsecase(do.MustInvoke[repository.StocksRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.CompanyProfileUsecase, error) {
+		return usecase.NewCompanyProfileUsecase(do.MustInvoke[repository.CompanyProfileRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.SubsidiaryUsecase, error) {
+		return usecase.NewSubsidiaryUsecase(do.MustInvoke[repository.SubsidiaryRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.ShareholdingCompositionUsecase, error) {
+		return usecase.NewShareholdingCompositionUsecase(do.MustInvoke[repository.ShareholdingCompositionRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.ShareholdingNetworkUsecase, error) {
+		return usecase.NewShareholdingNetworkUsecase(do.MustInvoke[repository.ShareholdingNetworkRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.MajorHolderUsecase, error) {
+		return usecase.NewMajorHolderUsecase(do.MustInvoke[repository.MajorHolderRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -259,6 +329,26 @@ func provideHandlers(injector *do.RootScope) {
 		return stocks.NewStocksHandler(do.MustInvoke[usecase.StocksUsecase](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*companyprofile.CompanyProfileHandler, error) {
+		return companyprofile.NewCompanyProfileHandler(do.MustInvoke[usecase.CompanyProfileUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*subsidiary.SubsidiaryHandler, error) {
+		return subsidiary.NewSubsidiaryHandler(do.MustInvoke[usecase.SubsidiaryUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*shareholding.ShareholdingHandler, error) {
+		return shareholding.NewShareholdingHandler(do.MustInvoke[usecase.ShareholdingCompositionUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*network.ShareholdingNetworkHandler, error) {
+		return network.NewShareholdingNetworkHandler(do.MustInvoke[usecase.ShareholdingNetworkUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*majorholder.MajorHolderHandler, error) {
+		return majorholder.NewMajorHolderHandler(do.MustInvoke[usecase.MajorHolderUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
@@ -269,8 +359,13 @@ func provideHandlers(injector *do.RootScope) {
 		indexHandler := do.MustInvoke[*index.IndexHandler](i)
 		sectorsHandler := do.MustInvoke[*sectors.SectorsHandler](i)
 		stocksHandler := do.MustInvoke[*stocks.StocksHandler](i)
+		companyProfileHandler := do.MustInvoke[*companyprofile.CompanyProfileHandler](i)
+		subsidiaryHandler := do.MustInvoke[*subsidiary.SubsidiaryHandler](i)
+		shareholdingHandler := do.MustInvoke[*shareholding.ShareholdingHandler](i)
+		networkHandler := do.MustInvoke[*network.ShareholdingNetworkHandler](i)
+		majorHolderHandler := do.MustInvoke[*majorholder.MajorHolderHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

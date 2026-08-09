@@ -157,7 +157,7 @@ Structured financial statement (II-a). No HTML; `data_tables` is the parsed tabl
 | `symbol` | path | |
 | `data_type` | no | int (upstream: `1` returns data) |
 | `is_percentage` | no | `0` = nominal value, `1` = percentage |
-| `page` | yes | int ≥ 1 |
+| `page` | yes | int ≥ 1 — **pagination**: 10 periods per page, going further back in time each page (page 1 = most recent). Consecutive pages overlap by one period. Past the last page the table is empty (not an error). |
 | `report_type` | yes | `1`=Income Statement, `2`=Balance Sheet, `3`=Cash Flow |
 | `statement_type` | yes | `1`=Quarterly, `2`=Annual, `3`=TTM, `4`=Interim YTD, `5..8`=Q1..Q4, `9`=QoQ Growth, `10`=Quarter YoY, `11`=YTD YoY, `12`=Annual YoY, `13`=3Y CAGR |
 

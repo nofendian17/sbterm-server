@@ -35,3 +35,6 @@ temp/
 
 # Local tool caches
 .cache/
+
+# Compiled server binary
+/server

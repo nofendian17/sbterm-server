@@ -9,3 +9,7 @@ Recommended documentation to add next:
 - Deployment guide
 - Configuration reference
 - Development workflow
+
+## API
+
+- [REST API Reference](api.md)

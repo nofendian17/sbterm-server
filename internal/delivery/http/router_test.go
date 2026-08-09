@@ -11,11 +11,15 @@ import (
 
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/findata"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/fundachart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/keystats"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/shareholding"
@@ -30,18 +34,23 @@ import (
 
 func TestRouter(t *testing.T) {
 	tests := []struct {
-		name                string
-		method              string
-		path                string
-		setup               func(uc *mocks.MockHealthUsecase)
-		setupStocks         func(uc *mocks.MockStocksUsecase)
-		setupCompanyProfile func(uc *mocks.MockCompanyProfileUsecase)
-		setupSubsidiary     func(uc *mocks.MockSubsidiaryUsecase)
-		setupShareholding   func(uc *mocks.MockShareholdingCompositionUsecase)
-		setupNetwork        func(uc *mocks.MockShareholdingNetworkUsecase)
-		setupMajorHolder    func(uc *mocks.MockMajorHolderUsecase)
-		setupCorpAction     func(uc *mocks.MockCorpActionUsecase)
-		wantStatus          int
+		name                   string
+		method                 string
+		path                   string
+		setup                  func(uc *mocks.MockHealthUsecase)
+		setupStocks            func(uc *mocks.MockStocksUsecase)
+		setupCompanyProfile    func(uc *mocks.MockCompanyProfileUsecase)
+		setupSubsidiary        func(uc *mocks.MockSubsidiaryUsecase)
+		setupShareholding      func(uc *mocks.MockShareholdingCompositionUsecase)
+		setupNetwork           func(uc *mocks.MockShareholdingNetworkUsecase)
+		setupMajorHolder       func(uc *mocks.MockMajorHolderUsecase)
+		setupCorpAction        func(uc *mocks.MockCorpActionUsecase)
+		setupKeystats          func(uc *mocks.MockKeystatsUsecase)
+		setupPricePerformance  func(uc *mocks.MockPricePerformanceUsecase)
+		setupFundaChart        func(uc *mocks.MockFundaChartUsecase)
+		setupFundaChartMetrics func(uc *mocks.MockFundaChartMetricsUsecase)
+		setupFindataFinancial  func(uc *mocks.MockFindataFinancialUsecase)
+		wantStatus             int
 	}{
 		{
 			name:   "get health returns 200",
@@ -122,6 +131,51 @@ func TestRouter(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "get keystats returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/BUVA/keystats",
+			setupKeystats: func(uc *mocks.MockKeystatsUsecase) {
+				uc.EXPECT().GetKeystats(gomock.Any(), "BUVA", 0).Return(&domain.Keystats{Stats: domain.KeystatsStats{MarketCap: "19,324 B"}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get price performance returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/BUVA/price-performance",
+			setupPricePerformance: func(uc *mocks.MockPricePerformanceUsecase) {
+				uc.EXPECT().GetPricePerformance(gomock.Any(), "BUVA").Return(&domain.PricePerformanceData{Prices: []domain.PricePerformance{{Timeframe: "1D"}}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get funda chart returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/BUVA/fundachart?item=12148",
+			setupFundaChart: func(uc *mocks.MockFundaChartUsecase) {
+				uc.EXPECT().GetFundaChart(gomock.Any(), "BUVA", "12148", "10y").Return([]domain.FundaChartCompany{{CompanyName: "BUVA"}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get funda chart metrics returns 200",
+			method: http.MethodGet,
+			path:   "/v1/fundachart/metrics?metric_name=fundachart",
+			setupFundaChartMetrics: func(uc *mocks.MockFundaChartMetricsUsecase) {
+				uc.EXPECT().GetFundaChartMetrics(gomock.Any(), "fundachart").Return([]domain.FundaChartMetric{{FitemID: 18, FitemName: "Size"}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get financial report returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/BUVA/financial?page=1&report_type=1&statement_type=1",
+			setupFindataFinancial: func(uc *mocks.MockFindataFinancialUsecase) {
+				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BUVA", 0, 0, 1, 1, 1).Return(&domain.FindataFinancial{DefaultCurrency: "IDR"}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "wrong method returns 405",
 			method:     http.MethodPost,
 			path:       "/health",
@@ -181,7 +235,32 @@ func TestRouter(t *testing.T) {
 				tt.setupCorpAction(ucCorpAction)
 			}
 			corpActionHandler := corpaction.NewCorpActionHandler(ucCorpAction, validator.New())
-			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, logger)
+			ucKeystats := mocks.NewMockKeystatsUsecase(ctrl)
+			if tt.setupKeystats != nil {
+				tt.setupKeystats(ucKeystats)
+			}
+			keystatsHandler := keystats.NewKeystatsHandler(ucKeystats, validator.New())
+			ucPricePerformance := mocks.NewMockPricePerformanceUsecase(ctrl)
+			if tt.setupPricePerformance != nil {
+				tt.setupPricePerformance(ucPricePerformance)
+			}
+			pricePerformanceHandler := priceperformance.NewPricePerformanceHandler(ucPricePerformance, validator.New())
+			ucFundaChart := mocks.NewMockFundaChartUsecase(ctrl)
+			if tt.setupFundaChart != nil {
+				tt.setupFundaChart(ucFundaChart)
+			}
+			fundaChartHandler := fundachart.NewFundaChartHandler(ucFundaChart, validator.New())
+			ucFundaChartMetrics := mocks.NewMockFundaChartMetricsUsecase(ctrl)
+			if tt.setupFundaChartMetrics != nil {
+				tt.setupFundaChartMetrics(ucFundaChartMetrics)
+			}
+			fundaChartMetricsHandler := fundachart.NewFundaChartMetricsHandler(ucFundaChartMetrics, validator.New())
+			ucFindataFinancial := mocks.NewMockFindataFinancialUsecase(ctrl)
+			if tt.setupFindataFinancial != nil {
+				tt.setupFindataFinancial(ucFindataFinancial)
+			}
+			findataFinancialHandler := findata.NewFindataFinancialHandler(ucFindataFinancial, validator.New())
+			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -212,7 +291,7 @@ func TestRouterRateLimit(t *testing.T) {
 			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
+			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), keystats.NewKeystatsHandler(mocks.NewMockKeystatsUsecase(ctrl), validator.New()), priceperformance.NewPricePerformanceHandler(mocks.NewMockPricePerformanceUsecase(ctrl), validator.New()), fundachart.NewFundaChartHandler(mocks.NewMockFundaChartUsecase(ctrl), validator.New()), fundachart.NewFundaChartMetricsHandler(mocks.NewMockFundaChartMetricsUsecase(ctrl), validator.New()), findata.NewFindataFinancialHandler(mocks.NewMockFindataFinancialUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
 
 			for _, want := range tt.wantCodes {
 				rec := httptest.NewRecorder()

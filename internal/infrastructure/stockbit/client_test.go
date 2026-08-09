@@ -55,12 +55,12 @@ func TestGet(t *testing.T) {
 			want:    map[string]any{},
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "Bearer secret", r.Header.Get("Authorization"))
-				assert.Equal(t, "Google Chrome", r.Header.Get("X-DeviceType"))
-				assert.Equal(t, "PC", r.Header.Get("X-Platform"))
-				assert.Equal(t, "3.17.2", r.Header.Get("X-AppVersion"))
+				assert.Equal(t, "iPhone 12", r.Header.Get("X-DeviceType"))
+				assert.Equal(t, "iOS", r.Header.Get("X-Platform"))
+				assert.Equal(t, "3.22.1", r.Header.Get("X-AppVersion"))
 				assert.Equal(t, "ID", r.Header.Get("Accept-Language"))
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-				assert.Contains(t, r.Header.Get("User-Agent"), "Chrome/143.0.0.0")
+				assert.Contains(t, r.Header.Get("User-Agent"), "Stockbit/3.22.1")
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(`{}`))
 			},

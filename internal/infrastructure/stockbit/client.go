@@ -35,10 +35,10 @@ var ErrUnauthorized = errors.New("stockbit: unauthorized")
 // defaultHeaders are sent with every request. Individual values can be
 // overridden through WithHeader.
 var defaultHeaders = map[string]string{
-	"User-Agent":      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-	"X-DeviceType":    "Google Chrome",
-	"X-Platform":      "PC",
-	"X-AppVersion":    "3.17.2",
+	"User-Agent":      "Stockbit/3.22.1 (stockbit.com.stockbit; build:40970; iOS 26.5.2) Alamofire/5.9.0",
+	"X-DeviceType":    "iPhone 12",
+	"X-Platform":      "iOS",
+	"X-AppVersion":    "3.22.1",
 	"Content-Type":    "application/json",
 	"Accept-Language": "ID",
 }

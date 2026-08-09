@@ -15,7 +15,10 @@ import (
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
@@ -111,6 +114,42 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewMarketMoverRepository(client), nil
 	})
 	do.MustAs[*infraRepo.MarketMoverRepository, repository.MarketMoverRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.MarketSessionRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewMarketSessionRepository(client), nil
+	})
+	do.MustAs[*infraRepo.MarketSessionRepository, repository.MarketSessionRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.IndexRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewIndexRepository(client), nil
+	})
+	do.MustAs[*infraRepo.IndexRepository, repository.IndexRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.SectorsRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewSectorsRepository(client), nil
+	})
+	do.MustAs[*infraRepo.SectorsRepository, repository.SectorsRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.SubsectorRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewSubsectorRepository(client), nil
+	})
+	do.MustAs[*infraRepo.SubsectorRepository, repository.SubsectorRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -163,6 +202,10 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.MarketMoverUsecase, error) {
 		return usecase.NewMarketMoverUsecase(do.MustInvoke[repository.MarketMoverRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.MarketSessionUsecase, error) {
+		return usecase.NewMarketSessionUsecase(do.MustInvoke[repository.MarketSessionRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -178,14 +221,37 @@ func provideHandlers(injector *do.RootScope) {
 		return mover.NewMarketMoverHandler(do.MustInvoke[usecase.MarketMoverUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*session.MarketSessionHandler, error) {
+		return session.NewMarketSessionHandler(do.MustInvoke[usecase.MarketSessionUsecase](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*index.IndexHandler, error) {
+		return index.NewIndexHandler(do.MustInvoke[usecase.IndexUsecase](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.IndexUsecase, error) {
+		return usecase.NewIndexUsecase(do.MustInvoke[repository.IndexRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*sectors.SectorsHandler, error) {
+		return sectors.NewSectorsHandler(do.MustInvoke[usecase.SectorsUsecase](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.SectorsUsecase, error) {
+		return usecase.NewSectorsUsecase(do.MustInvoke[repository.SectorsRepository](i), do.MustInvoke[repository.SubsectorRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 		handler := do.MustInvoke[*health.HealthHandler](i)
 		trendingHandler := do.MustInvoke[*trending.TrendingHandler](i)
 		moverHandler := do.MustInvoke[*mover.MarketMoverHandler](i)
+		sessionHandler := do.MustInvoke[*session.MarketSessionHandler](i)
+		indexHandler := do.MustInvoke[*index.IndexHandler](i)
+		sectorsHandler := do.MustInvoke[*sectors.SectorsHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

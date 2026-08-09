@@ -8,11 +8,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	slogchi "github.com/samber/slog-chi"
 
-	mw "github.com/nofendian17/sbterm-server/internal/delivery/http/middleware"
-	"github.com/nofendian17/sbterm-server/pkg/log"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
+	mw "github.com/nofendian17/sbterm-server/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
+	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
 type RouterOption func(*routerOptions)
@@ -29,7 +32,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -58,6 +61,9 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/health", handler.Health)
 	r.Get("/v1/trending", trendingHandler.Trending)
 	r.Get("/v1/market-mover", moverHandler.MarketMover)
+	r.Get("/v1/market-session", sessionHandler.MarketSession)
+	r.Get("/v1/indexes", indexHandler.Index)
+	r.Get("/v1/sectors", sectorsHandler.Sectors)
 
 	return r
 }

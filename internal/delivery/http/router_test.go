@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
@@ -39,6 +40,7 @@ func TestRouter(t *testing.T) {
 		setupShareholding   func(uc *mocks.MockShareholdingCompositionUsecase)
 		setupNetwork        func(uc *mocks.MockShareholdingNetworkUsecase)
 		setupMajorHolder    func(uc *mocks.MockMajorHolderUsecase)
+		setupCorpAction     func(uc *mocks.MockCorpActionUsecase)
 		wantStatus          int
 	}{
 		{
@@ -111,6 +113,15 @@ func TestRouter(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "get corp actions returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/BUVA/corp-actions",
+			setupCorpAction: func(uc *mocks.MockCorpActionUsecase) {
+				uc.EXPECT().GetCorpActions(gomock.Any(), "BUVA", 0).Return([]domain.CompanyCorpAction{{ActionType: "rups"}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "wrong method returns 405",
 			method:     http.MethodPost,
 			path:       "/health",
@@ -165,7 +176,12 @@ func TestRouter(t *testing.T) {
 				tt.setupMajorHolder(ucMajorHolder)
 			}
 			majorHolderHandler := majorholder.NewMajorHolderHandler(ucMajorHolder, validator.New())
-			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, logger)
+			ucCorpAction := mocks.NewMockCorpActionUsecase(ctrl)
+			if tt.setupCorpAction != nil {
+				tt.setupCorpAction(ucCorpAction)
+			}
+			corpActionHandler := corpaction.NewCorpActionHandler(ucCorpAction, validator.New())
+			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -196,7 +212,7 @@ func TestRouterRateLimit(t *testing.T) {
 			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
+			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
 
 			for _, want := range tt.wantCodes {
 				rec := httptest.NewRecorder()

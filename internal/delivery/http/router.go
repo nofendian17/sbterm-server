@@ -9,6 +9,7 @@ import (
 	slogchi "github.com/samber/slog-chi"
 
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
@@ -38,7 +39,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, corpActionHandler *corpaction.CorpActionHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -76,6 +77,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/v1/company/{symbol}/shareholding-composition", shareholdingHandler.ShareholdingComposition)
 	r.Get("/v1/insider/shareholding-network", networkHandler.ShareholdingNetwork)
 	r.Get("/v1/insider/majorholder", majorHolderHandler.MajorHolder)
+	r.Get("/v1/company/{symbol}/corp-actions", corpActionHandler.CorpActions)
 
 	return r
 }

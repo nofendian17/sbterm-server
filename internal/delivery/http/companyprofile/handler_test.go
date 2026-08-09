@@ -31,10 +31,17 @@ func TestCompanyProfileHandlerCompanyProfile(t *testing.T) {
 			path: "/v1/company/DSSA/profile",
 			setup: func(uc *mocks.MockCompanyProfileUsecase) {
 				uc.EXPECT().GetProfile(gomock.Any(), "DSSA").Return(&domain.CompanyProfile{
-					Background:         "PT Dian Swastatika",
-					History:            &domain.ProfileHistory{Date: "10 Dec 2009"},
-					Shareholder:        []domain.ProfileShareholder{{Percentage: "59.9%", Name: "PT SINAR MAS TUNGGAL", Value: "115.39 B", Badges: []string{"pengendali"}}},
-					ShareholderNumbers: []domain.ProfileShareholderNumber{{ShareholderDate: "30 Jun 2026", TotalShare: "86,926", Change: 48123, ChangeFormatted: "(+48,123)"}},
+					Background: "PT Dian Swastatika",
+					History:    &domain.ProfileHistory{Date: "10 Dec 2009", FreeFloat: "19.35%"},
+					KeyExecutive: &domain.ProfileKeyExecutive{
+						Commissioner: []domain.ProfileExecutive{{Value: "HANDHIANTO"}},
+						Director:     []domain.ProfileExecutive{{Value: "HERMAWAN"}},
+					},
+					Address:               []domain.ProfileAddress{{Office: "Gedung Sinar Mas", Email: []string{"corsec@dss.co.id"}}},
+					Subsidiary:            []domain.ProfileSubsidiary{{Company: "PT Marga", Percentage: "86.87%"}},
+					Beneficiary:           []domain.ProfileBeneficiary{{Name: "FRANKY"}},
+					Shareholder:           []domain.ProfileShareholder{{Percentage: "59.9%", Name: "PT SINAR MAS TUNGGAL", Value: "115.39 B", Badges: []string{"pengendali"}}},
+					ShareholderNumbers:    []domain.ProfileShareholderNumber{{ShareholderDate: "30 Jun 2026", TotalShare: "86,926", Change: 48123, ChangeFormatted: "(+48,123)"}},
 					ShareholderOnePercent: []domain.ProfileShareholder{{ID: "1000004641", Percentage: "59.90%", Name: "SINAR MAS TUNGGAL", Value: "115,388,080,000", Type: "CP", Location: "Local", Nationality: "-", Domicile: "INDONESIA", Scripless: "0", Scrip: "115,388,080,000", ValueFormatted: "115.39 B", Classification: "Corporate"}},
 				}, nil)
 			},
@@ -77,10 +84,27 @@ func TestCompanyProfileHandlerCompanyProfile(t *testing.T) {
 
 			assert.Equal(t, tt.wantStatus, rec.Code)
 
-var env struct {
+			var env struct {
 				Success bool `json:"success"`
 				Data    struct {
 					Background string `json:"background"`
+					History    struct {
+						Date string `json:"date"`
+					} `json:"history"`
+					KeyExecutive struct {
+						Commissioner []struct {
+							Value string `json:"value"`
+						} `json:"commissioner"`
+					} `json:"key_executive"`
+					Address []struct {
+						Office string `json:"office"`
+					} `json:"address"`
+					Subsidiary []struct {
+						Company string `json:"company"`
+					} `json:"subsidiary"`
+					Beneficiary []struct {
+						Name string `json:"name"`
+					} `json:"beneficiary"`
 					Shareholder []struct {
 						Name   string   `json:"name"`
 						Badges []string `json:"badges"`
@@ -108,6 +132,15 @@ var env struct {
 				return
 			}
 			assert.Equal(t, "PT Dian Swastatika", env.Data.Background)
+			assert.Equal(t, "10 Dec 2009", env.Data.History.Date)
+			require.Len(t, env.Data.KeyExecutive.Commissioner, 1)
+			assert.Equal(t, "HANDHIANTO", env.Data.KeyExecutive.Commissioner[0].Value)
+			require.Len(t, env.Data.Address, 1)
+			assert.Equal(t, "Gedung Sinar Mas", env.Data.Address[0].Office)
+			require.Len(t, env.Data.Subsidiary, 1)
+			assert.Equal(t, "PT Marga", env.Data.Subsidiary[0].Company)
+			require.Len(t, env.Data.Beneficiary, 1)
+			assert.Equal(t, "FRANKY", env.Data.Beneficiary[0].Name)
 			require.Len(t, env.Data.Shareholder, 1)
 			assert.Equal(t, "PT SINAR MAS TUNGGAL", env.Data.Shareholder[0].Name)
 			assert.Equal(t, "pengendali", env.Data.Shareholder[0].Badges[0])

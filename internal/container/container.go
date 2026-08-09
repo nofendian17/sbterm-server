@@ -15,6 +15,7 @@ import (
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
@@ -210,6 +211,15 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewMajorHolderRepository(client), nil
 	})
 	do.MustAs[*infraRepo.MajorHolderRepository, repository.MajorHolderRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.CorpActionRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewCorpActionRepository(client), nil
+	})
+	do.MustAs[*infraRepo.CorpActionRepository, repository.CorpActionRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -298,6 +308,10 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.MajorHolderUsecase, error) {
 		return usecase.NewMajorHolderUsecase(do.MustInvoke[repository.MajorHolderRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.CorpActionUsecase, error) {
+		return usecase.NewCorpActionUsecase(do.MustInvoke[repository.CorpActionRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -349,6 +363,10 @@ func provideHandlers(injector *do.RootScope) {
 		return majorholder.NewMajorHolderHandler(do.MustInvoke[usecase.MajorHolderUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*corpaction.CorpActionHandler, error) {
+		return corpaction.NewCorpActionHandler(do.MustInvoke[usecase.CorpActionUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
@@ -364,8 +382,9 @@ func provideHandlers(injector *do.RootScope) {
 		shareholdingHandler := do.MustInvoke[*shareholding.ShareholdingHandler](i)
 		networkHandler := do.MustInvoke[*network.ShareholdingNetworkHandler](i)
 		majorHolderHandler := do.MustInvoke[*majorholder.MajorHolderHandler](i)
+		corpActionHandler := do.MustInvoke[*corpaction.CorpActionHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

@@ -32,8 +32,28 @@ func TestShareholdingNetworkHandlerShareholdingNetwork(t *testing.T) {
 			setup: func(uc *mocks.MockShareholdingNetworkUsecase) {
 				uc.EXPECT().GetShareholdingNetwork(gomock.Any(), "8824", "SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR", 3, 20).Return(&domain.ShareholdingNetwork{
 					RootID: "investor:8824",
-					Nodes:  []domain.ShareholdingNetworkNode{{ID: "company:1000000003"}},
-					Edges:  []domain.ShareholdingNetworkEdge{{FromID: "investor:1000000141"}},
+					Nodes: []domain.ShareholdingNetworkNode{
+						{
+							ID:       "company:1000000003",
+							NodeType: "SHAREHOLDING_NETWORK_NODE_TYPE_COMPANY",
+							Metadata: domain.ShareholdingNetworkMetadata{
+								Company: &domain.ShareholdingNetworkCompany{ID: 1000000003, Symbol: "NICK", Name: "Charnic Capital Tbk.", IconURL: "i"},
+							},
+						},
+						{
+							ID:       "investor:1000000141",
+							NodeType: "SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR",
+							Metadata: domain.ShareholdingNetworkMetadata{
+								Investor: &domain.ShareholdingNetworkInvestor{
+									ID:                     1000000141,
+									Name:                   "MNC TOURISM",
+									InvestorType:           domain.ShareholdingRawFormatted{Raw: "CP", Formatted: "CP"},
+									InvestorClassification: domain.ShareholdingRawFormatted{Raw: "Firm", Formatted: "Firm"},
+								},
+							},
+						},
+					},
+					Edges: []domain.ShareholdingNetworkEdge{{FromID: "investor:1000000141"}},
 				}, nil)
 			},
 			wantStatus: http.StatusOK,
@@ -77,7 +97,18 @@ func TestShareholdingNetworkHandlerShareholdingNetwork(t *testing.T) {
 				Success bool `json:"success"`
 				Data    struct {
 					Nodes []struct {
-						ID string `json:"id"`
+						ID       string `json:"id"`
+						Metadata struct {
+							Company *struct {
+								Symbol string `json:"symbol"`
+							} `json:"company"`
+							Investor *struct {
+								ID                     int64 `json:"id"`
+								InvestorClassification struct {
+									Formatted string `json:"formatted"`
+								} `json:"investor_classification"`
+							} `json:"investor"`
+						} `json:"metadata"`
 					} `json:"nodes"`
 					Edges []struct {
 						FromID string `json:"from_id"`
@@ -94,8 +125,13 @@ func TestShareholdingNetworkHandlerShareholdingNetwork(t *testing.T) {
 				assert.Equal(t, tt.wantErrCode, env.Error.Code)
 				return
 			}
-			require.Len(t, env.Data.Nodes, 1)
+			require.Len(t, env.Data.Nodes, 2)
 			assert.Equal(t, tt.wantNodeID, env.Data.Nodes[0].ID)
+			require.NotNil(t, env.Data.Nodes[0].Metadata.Company)
+			assert.Equal(t, "NICK", env.Data.Nodes[0].Metadata.Company.Symbol)
+			require.NotNil(t, env.Data.Nodes[1].Metadata.Investor)
+			assert.Equal(t, int64(1000000141), env.Data.Nodes[1].Metadata.Investor.ID)
+			assert.Equal(t, "Firm", env.Data.Nodes[1].Metadata.Investor.InvestorClassification.Formatted)
 			require.Len(t, env.Data.Edges, 1)
 			assert.Equal(t, tt.wantEdge, env.Data.Edges[0].FromID)
 		})

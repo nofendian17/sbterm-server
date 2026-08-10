@@ -102,7 +102,7 @@ func runningTradeRangeRequirements(req runningTradeRequest) map[string]string {
 	return nil
 }
 
-func (h *RunningTradeHandler) RunningTrade(w http.ResponseWriter, r *http.Request) {
+func (h *RunningTradeHandler) RunningTradeChart(w http.ResponseWriter, r *http.Request) {
 	req := runningTradeRequest{
 		Symbol:       chi.URLParam(r, "symbol"),
 		BrokerCodes:  r.URL.Query()["broker_code"],

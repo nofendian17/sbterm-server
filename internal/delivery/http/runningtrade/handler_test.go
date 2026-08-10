@@ -113,7 +113,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewRunningTradeHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/running-trade", h.RunningTrade)
+			r.Get("/v1/company/{symbol}/running-trade", h.RunningTradeChart)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

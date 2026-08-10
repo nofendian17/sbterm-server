@@ -1151,6 +1151,10 @@ date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol
   (422 `from and to must both be provided or both omitted` otherwise), and when
   provided must not be reversed (422 `from must be earlier than or equal to to`
   — the upstream 400s on reversed ranges). Dates are `YYYY-MM-DD`.
+- **No data for the requested range:** the upstream returns 400 when the
+  requested session has no data yet (e.g. today before the market closes, or a
+  future date). That is surfaced as a 422 `no running trade data for the
+  requested date range`, not a 500.
 - **When `from`/`to` are both omitted the `period` enum selects the timeframe**,
   defaulting to `RT_PERIOD_LAST_1_DAY` (the last 1 day, minutely points). If
   both a range and a period are supplied, the range wins.
@@ -1247,6 +1251,41 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR'
 # Explicit 7-day period
 curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
 ```
+
+#### Behavior notes (probed live against the upstream)
+
+Empirically verified against `/order-trade/running-trade/chart/DSSA`:
+
+- **Granularity follows the timeframe, not an explicit interval:** a multi-day
+  range returns one point per trading day (e.g. `2026-07-01..2026-08-10` → 29
+  daily points), while `from == to` or `period=RT_PERIOD_LAST_1_DAY` returns
+  minutely points (e.g. 335 points for a full session `09:00..16:14`).
+- **A single bound is silently ignored upstream:** `from`-only or `to`-only
+  requests return the last session, dropping the given bound. This server is
+  deliberately stricter and rejects them with 422
+  (`from and to must both be provided or both omitted`).
+- **Period beats range upstream; the reverse holds here:** when both a range and
+  a `period` are sent upstream, the `period` wins (e.g. range `07-01..08-10` +
+  `RT_PERIOD_LAST_7_DAYS` → last 7 days). This server sends `from`/`to` alone
+  when both are provided, so the range wins on our side.
+- **No-data days are not errors:** dates with no session (weekends, past
+  dates) return `200` with empty `price_chart_data`/`broker_chart_data` arrays.
+  The upstream only 400s when the session has no data *yet* (today before close,
+  future dates) — surfaced here as a 422 (see range rules above).
+- **Empty request = last session:** no params at all returns the most recent
+  session's minutely data, which is what the `RT_PERIOD_LAST_1_DAY` default
+  selects.
+- **`broker_code` omitted → upstream default set:** a 5-broker default set
+  (e.g. `XL, BK, ZP, SS, CC`) is returned; it can differ per timeframe.
+  An empty `broker_code=` value is accepted but yields a series with  an empty broker code. Multi-broker responses list `charts[]` **sorted by broker code**,
+  not in request order.
+- **`investor_type`/`market_board` shape:** every valid enum value returns the
+  same shape and point counts; empty or invalid values 400 upstream (this server
+  defaults them to `ALL` and validates with `oneof`).
+- **Headers do not matter:** requests succeed without `X-Platform`, `origin` or
+  `referer`; `X-Platform: web`/`ios` both work.
+- **Number formatting is accounting style:** negative values render as
+  `raw: "-7852500", formatted: "(7.9M)"`.
 
 ## Notes
 

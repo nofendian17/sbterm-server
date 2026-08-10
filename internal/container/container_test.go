@@ -224,9 +224,9 @@ func waitHTTPReady(t *testing.T, addr string) {
 
 func TestNewLogger(t *testing.T) {
 	tests := []struct {
-		name     string
-		cfg      *config.Config
-		wantErr  string
+		name    string
+		cfg     *config.Config
+		wantErr string
 	}{
 		{
 			name: "valid level and format",

@@ -14,16 +14,16 @@ const marketDetectorBody = `{"message":"Successfully retrieved market detector d
 
 func TestGetMarketDetector(t *testing.T) {
 	tests := []struct {
-		name          string
-		symbol        string
-		from          string
-		to            string
-		transaction   string
-		marketBoard   string
-		investorType  string
-		limit         int
-		handler       func(t *testing.T, w http.ResponseWriter, r *http.Request)
-		check         func(t *testing.T, resp *MarketDetectorResponse)
+		name         string
+		symbol       string
+		from         string
+		to           string
+		transaction  string
+		marketBoard  string
+		investorType string
+		limit        int
+		handler      func(t *testing.T, w http.ResponseWriter, r *http.Request)
+		check        func(t *testing.T, resp *MarketDetectorResponse)
 	}{
 		{
 			name:         "returns market detector data",
@@ -66,12 +66,12 @@ func TestGetMarketDetector(t *testing.T) {
 			},
 		},
 		{
-			name:        "omits zero limit from query",
-			symbol:      "BRPT",
-			from:        "2026-08-03",
-			to:          "2026-08-10",
-			transaction: "TRANSACTION_TYPE_GROSS",
-			marketBoard: "MARKET_BOARD_TUNAI",
+			name:         "omits zero limit from query",
+			symbol:       "BRPT",
+			from:         "2026-08-03",
+			to:           "2026-08-10",
+			transaction:  "TRANSACTION_TYPE_GROSS",
+			marketBoard:  "MARKET_BOARD_TUNAI",
 			investorType: "INVESTOR_TYPE_FOREIGN",
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "", r.URL.Query().Get("limit"))

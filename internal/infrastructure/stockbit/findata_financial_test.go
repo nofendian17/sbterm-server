@@ -14,15 +14,15 @@ const findataFinancialV2Body = `{"message":"Successfully retrieved company finan
 
 func TestGetFindataFinancialV2(t *testing.T) {
 	tests := []struct {
-		name           string
-		symbol         string
-		dataType       int
-		isPercentage   int
-		page           int
-		reportType     int
-		statementType  int
-		handler        func(t *testing.T, w http.ResponseWriter, r *http.Request)
-		check          func(t *testing.T, resp *FindataFinancialResponse)
+		name          string
+		symbol        string
+		dataType      int
+		isPercentage  int
+		page          int
+		reportType    int
+		statementType int
+		handler       func(t *testing.T, w http.ResponseWriter, r *http.Request)
+		check         func(t *testing.T, resp *FindataFinancialResponse)
 	}{
 		{
 			name:          "returns structured financial report",

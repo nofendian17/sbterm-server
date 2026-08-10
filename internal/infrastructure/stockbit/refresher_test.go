@@ -257,7 +257,7 @@ func TestRefreshForcesRefresh(t *testing.T) {
 			wantRefreshes: 1,
 		},
 		{
-			name: "logs in when no refresh token",
+			name:  "logs in when no refresh token",
 			login: func(w http.ResponseWriter, r *http.Request) { writeLoginResponse(w, "at-1", "rt-1") },
 			refresh: func(w http.ResponseWriter, r *http.Request) {
 				t.Error("refresh must not be called")

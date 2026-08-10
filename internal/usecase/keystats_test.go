@@ -29,8 +29,8 @@ func TestKeystatsUsecaseGetKeystats(t *testing.T) {
 			defer ctrl.Finish()
 
 			want := &domain.Keystats{
-				Stats:  domain.KeystatsStats{MarketCap: "19,324 B"},
-				Info:   "",
+				Stats: domain.KeystatsStats{MarketCap: "19,324 B"},
+				Info:  "",
 			}
 			repo := mocks.NewMockKeystatsRepository(ctrl)
 			repo.EXPECT().GetKeystats(gomock.Any(), "BUVA", 10).Return(want, tt.repoErr)

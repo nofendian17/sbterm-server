@@ -39,27 +39,27 @@ type marketDetectorRequest struct {
 }
 
 type marketDetectorResponse struct {
-	Symbol          string               `json:"symbol"`
-	From            string               `json:"from"`
-	To              string               `json:"to"`
-	BandarDetector  bandarDetectorResp   `json:"bandar_detector"`
-	BrokerSummary   brokerSummaryResp    `json:"broker_summary"`
+	Symbol         string             `json:"symbol"`
+	From           string             `json:"from"`
+	To             string             `json:"to"`
+	BandarDetector bandarDetectorResp `json:"bandar_detector"`
+	BrokerSummary  brokerSummaryResp  `json:"broker_summary"`
 }
 
 type bandarDetectorResp struct {
-	Average             float64            `json:"average"`
-	Avg                 bandarAccdistResp  `json:"avg"`
-	Avg5                bandarAccdistResp  `json:"avg5"`
-	BrokerAccdist       string             `json:"broker_accdist"`
-	NumberBrokerBuysell int                `json:"number_broker_buysell"`
-	Top1                bandarAccdistResp  `json:"top1"`
-	Top3                bandarAccdistResp  `json:"top3"`
-	Top5                bandarAccdistResp  `json:"top5"`
-	Top10               bandarAccdistResp  `json:"top10"`
-	TotalBuyer          int                `json:"total_buyer"`
-	TotalSeller         int                `json:"total_seller"`
-	Value               int64              `json:"value"`
-	Volume              int64              `json:"volume"`
+	Average             float64           `json:"average"`
+	Avg                 bandarAccdistResp `json:"avg"`
+	Avg5                bandarAccdistResp `json:"avg5"`
+	BrokerAccdist       string            `json:"broker_accdist"`
+	NumberBrokerBuysell int               `json:"number_broker_buysell"`
+	Top1                bandarAccdistResp `json:"top1"`
+	Top3                bandarAccdistResp `json:"top3"`
+	Top5                bandarAccdistResp `json:"top5"`
+	Top10               bandarAccdistResp `json:"top10"`
+	TotalBuyer          int               `json:"total_buyer"`
+	TotalSeller         int               `json:"total_seller"`
+	Value               int64             `json:"value"`
+	Volume              int64             `json:"volume"`
 }
 
 type bandarAccdistResp struct {

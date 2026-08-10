@@ -29,7 +29,7 @@ func TestShareholdingCompositionUsecaseGetShareholdingComposition(t *testing.T) 
 			defer ctrl.Finish()
 
 			want := []domain.ShareholdingCompositionPeriod{{
-				ReportDate:  "2026-07-31",
+				ReportDate:   "2026-07-31",
 				Compositions: []domain.ShareholdingComposition{{Label: "SINAR MAS TUNGGAL"}},
 			}}
 			repo := mocks.NewMockShareholdingCompositionRepository(ctrl)

@@ -29,9 +29,9 @@ func TestShareholdingNetworkUsecaseGetShareholdingNetwork(t *testing.T) {
 			defer ctrl.Finish()
 
 			want := &domain.ShareholdingNetwork{
-				RootID:   "investor:8824",
-				Nodes:    []domain.ShareholdingNetworkNode{{ID: "company:1000000003"}},
-				Edges:    []domain.ShareholdingNetworkEdge{{FromID: "investor:1000000141"}},
+				RootID: "investor:8824",
+				Nodes:  []domain.ShareholdingNetworkNode{{ID: "company:1000000003"}},
+				Edges:  []domain.ShareholdingNetworkEdge{{FromID: "investor:1000000141"}},
 			}
 			repo := mocks.NewMockShareholdingNetworkRepository(ctrl)
 			repo.EXPECT().GetShareholdingNetwork(gomock.Any(), "8824", "SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR", 3, 20).Return(want, tt.repoErr)

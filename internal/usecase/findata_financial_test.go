@@ -31,7 +31,7 @@ func TestFindataFinancialUsecaseGetFindataFinancial(t *testing.T) {
 			want := &domain.FindataFinancial{
 				DefaultCurrency: "IDR",
 				DataTables: domain.FindataDataTables{
-					Periods: []string{"12M 2025"},
+					Periods:  []string{"12M 2025"},
 					Accounts: []domain.FindataAccount{{ID: 190, Name: "Arus Kas Dari Aktivitas Operasi"}},
 				},
 			}

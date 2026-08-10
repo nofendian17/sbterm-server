@@ -136,15 +136,15 @@ func TestNewWithClientCmdable(t *testing.T) {
 	server := miniredis.RunT(t)
 
 	tests := []struct {
-		name         string
-		client       Client
-		wantCmdable  bool
-		wantPingErr  bool
+		name        string
+		client      Client
+		wantCmdable bool
+		wantPingErr bool
 	}{
 		{
-			name:         "real redis client exposes cmdable",
-			client:       redis.NewClient(&redis.Options{Addr: server.Addr()}),
-			wantCmdable:  true,
+			name:        "real redis client exposes cmdable",
+			client:      redis.NewClient(&redis.Options{Addr: server.Addr()}),
+			wantCmdable: true,
 		},
 		{
 			name:        "non-cmdable fake hides cmdable",

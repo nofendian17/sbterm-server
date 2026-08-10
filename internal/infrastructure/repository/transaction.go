@@ -67,4 +67,3 @@ func (m *TxManagerImpl) execTx(ctx context.Context, tx pgx.Tx, fn func(tx reposi
 }
 
 var _ repository.TxManager = (*TxManagerImpl)(nil)
-

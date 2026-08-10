@@ -54,7 +54,7 @@ func TestServerListenAndServe(t *testing.T) {
 		check    func(t *testing.T, addr string)
 	}{
 		{
-			name:   "serves requests until shutdown",
+			name: "serves requests until shutdown",
 			check: func(t *testing.T, addr string) {
 				resp, err := http.Get("http://" + addr)
 				require.NoError(t, err)

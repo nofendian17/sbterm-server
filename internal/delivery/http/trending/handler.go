@@ -40,11 +40,11 @@ func toResponses(stocks []domain.TrendingStock) []trendingStockResponse {
 	res := make([]trendingStockResponse, 0, len(stocks))
 	for _, s := range stocks {
 		res = append(res, trendingStockResponse{
-			Symbol:      s.Symbol,
-			Name:        s.Name,
-			Last:        s.Last,
-			Change:      s.Change,
-			Percent:     s.Percent,
+			Symbol:   s.Symbol,
+			Name:     s.Name,
+			Last:     s.Last,
+			Change:   s.Change,
+			Percent:  s.Percent,
 			Previous: s.Previous,
 			LogoURL:  s.LogoURL,
 			Status:   s.Status,

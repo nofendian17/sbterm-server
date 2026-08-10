@@ -32,6 +32,21 @@ type Authenticator interface {
 // ErrUnauthorized marks responses whose bearer token was rejected (HTTP 401).
 var ErrUnauthorized = errors.New("stockbit: unauthorized")
 
+// StatusError reports a non-2xx response, carrying the upstream HTTP status
+// code so callers can distinguish client errors (4xx) from upstream failures
+// (5xx) without parsing the message. Method and Path preserve the request
+// context in the error text.
+type StatusError struct {
+	Status int
+	Method string
+	Path   string
+	Msg    string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("stockbit: %s %s: unexpected status %d: %s", e.Method, e.Path, e.Status, e.Msg)
+}
+
 // defaultHeaders are sent with every request. Individual values can be
 // overridden through WithHeader.
 var defaultHeaders = map[string]string{
@@ -245,8 +260,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			msg := truncate(string(respBytes))
-			err := fmt.Errorf("stockbit: %s %s: unexpected status %d: %s",
-				method, path, resp.StatusCode, strings.TrimSpace(msg))
+			err := &StatusError{Status: resp.StatusCode, Method: method, Path: path, Msg: strings.TrimSpace(msg)}
 			if resp.StatusCode == http.StatusUnauthorized {
 				return errors.Join(ErrUnauthorized, err)
 			}

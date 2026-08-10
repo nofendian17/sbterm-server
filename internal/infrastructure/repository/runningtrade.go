@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
@@ -20,6 +21,13 @@ func NewRunningTradeRepository(client *stockbit.Client) *RunningTradeRepository 
 func (r *RunningTradeRepository) GetRunningTradeChart(ctx context.Context, symbol string, brokerCodes []string, from, to, investorType, marketBoard, period string) (*domain.RunningTradeData, error) {
 	resp, err := r.client.GetRunningTradeChart(ctx, symbol, brokerCodes, from, to, investorType, marketBoard, period)
 	if err != nil {
+		// Translate the client's typed status error into a domain error so
+		// delivery handlers can map upstream 4xx responses (e.g. 400 for a
+		// date whose session has no data yet) to a client-facing status.
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
 		return nil, err
 	}
 	d := resp.Data

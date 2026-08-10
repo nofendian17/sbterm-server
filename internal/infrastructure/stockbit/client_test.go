@@ -78,7 +78,7 @@ func TestGet(t *testing.T) {
 			},
 		},
 		{
-			name:  "non-2xx returns error with status",
+			name:  "non-2xx returns typed error with status",
 			path:  "/v1/denied",
 			query: url.Values{},
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
@@ -107,10 +107,38 @@ func TestGet(t *testing.T) {
 			if tt.want == nil {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "unexpected status")
+				var se *StatusError
+				require.ErrorAs(t, err, &se)
+				assert.Equal(t, http.StatusUnauthorized, se.Status)
+				assert.Contains(t, se.Msg, "nope")
 				return
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, out)
+		})
+	}
+}
+
+func TestGetReturnsStatusErrorOnBadRequest(t *testing.T) {
+	tests := []struct {
+		name   string
+		status int
+		body   string
+	}{{name: "returns StatusError with status 400 on bad request", status: http.StatusBadRequest, body: `{"message":"Please check your request"}`}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tt.status)
+				w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+
+			err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/denied", nil, nil)
+			require.Error(t, err)
+			var se *StatusError
+			require.ErrorAs(t, err, &se)
+			assert.Equal(t, http.StatusBadRequest, se.Status)
+			assert.Contains(t, se.Msg, "Please check your request")
 		})
 	}
 }

@@ -9,15 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 )
 
 func TestRunningTradeRepositoryGetRunningTradeChart(t *testing.T) {
 	tests := []struct {
-		name    string
-		status  int
-		body    string
-		wantErr bool
+		name     string
+		status   int
+		body     string
+		wantErr  bool
+		wantUp   bool
+		wantCode int
 	}{
 		{
 			name:   "returns mapped running trade chart",
@@ -29,6 +32,14 @@ func TestRunningTradeRepositoryGetRunningTradeChart(t *testing.T) {
 			status:  http.StatusInternalServerError,
 			body:    `{"message":"boom"}`,
 			wantErr: true,
+		},
+		{
+			name:     "translates upstream 400 into domain error",
+			status:   http.StatusBadRequest,
+			body:     `{"message":"Please check your request"}`,
+			wantErr:  true,
+			wantUp:   true,
+			wantCode: http.StatusBadRequest,
 		},
 	}
 
@@ -48,6 +59,11 @@ func TestRunningTradeRepositoryGetRunningTradeChart(t *testing.T) {
 			got, err := repo.GetRunningTradeChart(context.Background(), "DSSA", []string{"DR", "AK"}, "2026-07-01", "2026-08-10", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "")
 			if tt.wantErr {
 				require.Error(t, err)
+				if tt.wantUp {
+					var up *domain.UpstreamError
+					require.ErrorAs(t, err, &up)
+					assert.Equal(t, tt.wantCode, up.Status)
+				}
 				return
 			}
 			require.NoError(t, err)

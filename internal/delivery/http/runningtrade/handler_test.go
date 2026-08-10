@@ -99,6 +99,15 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 			wantStatus:  http.StatusInternalServerError,
 			wantErrCode: "INTERNAL_ERROR",
 		},
+		{
+			name: "upstream 400 for date with no session data returns 422",
+			path: "/v1/company/DSSA/running-trade-chart?broker_code=DR&from=2026-08-11&to=2026-08-11",
+			setup: func(uc *mocks.MockRunningTradeUsecase) {
+				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR"}, "2026-08-11", "2026-08-11", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "Please check your request"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
 	}
 
 	for _, tt := range tests {

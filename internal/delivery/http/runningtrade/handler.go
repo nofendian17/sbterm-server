@@ -1,6 +1,7 @@
 package runningtrade
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -136,6 +137,14 @@ func (h *RunningTradeHandler) RunningTradeChart(w http.ResponseWriter, r *http.R
 
 	data, err := h.uc.GetRunningTradeChart(r.Context(), req.Symbol, req.BrokerCodes, req.From, req.To, req.InvestorType, req.MarketBoard, req.Period)
 	if err != nil {
+		// The upstream 400s on ranges whose session has no data yet (e.g.
+		// today before the market closes). Surface that as a clear 422 instead
+		// of a confusing 500.
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no running trade data for the requested date range")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get running trade chart")
 		return
 	}

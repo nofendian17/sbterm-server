@@ -1,0 +1,25 @@
+#!/bin/sh
+# Pre-commit hook: fail if any staged .go file is not gofmt-formatted.
+#
+# Installed via `make install-hooks` (sets core.hooksPath to .githooks).
+# Run `make fmt` to fix formatting.
+
+# Bail out if git is not available (e.g. non-git context).
+command -v git >/dev/null 2>&1 || exit 0
+
+# Pipe staged .go files (NUL-separated, so names with spaces survive) straight
+# into xargs -0: storing NUL bytes in a shell variable would either be dropped
+# (dash concatenates names) or append an empty argument (bash). xargs -r skips
+# the run entirely when nothing is staged. gofmt -l prints files needing
+# formatting; a parse error also makes it exit non-zero, so non-empty output OR
+# a non-zero status is a failure.
+unformatted=$(git diff --cached --name-only -z --diff-filter=ACMR -- '*.go' | xargs -0 -r gofmt -l 2>&1)
+status=$?
+if [ -n "$unformatted" ] || [ "$status" -ne 0 ]; then
+    echo "pre-commit: gofmt check failed on staged files:"
+    echo "$unformatted"
+    echo "Run 'make fmt' and re-stage the files."
+    exit 1
+fi
+
+exit 0

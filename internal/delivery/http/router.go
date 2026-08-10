@@ -97,7 +97,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/v1/company/{symbol}/financial", findataFinancialHandler.Financial)
 	r.Get("/v1/index/{symbol}/summary", indexSummaryHandler.IndexSummary)
 	r.Get("/v1/index/{symbol}/chart", indexSummaryHandler.IndexChart)
-	r.Get("/v1/company/{symbol}/running-trade", runningTradeHandler.RunningTradeChart)
+	r.Get("/v1/company/{symbol}/running-trade-chart", runningTradeHandler.RunningTradeChart)
 
 	return r
 }

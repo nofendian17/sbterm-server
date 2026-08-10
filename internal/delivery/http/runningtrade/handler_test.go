@@ -29,7 +29,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 	}{
 		{
 			name: "returns running trade chart",
-			path: "/v1/company/DSSA/running-trade?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10",
+			path: "/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10",
 			setup: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR", "AK"}, "2026-07-01", "2026-08-10", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "").Return(&domain.RunningTradeData{
 					From:            "2026-07-01",
@@ -42,7 +42,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 		},
 		{
 			name: "defaults period when from/to omitted",
-			path: "/v1/company/DSSA/running-trade?broker_code=DR",
+			path: "/v1/company/DSSA/running-trade-chart?broker_code=DR",
 			setup: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR"}, "", "", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "RT_PERIOD_LAST_1_DAY").Return(&domain.RunningTradeData{}, nil)
 			},
@@ -50,31 +50,31 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/company//running-trade",
+			path:        "/v1/company//running-trade-chart",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid investor type returns 422",
-			path:        "/v1/company/DSSA/running-trade?investor_type=BOGUS",
+			path:        "/v1/company/DSSA/running-trade-chart?investor_type=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid market board returns 422",
-			path:        "/v1/company/DSSA/running-trade?market_board=BOGUS",
+			path:        "/v1/company/DSSA/running-trade-chart?market_board=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid period returns 422",
-			path:        "/v1/company/DSSA/running-trade?period=BOGUS",
+			path:        "/v1/company/DSSA/running-trade-chart?period=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "from without to returns 422",
-			path:        "/v1/company/DSSA/running-trade?from=2026-07-01",
+			path:        "/v1/company/DSSA/running-trade-chart?from=2026-07-01",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -83,7 +83,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 		},
 		{
 			name:        "reversed range returns 422",
-			path:        "/v1/company/DSSA/running-trade?from=2026-08-10&to=2026-07-01",
+			path:        "/v1/company/DSSA/running-trade-chart?from=2026-08-10&to=2026-07-01",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -92,7 +92,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/running-trade?broker_code=DR",
+			path: "/v1/company/DSSA/running-trade-chart?broker_code=DR",
 			setup: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR"}, "", "", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "RT_PERIOD_LAST_1_DAY").Return(nil, errors.New("boom"))
 			},
@@ -113,7 +113,7 @@ func TestRunningTradeHandlerRunningTrade(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewRunningTradeHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/running-trade", h.RunningTradeChart)
+			r.Get("/v1/company/{symbol}/running-trade-chart", h.RunningTradeChart)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

@@ -33,7 +33,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 21 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
 | 22 | `GET /v1/index/{symbol}/summary` | [Index summary](#get-v1indexsymbolsummary) |
 | 23 | `GET /v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-v1indexsymbolchart) |
-| 24 | `GET /v1/company/{symbol}/running-trade` | [Running trade](#get-v1companysymbolrunning-trade) |
+| 24 | `GET /v1/company/{symbol}/running-trade-chart` | [Running trade chart](#get-v1companysymbolrunning-trade-chart) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1131,7 +1131,7 @@ curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&in
     }
   }
 }
-```### `GET /v1/company/{symbol}/running-trade`
+```### `GET /v1/company/{symbol}/running-trade-chart`
 Running trade chart: the price series plus per-broker value/volume series over a
 date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol}`).
 
@@ -1168,7 +1168,7 @@ values are strings.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10'
+curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10'
 ```
 
 ```json
@@ -1240,10 +1240,10 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR&broker_
 
 ```bash
 # No from/to -> period defaults to the last 1 day (minutely points)
-curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR'
+curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR'
 
 # Explicit 7-day period
-curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
+curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
 ```
 
 ## Notes

@@ -233,7 +233,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get running trade returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/running-trade?broker_code=DR&from=2026-07-01&to=2026-08-10",
+			path:   "/v1/company/DSSA/running-trade-chart?broker_code=DR&from=2026-07-01&to=2026-08-10",
 			setupRunningTrade: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR"}, "2026-07-01", "2026-08-10", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "").Return(&domain.RunningTradeData{From: "2026-07-01", DateSessionInfo: "10 Aug 2026"}, nil)
 			},

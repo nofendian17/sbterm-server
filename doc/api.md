@@ -22,13 +22,14 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 10 | `GET /v1/company/{symbol}/shareholding-composition` | [Company fundamentals](#get-v1companysymbolshareholding-composition) |
 | 11 | `GET /v1/insider/shareholding-network` | [Company fundamentals](#get-v1insidershareholding-network) |
 | 12 | `GET /v1/insider/majorholder` | [Company fundamentals](#get-v1insidermajorholder) |
-| 13 | `GET /v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-v1companysymbolcorp-actions) |
-| 14 | `GET /v1/company/{symbol}/keystats` | [Company fundamentals](#get-v1companysymbolkeystats) |
-| 15 | `GET /v1/company/{symbol}/price-performance` | [Company fundamentals](#get-v1companysymbolprice-performance) |
-| 16 | `GET /v1/company/{symbol}/chart` | [Company fundamentals](#get-v1companysymbolchart) |
-| 17 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
-| 18 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
-| 19 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
+| 13 | `GET /v1/market-detector/{symbol}` | [Market detector](#get-v1market-detectorsymbol) |
+| 14 | `GET /v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-v1companysymbolcorp-actions) |
+| 15 | `GET /v1/company/{symbol}/keystats` | [Company fundamentals](#get-v1companysymbolkeystats) |
+| 16 | `GET /v1/company/{symbol}/price-performance` | [Company fundamentals](#get-v1companysymbolprice-performance) |
+| 17 | `GET /v1/company/{symbol}/chart` | [Company fundamentals](#get-v1companysymbolchart) |
+| 18 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
+| 19 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
+| 20 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -499,6 +500,67 @@ curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA&page=1&limit=2'
         "marker": ""
       }
     ]
+  }
+}
+```
+
+### `GET /v1/market-detector/{symbol}`
+Bandar detector aggregates and broker buy/sell summaries for a symbol over a date
+range. Proxies `/marketdetectors/{symbol}`.
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | |
+| `from` | yes | `YYYY-MM-DD` — must be earlier than `to` |
+| `to` | yes | `YYYY-MM-DD` |
+| `transaction_type` | no | `TRANSACTION_TYPE_GROSS`, `TRANSACTION_TYPE_NET` (default) |
+| `market_board` | no | `MARKET_BOARD_ALL`, `MARKET_BOARD_REGULER` (default), `MARKET_BOARD_TUNAI`, `MARKET_BOARD_NEGO` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_DOMESTIC`, `INVESTOR_TYPE_FOREIGN` |
+| `limit` | no | int — caps `brokers_buy`/`brokers_sell` list length |
+
+`from` must be earlier than `to` (upstream rejects the inverse). `data.bandar_detector`
+holds the accumulation/distribution aggregates (`avg`, `avg5`, `top1`, `top3`, `top5`,
+`top10` each with `accdist`/`amount`/`percent`/`vol`), plus `broker_accdist`,
+`number_broker_buysell`, `total_buyer`, `total_seller`, `value`, `volume`, `average`.
+`data.broker_summary` holds `brokers_buy`/`brokers_sell` (all numeric fields are strings)
+and echoes `symbol`/`from`/`to`.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&limit=25'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "BRPT",
+    "from": "2026-08-03",
+    "to": "2026-08-10",
+    "bandar_detector": {
+      "average": 1917.1906,
+      "avg": { "accdist": "Neutral", "amount": -628582850, "percent": -0.60751265, "vol": -3278.6667 },
+      "avg5": { "accdist": "Neutral", "amount": 2635370000, "percent": 2.5470319, "vol": 13746 },
+      "broker_accdist": "Dist",
+      "number_broker_buysell": 12,
+      "top1": { "accdist": "Normal Acc", "amount": 13157295000, "percent": 12.71626, "vol": 68628 },
+      "top3": { "accdist": "Neutral", "amount": 1623285200, "percent": 1.5688723, "vol": 8467 },
+      "top5": { "accdist": "Neutral", "amount": -6144404000, "percent": -5.938442, "vol": -32049 },
+      "top10": { "accdist": "Neutral", "amount": -5922968600, "percent": -5.724429, "vol": -30894 },
+      "total_buyer": 40,
+      "total_seller": 28,
+      "value": 103468280000,
+      "volume": 539687
+    },
+    "broker_summary": {
+      "brokers_buy": [
+        { "blot": "166709.99", "blotv": "1.67e+07", "bval": "3.18e+10", "bvalv": "3.20e+10", "netbs_broker_code": "BB", "netbs_buy_avg_price": "1910.60", "netbs_date": "20260810", "netbs_stock_code": "BRPT", "type": "Lokal", "freq": "1562" }
+      ],
+      "brokers_sell": [
+        { "netbs_broker_code": "ZP", "netbs_date": "20260810", "netbs_sell_avg_price": "1924.95", "netbs_stock_code": "BRPT", "slot": "-98082", "slotv": "1.17e+07", "sval": "-1.89e+10", "svalv": "2.26e+10", "type": "Asing", "freq": "2374" }
+      ]
+    }
   }
 }
 ```

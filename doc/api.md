@@ -33,6 +33,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 21 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
 | 22 | `GET /v1/index/{symbol}/summary` | [Index summary](#get-v1indexsymbolsummary) |
 | 23 | `GET /v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-v1indexsymbolchart) |
+| 24 | `GET /v1/company/{symbol}/running-trade` | [Running trade](#get-v1companysymbolrunning-trade) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1130,6 +1131,119 @@ curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&in
     }
   }
 }
+```### `GET /v1/company/{symbol}/running-trade`
+Running trade chart: the price series plus per-broker value/volume series over a
+date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol}`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | |
+| `broker_code` | no | repeatable (`?broker_code=DR&broker_code=AK`); empty → upstream default set |
+| `from` | no | `YYYY-MM-DD`; must be earlier than or equal to `to`; see range rules |
+| `to` | no | `YYYY-MM-DD` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `market_board` | no | `BOARD_TYPE_ALL` (default), `BOARD_TYPE_REGULAR`, `BOARD_TYPE_CASH`, `BOARD_TYPE_NEGOTIATION` |
+| `period` | no | `RT_PERIOD_LAST_1_DAY` (default), `RT_PERIOD_LAST_7_DAYS`, `RT_PERIOD_LAST_1_MONTH`, `RT_PERIOD_LAST_3_MONTHS`, `RT_PERIOD_YEAR_TO_DATE`, `RT_PERIOD_LAST_1_YEAR` |
+
+- **Range rules:** `from`/`to` must either both be provided or both omitted
+  (422 `from and to must both be provided or both omitted` otherwise), and when
+  provided must not be reversed (422 `from must be earlier than or equal to to`
+  — the upstream 400s on reversed ranges). Dates are `YYYY-MM-DD`.
+- **When `from`/`to` are both omitted the `period` enum selects the timeframe**,
+  defaulting to `RT_PERIOD_LAST_1_DAY` (the last 1 day, minutely points). If
+  both a range and a period are supplied, the range wins.
+- `broker_code` is repeatable; each value selects a broker whose series is
+  included in `broker_chart_data`. Omitted → upstream picks its default set.
+- `investor_type` and `market_board` default to `INVESTOR_TYPE_ALL` /
+  `BOARD_TYPE_ALL` when omitted.
+
+`data: { from, to, data_last_updated, price_chart_data: [{ date, time, value: {raw, formatted}, datetime_label, open, high, low }], broker_chart_data: [{ type, brokers, charts: [{ broker_code, chart: [{ date, time, value, datetime_label, open, high, low }] }] }], date_session_info }`
+
+`price_chart_data` is the symbol's price series (`open`/`high`/`low` populated).
+`broker_chart_data` has one entry per series type — `TYPE_CHART_VALUE` and
+`TYPE_CHART_VOLUME` — each carrying one `charts[]` entry per broker; broker chart
+points only populate `value` (`open`/`high`/`low` are `null`). All `raw`/`formatted`
+values are strings.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "from": "2026-07-01",
+    "to": "2026-08-10",
+    "data_last_updated": "2026-08-10T00:00:00Z",
+    "price_chart_data": [
+      {
+        "date": "2026-07-01",
+        "time": "00:00",
+        "value": { "raw": "820", "formatted": "820" },
+        "datetime_label": "01 Jul",
+        "open": { "raw": "810", "formatted": "810" },
+        "high": { "raw": "835", "formatted": "835" },
+        "low": { "raw": "795", "formatted": "795" }
+      }
+    ],
+    "broker_chart_data": [
+      {
+        "type": "TYPE_CHART_VALUE",
+        "brokers": ["DR", "AK", "DH", "ZP", "HP"],
+        "charts": [
+          {
+            "broker_code": "ZP",
+            "chart": [
+              {
+                "date": "2026-07-01",
+                "time": "00:00",
+                "value": { "raw": "-27436237000", "formatted": "(27.4B)" },
+                "datetime_label": "01 Jul",
+                "open": null,
+                "high": null,
+                "low": null
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TYPE_CHART_VOLUME",
+        "brokers": ["DR", "AK", "DH", "ZP", "HP"],
+        "charts": [
+          {
+            "broker_code": "AK",
+            "chart": [
+              {
+                "date": "2026-07-01",
+                "time": "00:00",
+                "value": { "raw": "297844", "formatted": "297.8K" },
+                "datetime_label": "01 Jul",
+                "open": null,
+                "high": null,
+                "low": null
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "date_session_info": "10 Aug 2026"
+  }
+}
+```
+
+#### Example: last 1 day (default period)
+
+```bash
+# No from/to -> period defaults to the last 1 day (minutely points)
+curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR'
+
+# Explicit 7-day period
+curl 'http://localhost:8080/v1/company/DSSA/running-trade?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
 ```
 
 ## Notes

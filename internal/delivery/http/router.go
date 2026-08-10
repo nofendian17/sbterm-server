@@ -23,6 +23,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/runningtrade"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/shareholding"
@@ -47,7 +48,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, marketDetectorHandler *marketdetector.MarketDetectorHandler, topStockHandler *topstock.TopStockHandler, corpActionHandler *corpaction.CorpActionHandler, keystatsHandler *keystats.KeystatsHandler, pricePerformanceHandler *priceperformance.PricePerformanceHandler, chartHandler *chart.ChartbitHandler, fundaChartHandler *fundachart.FundaChartHandler, fundaChartMetricsHandler *fundachart.FundaChartMetricsHandler, findataFinancialHandler *findata.FindataFinancialHandler, indexSummaryHandler *indexsummary.IndexSummaryHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, marketDetectorHandler *marketdetector.MarketDetectorHandler, topStockHandler *topstock.TopStockHandler, corpActionHandler *corpaction.CorpActionHandler, keystatsHandler *keystats.KeystatsHandler, pricePerformanceHandler *priceperformance.PricePerformanceHandler, chartHandler *chart.ChartbitHandler, fundaChartHandler *fundachart.FundaChartHandler, fundaChartMetricsHandler *fundachart.FundaChartMetricsHandler, findataFinancialHandler *findata.FindataFinancialHandler, indexSummaryHandler *indexsummary.IndexSummaryHandler, runningTradeHandler *runningtrade.RunningTradeHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -96,6 +97,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/v1/company/{symbol}/financial", findataFinancialHandler.Financial)
 	r.Get("/v1/index/{symbol}/summary", indexSummaryHandler.IndexSummary)
 	r.Get("/v1/index/{symbol}/chart", indexSummaryHandler.IndexChart)
+	r.Get("/v1/company/{symbol}/running-trade", runningTradeHandler.RunningTrade)
 
 	return r
 }

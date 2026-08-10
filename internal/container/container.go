@@ -23,6 +23,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/keystats"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/majorholder"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/marketdetector"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
@@ -208,6 +209,15 @@ func provideRepositories(injector *do.RootScope) {
 	})
 	do.MustAs[*infraRepo.ShareholdingNetworkRepository, repository.ShareholdingNetworkRepository](injector)
 
+	do.Provide(injector, func(i do.Injector) (*infraRepo.MarketDetectorRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewMarketDetectorRepository(client), nil
+	})
+	do.MustAs[*infraRepo.MarketDetectorRepository, repository.MarketDetectorRepository](injector)
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.MajorHolderRepository, error) {
 		client, err := do.Invoke[*stockbit.Client](i)
 		if err != nil {
@@ -368,6 +378,10 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewMajorHolderUsecase(do.MustInvoke[repository.MajorHolderRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.MarketDetectorUsecase, error) {
+		return usecase.NewMarketDetectorUsecase(do.MustInvoke[repository.MarketDetectorRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.CorpActionUsecase, error) {
 		return usecase.NewCorpActionUsecase(do.MustInvoke[repository.CorpActionRepository](i)), nil
 	})
@@ -446,6 +460,10 @@ func provideHandlers(injector *do.RootScope) {
 		return majorholder.NewMajorHolderHandler(do.MustInvoke[usecase.MajorHolderUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*marketdetector.MarketDetectorHandler, error) {
+		return marketdetector.NewMarketDetectorHandler(do.MustInvoke[usecase.MarketDetectorUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*corpaction.CorpActionHandler, error) {
 		return corpaction.NewCorpActionHandler(do.MustInvoke[usecase.CorpActionUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
@@ -489,6 +507,7 @@ func provideHandlers(injector *do.RootScope) {
 		shareholdingHandler := do.MustInvoke[*shareholding.ShareholdingHandler](i)
 		networkHandler := do.MustInvoke[*network.ShareholdingNetworkHandler](i)
 		majorHolderHandler := do.MustInvoke[*majorholder.MajorHolderHandler](i)
+		marketDetectorHandler := do.MustInvoke[*marketdetector.MarketDetectorHandler](i)
 		corpActionHandler := do.MustInvoke[*corpaction.CorpActionHandler](i)
 		keystatsHandler := do.MustInvoke[*keystats.KeystatsHandler](i)
 		pricePerformanceHandler := do.MustInvoke[*priceperformance.PricePerformanceHandler](i)
@@ -497,7 +516,7 @@ func provideHandlers(injector *do.RootScope) {
 		fundaChartMetricsHandler := do.MustInvoke[*fundachart.FundaChartMetricsHandler](i)
 		findataFinancialHandler := do.MustInvoke[*findata.FindataFinancialHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

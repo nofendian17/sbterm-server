@@ -1131,7 +1131,9 @@ curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&in
     }
   }
 }
-```### `GET /v1/company/{symbol}/running-trade-chart`
+```
+
+### `GET /v1/company/{symbol}/running-trade-chart`
 Running trade chart: the price series plus per-broker value/volume series over a
 date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol}`).
 

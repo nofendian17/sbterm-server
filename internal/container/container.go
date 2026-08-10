@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/chart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/findata"
@@ -243,6 +244,15 @@ func provideRepositories(injector *do.RootScope) {
 	})
 	do.MustAs[*infraRepo.PricePerformanceRepository, repository.PricePerformanceRepository](injector)
 
+	do.Provide(injector, func(i do.Injector) (*infraRepo.ChartbitRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewChartbitRepository(client), nil
+	})
+	do.MustAs[*infraRepo.ChartbitRepository, repository.ChartbitRepository](injector)
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.FundaChartRepository, error) {
 		client, err := do.Invoke[*stockbit.Client](i)
 		if err != nil {
@@ -370,6 +380,10 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewPricePerformanceUsecase(do.MustInvoke[repository.PricePerformanceRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.ChartbitUsecase, error) {
+		return usecase.NewChartbitUsecase(do.MustInvoke[repository.ChartbitRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.FundaChartUsecase, error) {
 		return usecase.NewFundaChartUsecase(do.MustInvoke[repository.FundaChartRepository](i)), nil
 	})
@@ -444,6 +458,10 @@ func provideHandlers(injector *do.RootScope) {
 		return priceperformance.NewPricePerformanceHandler(do.MustInvoke[usecase.PricePerformanceUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*chart.ChartbitHandler, error) {
+		return chart.NewChartbitHandler(do.MustInvoke[usecase.ChartbitUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*fundachart.FundaChartHandler, error) {
 		return fundachart.NewFundaChartHandler(do.MustInvoke[usecase.FundaChartUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
@@ -474,11 +492,12 @@ func provideHandlers(injector *do.RootScope) {
 		corpActionHandler := do.MustInvoke[*corpaction.CorpActionHandler](i)
 		keystatsHandler := do.MustInvoke[*keystats.KeystatsHandler](i)
 		pricePerformanceHandler := do.MustInvoke[*priceperformance.PricePerformanceHandler](i)
+		chartHandler := do.MustInvoke[*chart.ChartbitHandler](i)
 		fundaChartHandler := do.MustInvoke[*fundachart.FundaChartHandler](i)
 		fundaChartMetricsHandler := do.MustInvoke[*fundachart.FundaChartMetricsHandler](i)
 		findataFinancialHandler := do.MustInvoke[*findata.FindataFinancialHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

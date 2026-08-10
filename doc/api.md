@@ -128,6 +128,31 @@ Key-stat ratios (display-formatted strings, ~10 years).
 Price performance per timeframe. `data: { prices: [{ close, high, low, percentage, timeframe }] }`
 (timeframes: `1D 1W 1M 3M 6M YTD 1Y`).
 
+### `GET /v1/company/{symbol}/chart`
+OHLC price bars for building candlestick/line charts (proxies Stockbit Chartbit).
+`timeframe` selects the upstream path; `from`/`to` format depends on it:
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | |
+| `timeframe` | yes | `daily` or `intraday` |
+| `from` | no | `daily`: `YYYY-MM-DD` · `intraday`: Unix seconds |
+| `to` | no | same format as `from` |
+| `limit` | no | int (upstream default `0` = all bars in range) |
+
+- **`daily`** covers 1D/1W/1M aggregates. The upstream pages **backward**: `from`
+  must be the newer date and `to` the older one, otherwise the API returns an
+  empty `chartbit`. Deep history requires chaining on `last_data`/`previous_timestamp`
+  from the response (not yet aggregated by this server).
+- **`intraday`** covers minute/hour intervals (1m–4H). Add `minutes_multiplier`
+  for hourly aggregation when needed.
+
+`data: { allow_decimal, chartbit: [{ date, unixdate, datetime, unix_timestamp, open, high, low, close, volume, value, frequency, foreignbuy, foreignsell, foreignflow, soxclose, dividend, shareoutstanding, freq_analyzer, lot, foreign_buy, foreign_sell, symbol }] }`
+
+`daily` bars populate `date`/`unixdate` and the foreign-flow fields; `intraday`
+bars populate `datetime`/`unix_timestamp`/`symbol` instead. Missing fields are `0`
+or `""`.
+
 ### `GET /v1/company/{symbol}/fundachart`
 Raw historical ratio series for one or more fin-items. **This is the raw-number source
 for keystats items.**

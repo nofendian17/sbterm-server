@@ -132,6 +132,8 @@ func messageFor(fe govalidator.FieldError) string {
 		return fmt.Sprintf("must be exactly %s characters", fe.Param())
 	case "oneof":
 		return fmt.Sprintf("must be one of: %s", fe.Param())
+	case "datetime":
+		return fmt.Sprintf("must match datetime format %s", fe.Param())
 	case "url":
 		return "must be a valid URL"
 	case "uuid":

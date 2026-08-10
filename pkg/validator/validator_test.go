@@ -216,6 +216,7 @@ func TestValidateMessageTags(t *testing.T) {
 		URL   string `json:"url" validate:"url"`
 		ID    string `json:"id" validate:"uuid"`
 		Even  int    `json:"even" validate:"oneof=2 4 6"`
+		Date  string `json:"date" validate:"datetime=2006-01-02"`
 	}
 
 	tests := []struct {
@@ -232,6 +233,7 @@ func TestValidateMessageTags(t *testing.T) {
 				URL:   "not-url",
 				ID:    "not-uuid",
 				Even:  3,
+				Date:  "09-08-2026",
 			},
 			want: map[string]string{
 				"short": "must be at least 3",
@@ -240,6 +242,7 @@ func TestValidateMessageTags(t *testing.T) {
 				"url":   "must be a valid URL",
 				"id":    "must be a valid UUID",
 				"even":  "must be one of: 2 4 6",
+				"date":  "must match datetime format 2006-01-02",
 			},
 		},
 	}

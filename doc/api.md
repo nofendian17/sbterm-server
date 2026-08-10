@@ -23,13 +23,14 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 11 | `GET /v1/insider/shareholding-network` | [Company fundamentals](#get-v1insidershareholding-network) |
 | 12 | `GET /v1/insider/majorholder` | [Company fundamentals](#get-v1insidermajorholder) |
 | 13 | `GET /v1/market-detector/{symbol}` | [Market detector](#get-v1market-detectorsymbol) |
-| 14 | `GET /v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-v1companysymbolcorp-actions) |
-| 15 | `GET /v1/company/{symbol}/keystats` | [Company fundamentals](#get-v1companysymbolkeystats) |
-| 16 | `GET /v1/company/{symbol}/price-performance` | [Company fundamentals](#get-v1companysymbolprice-performance) |
-| 17 | `GET /v1/company/{symbol}/chart` | [Company fundamentals](#get-v1companysymbolchart) |
-| 18 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
-| 19 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
-| 20 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
+| 14 | `GET /v1/top-stock` | [Top stock](#get-v1top-stock) |
+| 15 | `GET /v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-v1companysymbolcorp-actions) |
+| 16 | `GET /v1/company/{symbol}/keystats` | [Company fundamentals](#get-v1companysymbolkeystats) |
+| 17 | `GET /v1/company/{symbol}/price-performance` | [Company fundamentals](#get-v1companysymbolprice-performance) |
+| 18 | `GET /v1/company/{symbol}/chart` | [Company fundamentals](#get-v1companysymbolchart) |
+| 19 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
+| 20 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
+| 21 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -561,6 +562,60 @@ curl 'http://localhost:8080/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-1
         { "netbs_broker_code": "ZP", "netbs_date": "20260810", "netbs_sell_avg_price": "1924.95", "netbs_stock_code": "BRPT", "slot": "-98082", "slotv": "1.17e+07", "sval": "-1.89e+10", "svalv": "2.26e+10", "type": "Asing", "freq": "2374" }
       ]
     }
+  }
+}
+```
+
+### `GET /v1/top-stock`
+Top buy/sell leaderboards over a date range (proxies `/order-trade/top-stock`).
+
+| param | required | values |
+|---|---|---|
+| `start` | yes | `YYYY-MM-DD` — must be earlier than `end` |
+| `end` | yes | `YYYY-MM-DD` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `market_type` | no | `MARKET_TYPE_ALL` (default), `MARKET_TYPE_REGULER`, `MARKET_TYPE_TUNAI`, `MARKET_TYPE_NEGO` |
+| `value_type` | no | `VALUE_TYPE_NET` (default), `VALUE_TYPE_GROSS`, `VALUE_TYPE_TOTAL` |
+| `page` | no | int (default 1) |
+
+`data.top_buy` / `data.top_sell` are ranked lists of `{rank, code, icon_url, value, lot, average, foreign_value, frequency}` where each numeric field is `{raw, formatted}`. `data.response_info` echoes paging/display metadata (`page`, `limit`, `max_day_duration`, `start_date`, `end_date`, `value_type`). `data.display_option` signals which value columns are enabled (`enabled_value_type: {gross, net, total}`).
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/top-stock?start=2026-08-09&end=2026-08-10&limit=25'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "top_buy": [
+      {
+        "rank": 1,
+        "code": "DSSA",
+        "icon_url": "https://assets.stockbit.com/logos/companies/DSSA.png",
+        "value": { "raw": "1297165000000", "formatted": "1,297.2B" },
+        "lot": { "raw": "13305000", "formatted": "13.3M" },
+        "average": { "raw": "974", "formatted": "974" },
+        "foreign_value": { "raw": "0", "formatted": "0" },
+        "frequency": { "raw": "3", "formatted": "3" }
+      }
+    ],
+    "top_sell": [
+      {
+        "rank": 1,
+        "code": "AMRT",
+        "icon_url": "https://assets.stockbit.com/logos/companies/AMRT.png",
+        "value": { "raw": "-28256436000", "formatted": "-28.3B" },
+        "lot": { "raw": "-204165", "formatted": "-204.2K" },
+        "average": { "raw": "1384", "formatted": "1,384" },
+        "foreign_value": { "raw": "0", "formatted": "0" },
+        "frequency": { "raw": "-4", "formatted": "-4" }
+      }
+    ],
+    "response_info": { "page": 1, "limit": 100, "max_day_duration": 360, "start_date": "2026-08-09", "end_date": "2026-08-10", "value_type": "VALUE_TYPE_NET" },
+    "display_option": { "banner_message": "", "foreign_value_column": false, "enabled_value_type": { "gross": true, "net": true, "total": true } }
   }
 }
 ```

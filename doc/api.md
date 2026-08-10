@@ -31,6 +31,8 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 19 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
 | 20 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
 | 21 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
+| 22 | `GET /v1/index/{symbol}/summary` | [Index summary](#get-v1indexsymbolsummary) |
+| 23 | `GET /v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-v1indexsymbolchart) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -987,6 +989,143 @@ curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=1&report_
           "is_default_expanded": false,
           "max_show_level": 2
         }
+      ]
+    }
+  }
+}
+```
+
+### `GET /v1/index/{symbol}/summary`
+Intraday/daily price series plus per-day summary for an index (e.g. IHSG).
+Proxies Stockbit's `/charts/{symbol}/daily`; the path segment is fixed to
+`daily` because upstream rejects other segments (`weekly`, `monthly`, ... return
+404 `Unrecognized Command`). Granularity is controlled by the `interval` query
+parameter instead.
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | e.g. `IHSG` |
+| `from` | no | `YYYY-MM-DD`; see range rules below |
+| `to` | no | `YYYY-MM-DD`; see range rules below |
+| `interval` | no | pass-through, e.g. `INTERVAL_CHART_MINUTELY`; omit for daily points |
+
+- **Range rules:** `from`/`to` must either both be provided or both omitted
+  (422 `from and to must both be provided or both omitted` otherwise). When
+  provided they are validated as `YYYY-MM-DD` (422 on invalid layout or
+  impossible dates such as `2026-13-40`).
+- **Omitting `from`/`to` defaults to the most recent trading session with
+  data**: the server probes backwards from today (WIB, up to 30 days) and
+  returns the latest day whose session has price points, so pre-market,
+  weekend and holiday requests still return the last available session instead
+  of an empty `prices[]`.
+- Without `interval` the upstream returns one daily point per trading day; with
+  `INTERVAL_CHART_MINUTELY` it returns the intraday minute series.
+- `interval` is passed through unvalidated: upstream rejects unknown values with
+  a 400 (`Your request is invalid`), which surfaces as a 500 here.
+- The summary-level `change`/`percentage` fields are unreliable — the live
+  capture shows `change` equal to the last price and `percentage` `"0.00"` even
+  when the last point shows `-1.17%`. Prefer computing from `previous` (prior
+  close) and the last `prices[]` point.
+
+`data: { cagr, change, drawdown, markingpoint, percentage, timeframe, xaxisopt, previous, line_weight, previous_timeframe_price, chart_type, interval_in_minutes, allowed_chart_type, max_candles, prices: [{ date, formatted_date, xlabel, value, percentage, change, open, high, low, volume }] }`
+
+`prices[]` points carry `value`/`percentage`/`formatted_date` as strings and
+`change` as a number; `open`/`high`/`low`/`volume` are empty strings for the
+line chart. `previous_timeframe_price` is the prior session close.
+
+#### Example: minutely IHSG summary
+
+```bash
+curl 'http://localhost:8080/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "xaxisopt": "intraday",
+    "previous": 6409.654,
+    "previous_timeframe_price": {
+      "formatted_date": "2026-08-07",
+      "value": "6409.65",
+      "change": 0
+    },
+    "chart_type": "PRICE_CHART_TYPE_LINE",
+    "prices": [
+      {
+        "formatted_date": "2026-08-10 09:00:00",
+        "value": "6442.65",
+        "percentage": "0.03",
+        "change": 2.048
+      },
+      {
+        "formatted_date": "2026-08-10 16:14:00",
+        "value": "6365.37",
+        "percentage": "-1.17",
+        "change": -75.223
+      }
+    ]
+  }
+}
+```
+
+### `GET /v1/index/{symbol}/chart`
+Combines the [index summary](#get-v1indexsymbolsummary) (`summary`) with
+chartbit OHLC bars (`chart`) for the same index in one response, so a chart
+page can render the intraday line and the daily candles with a single call.
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | e.g. `IHSG` |
+| `from` | no | `YYYY-MM-DD`; see range rules below |
+| `to` | no | `YYYY-MM-DD`; see range rules below |
+| `interval` | no | pass-through; affects the `summary` part only |
+
+- Validation matches the summary endpoint: `from`/`to` must either both be
+  provided or both omitted (422 `from and to must both be provided or both
+  omitted` otherwise), provided dates must be `YYYY-MM-DD`, and `interval` is
+  optional and passed through.
+- **Omitting `from`/`to` defaults to the most recent trading session with
+  data** (probed backwards from today, WIB, up to 30 days), same as the
+  summary endpoint.
+- **`from`/`to` are chronological** (`from` = earlier date, `to` = later one)
+  and must not be reversed (422 `from must be earlier than or equal to to`).
+  The summary upstream requires this order (reversed ranges return a 400), while
+  chartbit daily pages backward — so the server **swaps the range for the chart
+  call** internally.
+- The two parts are fetched **concurrently**; if either upstream call fails the
+  whole request returns 500.
+- **`interval` only affects the `summary` section.** The `chart` section is
+  always daily OHLC bars regardless of the requested interval granularity.
+- `summary.previous`/`previous_timeframe_price` and the last `summary.prices[]`
+  point should agree with the last `chart.chartbit[]` close (verified against a
+  live capture: 6365.37 vs 6365.374).
+
+`data: { summary: { ...same shape as the summary endpoint... }, chart: { allow_decimal, chartbit: [{ date, unixdate, datetime, unix_timestamp, open, high, low, close, volume, value, frequency, foreignbuy, foreignsell, foreignflow, soxclose, dividend, shareoutstanding, freq_analyzer, lot, foreign_buy, foreign_sell, symbol }] } }`
+
+#### Example: IHSG summary + daily OHLC
+
+```bash
+curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "xaxisopt": "intraday",
+      "previous": 6409.654,
+      "previous_timeframe_price": { "formatted_date": "2026-08-07", "value": "6409.65" },
+      "prices": [
+        { "formatted_date": "2026-08-10 09:00:00", "value": "6442.65", "change": 2.048 },
+        { "formatted_date": "2026-08-10 16:14:00", "value": "6365.37", "change": -75.223 }
+      ]
+    },
+    "chart": {
+      "allow_decimal": 0,
+      "chartbit": [
+        { "date": "2026-08-10", "open": 6440.597, "high": 6462.738, "low": 6362.758, "close": 6365.374, "volume": 41109487000 }
       ]
     }
   }

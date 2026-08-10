@@ -74,6 +74,14 @@ func (h *ChartbitHandler) ChartPrice(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to validate chart params")
 		return
 	}
+	// Timeframe-specific requirements: the upstream API returns an empty
+	// chartbit (or an error) when they are missing, so fail fast with a clear
+	// 422 instead. Both daily and intraday need from/to (daily pages backward:
+	// from = newer date, to = older); intraday additionally needs limit >= 1.
+	if fields := chartTimeframeRequirements(req); len(fields) > 0 {
+		response.ValidationError(w, "validation failed", fields)
+		return
+	}
 
 	data, err := h.uc.GetChartPrice(r.Context(), req.Symbol, req.Timeframe, req.From, req.To, req.Limit)
 	if err != nil {
@@ -81,6 +89,27 @@ func (h *ChartbitHandler) ChartPrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.OK(w, toResponse(data))
+}
+
+// chartTimeframeRequirements returns per-field validation messages for
+// timeframe-specific requirements, or nil when the request is well-formed.
+// from/to are required for every timeframe (the upstream API returns an empty
+// chartbit without them); intraday additionally requires limit >= 1.
+func chartTimeframeRequirements(req chartPriceRequest) map[string]string {
+	fields := map[string]string{}
+	if req.From == "" {
+		fields["from"] = "is required"
+	}
+	if req.To == "" {
+		fields["to"] = "is required"
+	}
+	if req.Timeframe == "intraday" && req.Limit < 1 {
+		fields["limit"] = "must be at least 1 for intraday timeframe"
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	return fields
 }
 
 func toResponse(d *domain.ChartPriceData) chartPriceResponse {

@@ -19,12 +19,13 @@ import (
 
 func TestChartbitHandlerChartPrice(t *testing.T) {
 	tests := []struct {
-		name        string
-		path        string
-		setup       func(uc *mocks.MockChartbitUsecase)
-		wantStatus  int
-		wantClose   float64
-		wantErrCode string
+		name           string
+		path           string
+		setup          func(uc *mocks.MockChartbitUsecase)
+		wantStatus     int
+		wantClose      float64
+		wantErrCode    string
+		wantErrDetails map[string]string
 	}{
 		{
 			name: "returns chart price",
@@ -36,6 +37,17 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 			},
 			wantStatus: http.StatusOK,
 			wantClose:  985,
+		},
+		{
+			name: "intraday returns chart price",
+			path: "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=5",
+			setup: func(uc *mocks.MockChartbitUsecase) {
+				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "intraday", "1786230000", "1786143600", 5).Return(&domain.ChartPriceData{
+					Chartbit: []domain.ChartPrice{{Close: 3130, Symbol: "DSSA"}},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantClose:  3130,
 		},
 		{
 			name:        "missing symbol returns 422",
@@ -50,10 +62,84 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
+			name:        "daily missing from returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=daily&to=2026-08-10",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"from": "is required",
+			},
+		},
+		{
+			name:        "daily missing to returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"to": "is required",
+			},
+		},
+		{
+			name:        "daily missing from and to returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=daily",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"from": "is required",
+				"to":   "is required",
+			},
+		},
+		{
+			name:        "intraday missing from returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=intraday&to=1786143600&limit=5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"from": "is required",
+			},
+		},
+		{
+			name:        "intraday missing to returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&limit=5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"to": "is required",
+			},
+		},
+		{
+			name:        "intraday missing from and to returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=intraday&limit=5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"from": "is required",
+				"to":   "is required",
+			},
+		},
+		{
+			name:        "intraday missing limit returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"limit": "must be at least 1 for intraday timeframe",
+			},
+		},
+		{
+			name:        "intraday limit zero returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=0",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"limit": "must be at least 1 for intraday timeframe",
+			},
+		},
+		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/chart?timeframe=daily",
+			path: "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10",
 			setup: func(uc *mocks.MockChartbitUsecase) {
-				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "daily", "", "", 0).Return(nil, errors.New("boom"))
+				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "daily", "2025-08-10", "2026-08-10", 0).Return(nil, errors.New("boom"))
 			},
 			wantStatus:  http.StatusInternalServerError,
 			wantErrCode: "INTERNAL_ERROR",
@@ -87,7 +173,8 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 					} `json:"chartbit"`
 				} `json:"data"`
 				Error *struct {
-					Code string `json:"code"`
+					Code    string            `json:"code"`
+					Details map[string]string `json:"details"`
 				} `json:"error"`
 			}
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
@@ -95,10 +182,89 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 			if tt.wantErrCode != "" {
 				require.NotNil(t, env.Error)
 				assert.Equal(t, tt.wantErrCode, env.Error.Code)
+				if tt.wantErrDetails != nil {
+					assert.Equal(t, tt.wantErrDetails, env.Error.Details)
+				}
 				return
 			}
 			require.Len(t, env.Data.Chartbit, 1)
 			assert.Equal(t, tt.wantClose, env.Data.Chartbit[0].Close)
+		})
+	}
+}
+
+func TestChartTimeframeRequirements(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     chartPriceRequest
+		wantNil bool
+		want    map[string]string
+	}{
+		{
+			name:    "daily with from and to is valid",
+			req:     chartPriceRequest{Timeframe: "daily", From: "2025-08-10", To: "2026-08-10"},
+			wantNil: true,
+		},
+		{
+			name: "daily missing from",
+			req:  chartPriceRequest{Timeframe: "daily", To: "2026-08-10"},
+			want: map[string]string{"from": "is required"},
+		},
+		{
+			name: "daily missing to",
+			req:  chartPriceRequest{Timeframe: "daily", From: "2025-08-10"},
+			want: map[string]string{"to": "is required"},
+		},
+		{
+			name: "daily missing both",
+			req:  chartPriceRequest{Timeframe: "daily"},
+			want: map[string]string{"from": "is required", "to": "is required"},
+		},
+		{
+			name:    "intraday with from/to and limit is valid",
+			req:     chartPriceRequest{Timeframe: "intraday", From: "1786230000", To: "1786143600", Limit: 5},
+			wantNil: true,
+		},
+		{
+			name: "intraday missing from",
+			req:  chartPriceRequest{Timeframe: "intraday", To: "1786143600", Limit: 5},
+			want: map[string]string{"from": "is required"},
+		},
+		{
+			name: "intraday missing to",
+			req:  chartPriceRequest{Timeframe: "intraday", From: "1786230000", Limit: 5},
+			want: map[string]string{"to": "is required"},
+		},
+		{
+			name: "intraday missing from/to and limit",
+			req:  chartPriceRequest{Timeframe: "intraday"},
+			want: map[string]string{"from": "is required", "to": "is required", "limit": "must be at least 1 for intraday timeframe"},
+		},
+		{
+			name: "intraday missing limit only",
+			req:  chartPriceRequest{Timeframe: "intraday", From: "1786230000", To: "1786143600"},
+			want: map[string]string{"limit": "must be at least 1 for intraday timeframe"},
+		},
+		{
+			name: "intraday limit zero",
+			req:  chartPriceRequest{Timeframe: "intraday", From: "1786230000", To: "1786143600", Limit: 0},
+			want: map[string]string{"limit": "must be at least 1 for intraday timeframe"},
+		},
+		{
+			name:    "daily with from/to but limit ignored",
+			req:     chartPriceRequest{Timeframe: "daily", From: "2025-08-10", To: "2026-08-10", Limit: 0},
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chartTimeframeRequirements(tt.req)
+			if tt.wantNil {
+				assert.Nil(t, got)
+				return
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

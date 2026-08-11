@@ -14,12 +14,15 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	deliveryhttp "github.com/nofendian17/sbterm-server/internal/delivery/http"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/activity"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/brokertop"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/chart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/findata"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/fundachart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/historicalsummary"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/index"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/indexsummary"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/keystats"
@@ -319,6 +322,33 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewRunningTradeRepository(client), nil
 	})
 	do.MustAs[*infraRepo.RunningTradeRepository, repository.RunningTradeRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.HistoricalSummaryRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewHistoricalSummaryRepository(client), nil
+	})
+	do.MustAs[*infraRepo.HistoricalSummaryRepository, repository.HistoricalSummaryRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.ActivityRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewActivityRepository(client), nil
+	})
+	do.MustAs[*infraRepo.ActivityRepository, repository.ActivityRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.BrokerTopRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewBrokerTopRepository(client), nil
+	})
+	do.MustAs[*infraRepo.BrokerTopRepository, repository.BrokerTopRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -451,6 +481,18 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.RunningTradeUsecase, error) {
 		return usecase.NewRunningTradeUsecase(do.MustInvoke[repository.RunningTradeRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.HistoricalSummaryUsecase, error) {
+		return usecase.NewHistoricalSummaryUsecase(do.MustInvoke[repository.HistoricalSummaryRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.ActivityUsecase, error) {
+		return usecase.NewActivityUsecase(do.MustInvoke[repository.ActivityRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.BrokerTopUsecase, error) {
+		return usecase.NewBrokerTopUsecase(do.MustInvoke[repository.BrokerTopRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -546,6 +588,18 @@ func provideHandlers(injector *do.RootScope) {
 		return runningtrade.NewRunningTradeHandler(do.MustInvoke[usecase.RunningTradeUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*historicalsummary.HistoricalSummaryHandler, error) {
+		return historicalsummary.NewHistoricalSummaryHandler(do.MustInvoke[usecase.HistoricalSummaryUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*activity.ActivityHandler, error) {
+		return activity.NewActivityHandler(do.MustInvoke[usecase.ActivityUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*brokertop.BrokerTopHandler, error) {
+		return brokertop.NewBrokerTopHandler(do.MustInvoke[usecase.BrokerTopUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
@@ -572,8 +626,11 @@ func provideHandlers(injector *do.RootScope) {
 		findataFinancialHandler := do.MustInvoke[*findata.FindataFinancialHandler](i)
 		indexSummaryHandler := do.MustInvoke[*indexsummary.IndexSummaryHandler](i)
 		runningTradeHandler := do.MustInvoke[*runningtrade.RunningTradeHandler](i)
+		historicalSummaryHandler := do.MustInvoke[*historicalsummary.HistoricalSummaryHandler](i)
+		activityHandler := do.MustInvoke[*activity.ActivityHandler](i)
+		brokerTopHandler := do.MustInvoke[*brokertop.BrokerTopHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

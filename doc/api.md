@@ -34,6 +34,10 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 22 | `GET /v1/index/{symbol}/summary` | [Index summary](#get-v1indexsymbolsummary) |
 | 23 | `GET /v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-v1indexsymbolchart) |
 | 24 | `GET /v1/company/{symbol}/running-trade-chart` | [Running trade chart](#get-v1companysymbolrunning-trade-chart) |
+| 25 | `GET /v1/company/{symbol}/historical-summary` | [Historical price summary](#get-v1companysymbolhistorical-summary) |
+| 26 | `GET /v1/order-trade/broker/top` | [Top brokers](#get-v1order-tradebrokertop) |
+| 27 | `GET /v1/order-trade/broker/activity-chart` | [Broker activity chart](#get-v1order-tradebrokeractivity-chart) |
+| 28 | `GET /v1/order-trade/broker/activity` | [Broker activity transactions](#get-v1order-tradebrokeractivity) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1159,7 +1163,8 @@ date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol
   defaulting to `RT_PERIOD_LAST_1_DAY` (the last 1 day, minutely points). If
   both a range and a period are supplied, the range wins.
 - `broker_code` is repeatable; each value selects a broker whose series is
-  included in `broker_chart_data`. Omitted → upstream picks its default set.
+  included in `broker_chart_data`. Omitted → upstream picks its default set
+  (live-verified: `XL, BK, AK, CC, YU` for DSSA over `2026-08-02..2026-08-11`).
 - `investor_type` and `market_board` default to `INVESTOR_TYPE_ALL` /
   `BOARD_TYPE_ALL` when omitted.
 
@@ -1174,40 +1179,40 @@ values are strings.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-07-01&to=2026-08-10'
+curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-08-02&to=2026-08-11'
 ```
 
 ```json
 {
   "success": true,
   "data": {
-    "from": "2026-07-01",
-    "to": "2026-08-10",
-    "data_last_updated": "2026-08-10T00:00:00Z",
+    "from": "2026-08-02",
+    "to": "2026-08-11",
+    "data_last_updated": "2026-08-11T00:00:00Z",
     "price_chart_data": [
       {
-        "date": "2026-07-01",
+        "date": "2026-08-03",
         "time": "00:00",
-        "value": { "raw": "820", "formatted": "820" },
-        "datetime_label": "01 Jul",
-        "open": { "raw": "810", "formatted": "810" },
-        "high": { "raw": "835", "formatted": "835" },
-        "low": { "raw": "795", "formatted": "795" }
+        "value": { "raw": "835", "formatted": "835" },
+        "datetime_label": "03 Aug",
+        "open": { "raw": "850", "formatted": "850" },
+        "high": { "raw": "875", "formatted": "875" },
+        "low": { "raw": "830", "formatted": "830" }
       }
     ],
     "broker_chart_data": [
       {
         "type": "TYPE_CHART_VALUE",
-        "brokers": ["DR", "AK", "DH", "ZP", "HP"],
+        "brokers": ["XL", "BK", "AK", "CC", "YU"],
         "charts": [
           {
-            "broker_code": "ZP",
+            "broker_code": "AK",
             "chart": [
               {
-                "date": "2026-07-01",
+                "date": "2026-08-03",
                 "time": "00:00",
-                "value": { "raw": "-27436237000", "formatted": "(27.4B)" },
-                "datetime_label": "01 Jul",
+                "value": { "raw": "-11939190000", "formatted": "(11.9B)" },
+                "datetime_label": "03 Aug",
                 "open": null,
                 "high": null,
                 "low": null
@@ -1218,16 +1223,16 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&b
       },
       {
         "type": "TYPE_CHART_VOLUME",
-        "brokers": ["DR", "AK", "DH", "ZP", "HP"],
+        "brokers": ["XL", "BK", "AK", "CC", "YU"],
         "charts": [
           {
-            "broker_code": "AK",
+            "broker_code": "XL",
             "chart": [
               {
-                "date": "2026-07-01",
+                "date": "2026-08-03",
                 "time": "00:00",
-                "value": { "raw": "297844", "formatted": "297.8K" },
-                "datetime_label": "01 Jul",
+                "value": { "raw": "-46272", "formatted": "(46.3K)" },
+                "datetime_label": "03 Aug",
                 "open": null,
                 "high": null,
                 "low": null
@@ -1237,7 +1242,7 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&b
         ]
       }
     ],
-    "date_session_info": "10 Aug 2026"
+    "date_session_info": "11 Aug 2026"
   }
 }
 ```
@@ -1257,9 +1262,10 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&p
 Empirically verified against `/order-trade/running-trade/chart/DSSA`:
 
 - **Granularity follows the timeframe, not an explicit interval:** a multi-day
-  range returns one point per trading day (e.g. `2026-07-01..2026-08-10` → 29
+  range returns one point per trading day (e.g. `2026-08-02..2026-08-11` → 7
   daily points), while `from == to` or `period=RT_PERIOD_LAST_1_DAY` returns
-  minutely points (e.g. 335 points for a full session `09:00..16:14`).
+  minutely points (e.g. 335 points for a full session `09:00..16:14`); a
+  7-day `period` returns 30 points.
 - **A single bound is silently ignored upstream:** `from`-only or `to`-only
   requests return the last session, dropping the given bound. This server is
   deliberately stricter and rejects them with 422
@@ -1276,8 +1282,9 @@ Empirically verified against `/order-trade/running-trade/chart/DSSA`:
   session's minutely data, which is what the `RT_PERIOD_LAST_1_DAY` default
   selects.
 - **`broker_code` omitted → upstream default set:** a 5-broker default set
-  (e.g. `XL, BK, ZP, SS, CC`) is returned; it can differ per timeframe.
-  An empty `broker_code=` value is accepted but yields a series with  an empty broker code. Multi-broker responses list `charts[]` **sorted by broker code**,
+  (live-verified `XL, BK, AK, CC, YU`) is returned; it can differ per timeframe.
+  An empty `broker_code=` value is accepted but yields a series with an empty
+  broker code. Multi-broker responses list `charts[]` **sorted by broker code**,
   not in request order.
 - **`investor_type`/`market_board` shape:** every valid enum value returns the
   same shape and point counts; empty or invalid values 400 upstream (this server
@@ -1286,6 +1293,305 @@ Empirically verified against `/order-trade/running-trade/chart/DSSA`:
   `referer`; `X-Platform: web`/`ios` both work.
 - **Number formatting is accounting style:** negative values render as
   `raw: "-7852500", formatted: "(7.9M)"`.
+
+### `GET /v1/company/{symbol}/historical-summary`
+Historical price summary for a symbol: one row per period over a date range,
+with pagination (proxies
+`/company-price-feed/historical/summary/{symbol}`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | |
+| `period` | no | `HS_PERIOD_DAILY` (default), `HS_PERIOD_WEEKLY`, `HS_PERIOD_MONTHLY` |
+| `start_date` | no | `YYYY-MM-DD` |
+| `end_date` | no | `YYYY-MM-DD` |
+| `limit` | no | int ≥ 1 (default 50) |
+| `page` | no | int ≥ 1 (default 1) |
+
+- **Period enum** is limited to the three `HS_PERIOD_*` values above;
+  anything else (e.g. `HS_PERIOD_YEARLY`) 400s upstream and is rejected here
+  with 422.
+- **Dates** are optional `YYYY-MM-DD`. The upstream tolerates a single bound or
+  none at all, so this server does too — no both-or-neither rule for this
+  endpoint.
+- `limit`/`page` are integers ≥ 1; non-numeric values → 422.
+
+`data: { result: [{ date, close, change, value, volume, frequency, foreign_buy, foreign_sell, net_foreign, open, high, low, average, change_percentage }], paginate: { next_page } }`
+
+All numbers are plain JSON numbers (not `raw`/`formatted` objects). `paginate.next_page`
+is a string cursor; follow it as `page=<next_page>` to walk the pages. The upstream
+returns an empty `result` once past the end, but still echoes the next cursor, so
+stop when `result` is empty.
+
+#### Example: request / response
+
+```bash
+# Last 12 weekly bars, from the upstream curl.
+curl 'http://localhost:8080/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11&limit=12&page=1'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "result": [
+      {
+        "date": "2026-08-10",
+        "close": 945,
+        "change": -30,
+        "value": 1928786961000,
+        "volume": 19414009,
+        "frequency": 184265,
+        "foreign_buy": 421517824000,
+        "foreign_sell": 453168550000,
+        "net_foreign": -31650726000,
+        "open": 990,
+        "high": 1075,
+        "low": 920,
+        "average": 994,
+        "change_percentage": -3.08
+      }
+    ],
+    "paginate": { "next_page": "2" }
+  }
+}
+```
+
+#### Behavior notes (probed live against the upstream)
+
+Empirically verified against `/company-price-feed/historical/summary/DSSA`:
+
+- **All params optional upstream:** omitting `period`, the date bounds, `limit`
+  or `page` still returns data (defaults: the latest period, full range, 12
+  rows). This server defaults `period=HS_PERIOD_DAILY`, `limit=50`, `page=1`.
+- **Result is newest-first:** rows come ordered from the most recent date
+  backwards (e.g. `2026-08-10` → `2026-05-25` for weekly).
+- **`next_page` is a string cursor that keeps incrementing even past the end**
+  (page 1000 → `"1001"` with an empty `result`); stop when `result` is empty.
+
+### `GET /v1/order-trade/broker/top`
+Top brokers ranked by a sort key over a period (proxies
+`/order-trade/broker/top`).
+
+| param | required | values |
+|---|---|---|
+| `sort` | no | `TB_SORT_BY_TOTAL_VALUE` (default), `TB_SORT_BY_NET_VALUE`, `TB_SORT_BY_BUY_VALUE`, `TB_SORT_BY_SELL_VALUE`, `TB_SORT_BY_TOTAL_FREQUENCY` |
+| `order` | no | `ORDER_BY_ASC`, `ORDER_BY_DESC` (default) |
+| `period` | no | `TB_PERIOD_LAST_1_DAY` (default), `TB_PERIOD_LAST_7_DAYS`, `TB_PERIOD_LAST_1_MONTH`, `TB_PERIOD_YEAR_TO_DATE` |
+| `market_type` | no | `MARKET_TYPE_ALL` (default; the only accepted value upstream) |
+| `eod_only` | no | boolean (`true` default); restricts to end-of-day sessions |
+
+- **`market_type` only accepts `MARKET_TYPE_ALL`** — every other value (incl.
+  `MARKET_TYPE_REGULAR`/`MARKET_TYPE_CASH`) 400s upstream and is rejected here
+  with 422. Omitting it defaults to `ALL`.
+- **`eod_only=false` returns fewer rows** (live-verified: 89 vs 112 for the last
+  1 day) — it drops non-EOD sessions.
+- All other params default when omitted; upstream tolerates an empty query.
+
+`data: { date: { from, to, idx }, list: [{ code, name, investor_type, total_value, net_value, buy_value, sell_value, total_volume, total_frequency, group }] }`
+
+All monetary/volume fields are **strings** (large IDR/unit amounts upstream
+serializes as strings, e.g. `"3954882296950"`). `group` is `BROKER_GROUP_LOCAL` /
+`BROKER_GROUP_FOREIGN`.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/order-trade/broker/top?sort=TB_SORT_BY_TOTAL_VALUE&order=ORDER_BY_DESC&period=TB_PERIOD_LAST_1_DAY&market_type=MARKET_TYPE_ALL&eod_only=true'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "date": { "from": "2026-08-11", "to": "2026-08-11", "idx": "2026-08-11" },
+    "list": [
+      {
+        "code": "XL",
+        "name": "Stockbit Sekuritas Digital",
+        "investor_type": "INVESTOR_TYPE_UNSPECIFIED",
+        "total_value": "3954882296950",
+        "net_value": "31002582100",
+        "buy_value": "1992942439525",
+        "sell_value": "1961939857425",
+        "total_volume": "16818162166",
+        "total_frequency": "1431582",
+        "group": "BROKER_GROUP_LOCAL"
+      }
+    ]
+  }
+}
+```
+
+#### Behavior notes (probed live against the upstream)
+
+- **All params optional upstream:** an empty query returns 200 (defaults to the
+  last 1 day, sorted by total value DESC, all market types, non-EOD-only).
+- **`eod_only` inverts upstream:** omitting `eod_only` upstream behaves like
+  `false` (89 rows); this server defaults it to `true` (112 rows) to match the
+  reference curl.
+
+### `GET /v1/order-trade/broker/activity-chart`
+Broker activity chart for selected symbols and brokers over a date range or
+period (proxies `/order-trade/broker/activity-chart`).
+
+| param | required | values |
+|---|---|---|
+| `symbols` | no | repeatable (`?symbols=BUMI&symbols=DSSA`); empty → upstream default set |
+| `brokers_code` | no | repeatable (`?brokers_code=XL&brokers_code=ZP`); empty → upstream default set |
+| `from` | no | `YYYY-MM-DD`; see range rules |
+| `to` | no | `YYYY-MM-DD` |
+| `period` | no | `RT_PERIOD_LAST_1_DAY` (default), `RT_PERIOD_LAST_7_DAYS`, `RT_PERIOD_LAST_1_MONTH`, `RT_PERIOD_LAST_3_MONTHS`, `RT_PERIOD_YEAR_TO_DATE`, `RT_PERIOD_LAST_1_YEAR` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `market_board` | no | `BOARD_TYPE_ALL` (default), `BOARD_TYPE_REGULAR`, `BOARD_TYPE_CASH`, `BOARD_TYPE_NEGOTIATION` |
+
+- **Range rules:** `from`/`to` must either both be provided or both omitted.
+  When both omitted the `period` enum selects the timeframe, defaulting to
+  `RT_PERIOD_LAST_1_DAY`. If both a range and a period are supplied, the range
+  wins.
+- `symbols` and `brokers_code` are each repeatable; omitted → upstream picks
+  its default set.
+
+`data: { from, to, data_last_updated, chart_data: [{ type, symbols, charts: [{ symbol, chart: [{ date, time, value: {raw, formatted}, datetime_label }] }] }], date_session_info, broker_code: [], broker_name }`
+
+`chart_data` has one entry per series type — `TYPE_CHART_VALUE` and
+`TYPE_CHART_VOLUME` — each carrying one `charts[]` entry per symbol. Unlike the
+running-trade point, activity-chart points only have `value` (no `open/high/low`).
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/order-trade/broker/activity-chart?period=RT_PERIOD_LAST_1_YEAR&symbols=BUMI&symbols=DSSA&brokers_code=XL&brokers_code=ZP&investor_type=INVESTOR_TYPE_ALL&market_board=BOARD_TYPE_REGULAR'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "from": "2025-08-11",
+    "to": "2026-08-11",
+    "data_last_updated": "2026-08-11T00:00:00Z",
+    "chart_data": [
+      {
+        "type": "TYPE_CHART_VALUE",
+        "symbols": ["BUMI", "BRMS", "AMMN", "BMRI", "BBCA", "DSSA"],
+        "charts": [
+          {
+            "symbol": "DSSA",
+            "chart": [
+              {
+                "date": "2025-08-11",
+                "time": "00:00",
+                "value": { "raw": "10797157500", "formatted": "10.8B" },
+                "datetime_label": "11 Aug"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "TYPE_CHART_VOLUME",
+        "symbols": ["BUMI", "BRMS", "AMMN", "BMRI", "BBCA", "DSSA"],
+        "charts": [
+          {
+            "symbol": "BMRI",
+            "chart": [
+              {
+                "date": "2025-08-11",
+                "time": "00:00",
+                "value": { "raw": "-76880", "formatted": "(76.9K)" },
+                "datetime_label": "11 Aug"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "date_session_info": "",
+    "broker_code": ["XL", "ZP"],
+    "broker_name": ""
+  }
+}
+```
+
+### `GET /v1/order-trade/broker/activity`
+Broker activity transactions: per-broker buy/sell trading rows over a date range
+(proxies `/order-trade/broker/activity`).
+
+| param | required | values |
+|---|---|---|
+| `broker_code` | no | repeatable (`?broker_code=AK&broker_code=ZP`) |
+| `transaction_type` | no | `TRANSACTION_TYPE_GROSS` (default), `TRANSACTION_TYPE_NET` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `limit` | no | int ≥ 1 (default 20) |
+| `market_board` | no | `MARKET_TYPE_REGULER` (default), `MARKET_TYPE_NEGO`, `MARKET_TYPE_ALL` |
+| `page` | no | int ≥ 1 (default 1) |
+| `from` | no | `YYYY-MM-DD` |
+| `to` | no | `YYYY-MM-DD` |
+| `net_val_period` | no | `NET_VAL_PERIOD_7D` (default), `NET_VAL_PERIOD_1M`, `NET_VAL_PERIOD_3M` |
+
+- **Enum pengejaan khas upstream:** `market_board` memakai `MARKET_TYPE_REGULER`
+  (ejaan "REGULER", bukan "REGULAR") dan hanya menerima
+  `REGULER`/`NEGO`/`ALL`; nilai `BOARD_TYPE_*` atau `MARKET_TYPE_REGULAR` → 400.
+- **`transaction_type`** hanya `GROSS`/`NET`; `BUY`/`SELL` → 400.
+- **`net_val_period`** hanya `7D`/`1M`/`3M`; `6M`/`1Y` valid enum tapi upstream
+  balas 404 "Data belum tersedia untuk periode ini".
+- `limit` membatasi jumlah baris per sisi (`limit=20` → 20 buy + 20 sell).
+
+`data: { broker_activity_transaction: { brokers_buy: [], brokers_sell: [] }, from, to, broker_code, broker_name }`
+
+Row item (flat, bukan nested):
+```
+{ stock_code, broker_code, type, date, value, lot, avg_price, freq,
+  company_detail: { icon_url, corpaction: {active, icon, text},
+                    notation: [{ notation_code, notation_desc,
+                                 icon_url: {light_mode, dark_mode} }] },
+  nval_trend: [{ date, nval, nvol, nfreq }] }
+```
+`value`/`lot`/`freq`/`nval`/`nvol`/`nfreq` are numbers (`lot`/`avg_price` bisa
+fraksional); `type` is `BROKER_TYPE_LOCAL`/`BROKER_TYPE_FOREIGN`;
+`broker_code` is a comma-joined string (e.g. `"AK, YU, ZP"`).
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/order-trade/broker/activity?broker_code=AK&broker_code=ZP&broker_code=YU&transaction_type=TRANSACTION_TYPE_GROSS&investor_type=INVESTOR_TYPE_ALL&limit=1&market_board=MARKET_TYPE_REGULER&page=1&from=2026-07-14&to=2026-07-31&net_val_period=NET_VAL_PERIOD_7D'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "broker_activity_transaction": {
+      "brokers_buy": [
+        {
+          "stock_code": "BBCA",
+          "broker_code": "ZP",
+          "type": "BROKER_TYPE_LOCAL",
+          "date": "2026-07-14",
+          "value": 4715906285000,
+          "lot": 7425406,
+          "avg_price": 6351.0416602135965,
+          "freq": 90295,
+          "company_detail": {
+            "icon_url": "https://assets.stockbit.com/logos/companies/BBCA.png",
+            "corpaction": { "active": false, "icon": "", "text": "" },
+            "notation": []
+          },
+          "nval_trend": [
+            { "date": "2026-08-03", "nval": 122012707500, "nvol": 193528, "nfreq": 6035 }
+          ]
+        }
+      ],
+      "brokers_sell": []
+    },
+    "from": "2026-07-14",
+    "to": "2026-07-31",
+    "broker_code": "AK, YU, ZP",
+    "broker_name": ""
+  }
+}
+```
 
 ## Notes
 

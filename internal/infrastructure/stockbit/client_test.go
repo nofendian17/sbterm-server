@@ -311,6 +311,45 @@ func TestGetUnauthorizedReturnsSentinel(t *testing.T) {
 	}
 }
 
+func TestGetRetriesOnTooManyRequests(t *testing.T) {
+	tests := []struct {
+		name       string
+		hitCount   int
+		retryAfter string
+		wantErr    bool
+	}{
+		{name: "succeeds after 429s clear", hitCount: 2, retryAfter: "0"},
+		{name: "returns ErrRateLimited after exhausting retries", hitCount: maxRetries + 1, retryAfter: "0", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var hits int
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if hits < tt.hitCount {
+					hits++
+					w.Header().Set("Retry-After", tt.retryAfter)
+					w.WriteHeader(http.StatusTooManyRequests)
+					w.Write([]byte(`{"error":"slow down"}`))
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{}`))
+			}))
+			defer srv.Close()
+
+			var out map[string]any
+			err := New(WithBaseURL(srv.URL)).Get(context.Background(), "/v1/stocks", nil, &out)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, ErrRateLimited)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.hitCount, hits, "should retry once per 429")
+		})
+	}
+}
+
 func TestTruncateStaysAtRuneBoundary(t *testing.T) {
 	tests := []struct {
 		name string

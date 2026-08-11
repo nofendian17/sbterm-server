@@ -11,6 +11,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -31,6 +32,11 @@ type Authenticator interface {
 
 // ErrUnauthorized marks responses whose bearer token was rejected (HTTP 401).
 var ErrUnauthorized = errors.New("stockbit: unauthorized")
+
+// ErrRateLimited marks responses where the upstream API returned HTTP 429.
+var ErrRateLimited = errors.New("stockbit: rate limited")
+
+const maxRetries = 3
 
 // StatusError reports a non-2xx response, carrying the upstream HTTP status
 // code so callers can distinguish client errors (4xx) from upstream failures
@@ -208,7 +214,10 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	if autoAuth {
 		attempts = 2
 	}
-	for attempt := 0; attempt < attempts; attempt++ {
+	var retries int
+	// The loop accounts for both the base attempt (plus 401 auth retry)
+	// and up to maxRetries additional iterations for HTTP 429 rate-limit retries.
+	for attempt := 0; attempt < attempts+maxRetries; attempt++ {
 		var access string
 		if autoAuth {
 			if access, err = c.auth.EnsureToken(ctx); err != nil {
@@ -258,11 +267,28 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 			continue
 		}
 
+		// Honor HTTP 429 rate limiting: wait out the Retry-After hint (falling
+		// back to a fixed backoff) and retry up to maxRetries times.
+		if resp.StatusCode == http.StatusTooManyRequests && retries < maxRetries {
+			if c.logger != nil {
+				c.logger.Debug("stockbit rate limited",
+					"method", method, "path", path, "retry", retries+1, "max", maxRetries)
+			}
+			if err := sleepRetryAfter(ctx, resp.Header.Get("Retry-After")); err != nil {
+				return fmt.Errorf("stockbit: %s %s: rate limit wait cancelled: %w", method, path, err)
+			}
+			retries++
+			continue
+		}
+
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			msg := truncate(string(respBytes))
 			err := &StatusError{Status: resp.StatusCode, Method: method, Path: path, Msg: strings.TrimSpace(msg)}
 			if resp.StatusCode == http.StatusUnauthorized {
 				return errors.Join(ErrUnauthorized, err)
+			}
+			if resp.StatusCode == http.StatusTooManyRequests {
+				return errors.Join(ErrRateLimited, err)
 			}
 			return err
 		}
@@ -287,4 +313,29 @@ func truncate(s string) string {
 	s = s[:max]
 	_, size := utf8.DecodeLastRuneInString(s)
 	return s[:len(s)-size] + "..."
+}
+
+// sleepRetryAfter parses the Retry-After header (integer seconds or HTTP-date)
+// and sleeps until the deadline. Falls back to a fixed 1-second backoff if the
+// header is absent or unparseable. Returns ctx.Err() if the context is done
+// before the sleep completes.
+func sleepRetryAfter(ctx context.Context, retryAfter string) error {
+	const fallback = time.Second
+	dur := fallback
+	if retryAfter != "" {
+		if secs, err := strconv.Atoi(retryAfter); err == nil && secs >= 0 {
+			dur = time.Duration(secs) * time.Second
+		} else if t, err := http.ParseTime(retryAfter); err == nil {
+			dur = time.Until(t)
+			if dur < 0 {
+				dur = fallback
+			}
+		}
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(dur):
+		return nil
+	}
 }

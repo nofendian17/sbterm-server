@@ -113,3 +113,45 @@ func TestActivityUsecaseGetActivity(t *testing.T) {
 		})
 	}
 }
+
+func TestActivityUsecaseGetActivityHistorical(t *testing.T) {
+	tests := []struct {
+		name    string
+		repoErr error
+		wantErr bool
+	}{
+		{name: "returns activity historical"},
+		{name: "propagates repository error", repoErr: errors.New("boom"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			want := &domain.ActivityHistoricalData{
+				DateFrom: "2026-07-01",
+				DateTo:   "2026-08-12",
+				Symbols:  []string{"CUAN"},
+				Records: []domain.ActivityHistoricalRecord{{
+					Date: "2026-08-12",
+					TradeActivity: domain.ActivityHistoricalTrade{
+						NetSummary: domain.ActivitySummary{AveragePrice: 0, Frequency: 4947, Lot: -141664, Value: -11740235500.0},
+					},
+					PriceActivity: domain.ActivityHistoricalPrice{ClosePrice: "870"},
+				}},
+			}
+			repo := mocks.NewMockActivityRepository(ctrl)
+			repo.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(want, tt.repoErr)
+
+			uc := NewActivityUsecase(repo)
+			got, err := uc.GetActivityHistorical(context.Background(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+}

@@ -111,6 +111,89 @@ func toBrokerActivities(in []stockbit.ActivityBrokerActivity) []domain.BrokerAct
 	return out
 }
 
+func (r *ActivityRepository) GetActivityHistorical(ctx context.Context, interval, dateFrom, dateTo string, brokerCodes, symbols []string, marketBoard, investorType, netInterval string) (*domain.ActivityHistoricalData, error) {
+	resp, err := r.client.GetActivityHistorical(ctx, interval, dateFrom, dateTo, brokerCodes, symbols, marketBoard, investorType, netInterval)
+	if err != nil {
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
+		return nil, err
+	}
+	d := resp.Data
+	out := &domain.ActivityHistoricalData{
+		DateFrom:    d.DateFrom,
+		DateTo:      d.DateTo,
+		Symbols:     d.Symbols,
+		BrokerCodes: d.BrokerCodes,
+		BrokerName:  d.BrokerName,
+		Records:     make([]domain.ActivityHistoricalRecord, 0, len(d.Records)),
+		Pagination: domain.ActivityHistoricalPaginate{
+			Page:    d.Pagination.Page,
+			Limit:   d.Pagination.Limit,
+			HasNext: d.Pagination.HasNext,
+			HasPrev: d.Pagination.HasPrev,
+		},
+		Summary: domain.ActivityHistoricalSummary{
+			GroupType: d.Summary.GroupType,
+			Data:      make([]domain.ActivityHistoricalSummaryGroup, 0, len(d.Summary.Data)),
+		},
+	}
+	for _, r := range d.Records {
+		out.Records = append(out.Records, domain.ActivityHistoricalRecord{
+			Date:       r.Date,
+			BrokerCode: r.BrokerCode,
+			TradeActivity: domain.ActivityHistoricalTrade{
+				NetSummary:     toActivitySummary(r.TradeActivity.NetSummary),
+				BuySummary:     toActivitySummary(r.TradeActivity.BuySummary),
+				SellSummary:    toActivitySummary(r.TradeActivity.SellSummary),
+				ForeignSummary: toActivityForeignSummary(r.TradeActivity.ForeignSummary),
+				TotalBuyLot:    toActivityLotShare(r.TradeActivity.TotalBuyLot),
+				TotalSellLot:   toActivityLotShare(r.TradeActivity.TotalSellLot),
+			},
+			PriceActivity: domain.ActivityHistoricalPrice{
+				ClosePrice: r.PriceActivity.ClosePrice,
+				ReturnSummary: domain.ActivityHistoricalPriceReturn{
+					Amount: r.PriceActivity.ReturnSummary.Amount,
+					Pct:    r.PriceActivity.ReturnSummary.Pct,
+				},
+			},
+		})
+	}
+	for _, g := range d.Summary.Data {
+		out.Summary.Data = append(out.Summary.Data, domain.ActivityHistoricalSummaryGroup{
+			DateFrom:   g.DateFrom,
+			DateTo:     g.DateTo,
+			NetSummary: toActivitySummary(g.NetSummary),
+		})
+	}
+	return out, nil
+}
+
+func toActivitySummary(in stockbit.ActivitySummary) domain.ActivitySummary {
+	return domain.ActivitySummary{
+		AveragePrice: in.AveragePrice,
+		Frequency:    in.Frequency,
+		Lot:          in.Lot,
+		Value:        in.Value,
+	}
+}
+
+func toActivityForeignSummary(in stockbit.ActivityForeignSummary) domain.ActivityForeignSummary {
+	return domain.ActivityForeignSummary{
+		ForeignBuy:  in.ForeignBuy,
+		ForeignSell: in.ForeignSell,
+		NetForeign:  in.NetForeign,
+	}
+}
+
+func toActivityLotShare(in stockbit.ActivityLotShare) domain.ActivityLotShare {
+	return domain.ActivityLotShare{
+		Amount: in.Amount,
+		Pct:    in.Pct,
+	}
+}
+
 func toActivityNotations(in []stockbit.ActivityNotation) []domain.ActivityNotation {
 	out := make([]domain.ActivityNotation, 0, len(in))
 	for _, n := range in {

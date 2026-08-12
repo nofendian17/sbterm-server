@@ -13,14 +13,17 @@ import (
 
 // Default values applied when the corresponding query param is omitted.
 const (
-	defaultInvestorType     = "INVESTOR_TYPE_ALL"
-	defaultChartMarketBoard = "BOARD_TYPE_ALL"
-	defaultMarketBoard      = "MARKET_TYPE_REGULER"
-	defaultTransactionType  = "TRANSACTION_TYPE_GROSS"
-	defaultLimit            = 20
-	defaultPage             = 1
-	defaultNetValPeriod     = "NET_VAL_PERIOD_7D"
-	defaultPeriod           = "RT_PERIOD_LAST_1_DAY"
+	defaultInvestorType          = "INVESTOR_TYPE_ALL"
+	defaultChartMarketBoard      = "BOARD_TYPE_ALL"
+	defaultMarketBoard           = "MARKET_TYPE_REGULER"
+	defaultTransactionType       = "TRANSACTION_TYPE_GROSS"
+	defaultLimit                 = 20
+	defaultPage                  = 1
+	defaultNetValPeriod          = "NET_VAL_PERIOD_7D"
+	defaultPeriod                = "RT_PERIOD_LAST_1_DAY"
+	defaultInterval              = "INTERVAL_DAILY"
+	defaultNetInterval           = "INTERVAL_MONTHLY"
+	defaultHistoricalMarketBoard = "BOARD_TYPE_ALL"
 )
 
 type ActivityHandler struct {
@@ -52,6 +55,17 @@ type activityRequest struct {
 	NetValPeriod    string   `json:"net_val_period" validate:"omitempty,oneof=NET_VAL_PERIOD_7D NET_VAL_PERIOD_1M NET_VAL_PERIOD_3M"`
 	Limit           int      `json:"limit" validate:"min=1"`
 	Page            int      `json:"page" validate:"min=1"`
+}
+
+type activityHistoricalRequest struct {
+	Interval     string   `json:"interval" validate:"omitempty,oneof=INTERVAL_DAILY INTERVAL_WEEKLY INTERVAL_MONTHLY"`
+	DateFrom     string   `json:"date_from" validate:"omitempty,datetime=2006-01-02"`
+	DateTo       string   `json:"date_to" validate:"omitempty,datetime=2006-01-02"`
+	BrokerCodes  []string `json:"broker_codes"`
+	Symbols      []string `json:"symbols"`
+	MarketBoard  string   `json:"market_board" validate:"omitempty,oneof=BOARD_TYPE_ALL BOARD_TYPE_REGULAR BOARD_TYPE_CASH BOARD_TYPE_NEGOTIATION"`
+	InvestorType string   `json:"investor_type" validate:"omitempty,oneof=INVESTOR_TYPE_ALL INVESTOR_TYPE_FOREIGN INVESTOR_TYPE_DOMESTIC"`
+	NetInterval  string   `json:"net_interval" validate:"omitempty,oneof=INTERVAL_DAILY INTERVAL_WEEKLY INTERVAL_MONTHLY"`
 }
 
 type activityChartResponse struct {
@@ -136,6 +150,79 @@ type activityNetValueTrendResp struct {
 	NVal  float64 `json:"nval"`
 	NVol  float64 `json:"nvol"`
 	NFreq float64 `json:"nfreq"`
+}
+
+type activityHistoricalResponse struct {
+	DateFrom    string                         `json:"date_from"`
+	DateTo      string                         `json:"date_to"`
+	Symbols     []string                       `json:"symbols"`
+	BrokerCodes []string                       `json:"broker_codes"`
+	BrokerName  string                         `json:"broker_name"`
+	Records     []activityHistoricalRecordResp `json:"records"`
+	Pagination  activityHistoricalPaginateResp `json:"pagination"`
+	Summary     activityHistoricalSummaryResp  `json:"summary"`
+}
+
+type activityHistoricalRecordResp struct {
+	Date          string                      `json:"date"`
+	BrokerCode    string                      `json:"broker_code"`
+	TradeActivity activityHistoricalTradeResp `json:"trade_activity"`
+	PriceActivity activityHistoricalPriceResp `json:"price_activity"`
+}
+
+type activityHistoricalTradeResp struct {
+	NetSummary     activitySummaryResp        `json:"net_summary"`
+	BuySummary     activitySummaryResp        `json:"buy_summary"`
+	SellSummary    activitySummaryResp        `json:"sell_summary"`
+	ForeignSummary activityForeignSummaryResp `json:"foreign_summary"`
+	TotalBuyLot    activityLotShareResp       `json:"total_buy_lot"`
+	TotalSellLot   activityLotShareResp       `json:"total_sell_lot"`
+}
+
+type activitySummaryResp struct {
+	AveragePrice float64 `json:"avg_price"`
+	Frequency    float64 `json:"freq"`
+	Lot          float64 `json:"lot"`
+	Value        float64 `json:"value"`
+}
+
+type activityForeignSummaryResp struct {
+	ForeignBuy  float64 `json:"foreign_buy"`
+	ForeignSell float64 `json:"foreign_sell"`
+	NetForeign  float64 `json:"net_foreign"`
+}
+
+type activityLotShareResp struct {
+	Amount float64 `json:"amount"`
+	Pct    float64 `json:"pct"`
+}
+
+type activityHistoricalPriceResp struct {
+	ClosePrice    string                        `json:"close_price"`
+	ReturnSummary activityHistoricalPriceReturn `json:"return_summary"`
+}
+
+type activityHistoricalPriceReturn struct {
+	Amount float64 `json:"amount"`
+	Pct    float64 `json:"pct"`
+}
+
+type activityHistoricalPaginateResp struct {
+	Page    int  `json:"page"`
+	Limit   int  `json:"limit"`
+	HasNext bool `json:"has_next"`
+	HasPrev bool `json:"has_prev"`
+}
+
+type activityHistoricalSummaryResp struct {
+	GroupType string                               `json:"group_type"`
+	Data      []activityHistoricalSummaryGroupResp `json:"data"`
+}
+
+type activityHistoricalSummaryGroupResp struct {
+	DateFrom   string              `json:"date_from"`
+	DateTo     string              `json:"date_to"`
+	NetSummary activitySummaryResp `json:"net_summary"`
 }
 
 type rawFormatted struct {
@@ -251,6 +338,51 @@ func (h *ActivityHandler) Activity(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, toActivityResponse(data))
 }
 
+func (h *ActivityHandler) ActivityHistorical(w http.ResponseWriter, r *http.Request) {
+	req := activityHistoricalRequest{
+		Interval:     r.URL.Query().Get("interval"),
+		DateFrom:     r.URL.Query().Get("date_from"),
+		DateTo:       r.URL.Query().Get("date_to"),
+		BrokerCodes:  r.URL.Query()["broker_codes"],
+		Symbols:      r.URL.Query()["symbols"],
+		MarketBoard:  r.URL.Query().Get("market_board"),
+		InvestorType: r.URL.Query().Get("investor_type"),
+		NetInterval:  r.URL.Query().Get("net_interval"),
+	}
+	if req.Interval == "" {
+		req.Interval = defaultInterval
+	}
+	if req.NetInterval == "" {
+		req.NetInterval = defaultNetInterval
+	}
+	if req.InvestorType == "" {
+		req.InvestorType = defaultInvestorType
+	}
+	if req.MarketBoard == "" {
+		req.MarketBoard = defaultHistoricalMarketBoard
+	}
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to validate activity historical params")
+		return
+	}
+
+	data, err := h.uc.GetActivityHistorical(r.Context(), req.Interval, req.DateFrom, req.DateTo, req.BrokerCodes, req.Symbols, req.MarketBoard, req.InvestorType, req.NetInterval)
+	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no broker activity historical data for the requested parameters")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get broker activity historical")
+		return
+	}
+	response.OK(w, toHistoricalResponse(data))
+}
+
 func toChartResponse(d *domain.ActivityChartData) activityChartResponse {
 	out := activityChartResponse{
 		From:            d.From,
@@ -347,4 +479,78 @@ func toNetValueTrendResponses(in []domain.ActivityNetValueTrend) []activityNetVa
 		})
 	}
 	return out
+}
+
+func toHistoricalResponse(d *domain.ActivityHistoricalData) activityHistoricalResponse {
+	out := activityHistoricalResponse{
+		DateFrom:    d.DateFrom,
+		DateTo:      d.DateTo,
+		Symbols:     d.Symbols,
+		BrokerCodes: d.BrokerCodes,
+		BrokerName:  d.BrokerName,
+		Records:     make([]activityHistoricalRecordResp, 0, len(d.Records)),
+		Pagination: activityHistoricalPaginateResp{
+			Page:    d.Pagination.Page,
+			Limit:   d.Pagination.Limit,
+			HasNext: d.Pagination.HasNext,
+			HasPrev: d.Pagination.HasPrev,
+		},
+		Summary: activityHistoricalSummaryResp{
+			GroupType: d.Summary.GroupType,
+			Data:      make([]activityHistoricalSummaryGroupResp, 0, len(d.Summary.Data)),
+		},
+	}
+	for _, rec := range d.Records {
+		out.Records = append(out.Records, activityHistoricalRecordResp{
+			Date:       rec.Date,
+			BrokerCode: rec.BrokerCode,
+			TradeActivity: activityHistoricalTradeResp{
+				NetSummary:     toHistoricalSummaryResp(rec.TradeActivity.NetSummary),
+				BuySummary:     toHistoricalSummaryResp(rec.TradeActivity.BuySummary),
+				SellSummary:    toHistoricalSummaryResp(rec.TradeActivity.SellSummary),
+				ForeignSummary: toHistoricalForeignSummaryResp(rec.TradeActivity.ForeignSummary),
+				TotalBuyLot:    toHistoricalLotShareResp(rec.TradeActivity.TotalBuyLot),
+				TotalSellLot:   toHistoricalLotShareResp(rec.TradeActivity.TotalSellLot),
+			},
+			PriceActivity: activityHistoricalPriceResp{
+				ClosePrice: rec.PriceActivity.ClosePrice,
+				ReturnSummary: activityHistoricalPriceReturn{
+					Amount: rec.PriceActivity.ReturnSummary.Amount,
+					Pct:    rec.PriceActivity.ReturnSummary.Pct,
+				},
+			},
+		})
+	}
+	for _, g := range d.Summary.Data {
+		out.Summary.Data = append(out.Summary.Data, activityHistoricalSummaryGroupResp{
+			DateFrom:   g.DateFrom,
+			DateTo:     g.DateTo,
+			NetSummary: toHistoricalSummaryResp(g.NetSummary),
+		})
+	}
+	return out
+}
+
+func toHistoricalSummaryResp(in domain.ActivitySummary) activitySummaryResp {
+	return activitySummaryResp{
+		AveragePrice: in.AveragePrice,
+		Frequency:    in.Frequency,
+		Lot:          in.Lot,
+		Value:        in.Value,
+	}
+}
+
+func toHistoricalForeignSummaryResp(in domain.ActivityForeignSummary) activityForeignSummaryResp {
+	return activityForeignSummaryResp{
+		ForeignBuy:  in.ForeignBuy,
+		ForeignSell: in.ForeignSell,
+		NetForeign:  in.NetForeign,
+	}
+}
+
+func toHistoricalLotShareResp(in domain.ActivityLotShare) activityLotShareResp {
+	return activityLotShareResp{
+		Amount: in.Amount,
+		Pct:    in.Pct,
+	}
 }

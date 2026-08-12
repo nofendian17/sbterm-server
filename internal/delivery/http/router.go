@@ -104,6 +104,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 	r.Get("/v1/company/{symbol}/historical-summary", historicalSummaryHandler.HistoricalSummary)
 	r.Get("/v1/order-trade/broker/activity-chart", activityHandler.ActivityChart)
 	r.Get("/v1/order-trade/broker/activity", activityHandler.Activity)
+	r.Get("/v1/order-trade/broker/activity/historical", activityHandler.ActivityHistorical)
 	r.Get("/v1/order-trade/broker/top", brokerTopHandler.BrokerTop)
 
 	return r

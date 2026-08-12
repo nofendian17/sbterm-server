@@ -273,6 +273,15 @@ func TestRouter(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "get activity historical returns 200",
+			method: http.MethodGet,
+			path:   "/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
+			setupActivity: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:   "get broker top returns 200",
 			method: http.MethodGet,
 			path:   "/v1/order-trade/broker/top?period=TB_PERIOD_LAST_1_DAY",

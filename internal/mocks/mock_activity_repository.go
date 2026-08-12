@@ -118,3 +118,42 @@ func (c *MockActivityRepositoryGetActivityChartCall) DoAndReturn(f func(context.
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// GetActivityHistorical mocks base method.
+func (m *MockActivityRepository) GetActivityHistorical(ctx context.Context, interval, dateFrom, dateTo string, brokerCodes, symbols []string, marketBoard, investorType, netInterval string) (*domain.ActivityHistoricalData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActivityHistorical", ctx, interval, dateFrom, dateTo, brokerCodes, symbols, marketBoard, investorType, netInterval)
+	ret0, _ := ret[0].(*domain.ActivityHistoricalData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActivityHistorical indicates an expected call of GetActivityHistorical.
+func (mr *MockActivityRepositoryMockRecorder) GetActivityHistorical(ctx, interval, dateFrom, dateTo, brokerCodes, symbols, marketBoard, investorType, netInterval any) *MockActivityRepositoryGetActivityHistoricalCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActivityHistorical", reflect.TypeOf((*MockActivityRepository)(nil).GetActivityHistorical), ctx, interval, dateFrom, dateTo, brokerCodes, symbols, marketBoard, investorType, netInterval)
+	return &MockActivityRepositoryGetActivityHistoricalCall{Call: call}
+}
+
+// MockActivityRepositoryGetActivityHistoricalCall wrap *gomock.Call
+type MockActivityRepositoryGetActivityHistoricalCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockActivityRepositoryGetActivityHistoricalCall) Return(arg0 *domain.ActivityHistoricalData, arg1 error) *MockActivityRepositoryGetActivityHistoricalCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockActivityRepositoryGetActivityHistoricalCall) Do(f func(context.Context, string, string, string, []string, []string, string, string, string) (*domain.ActivityHistoricalData, error)) *MockActivityRepositoryGetActivityHistoricalCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockActivityRepositoryGetActivityHistoricalCall) DoAndReturn(f func(context.Context, string, string, string, []string, []string, string, string, string) (*domain.ActivityHistoricalData, error)) *MockActivityRepositoryGetActivityHistoricalCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

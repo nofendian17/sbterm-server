@@ -236,3 +236,119 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 		})
 	}
 }
+
+func TestActivityHandlerActivityHistorical(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		setup       func(uc *mocks.MockActivityUsecase)
+		wantStatus  int
+		wantErrCode string
+		wantFrom    string
+	}{
+		{
+			name: "returns activity historical with all params",
+			path: "/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{
+					DateFrom: "2026-07-01",
+					DateTo:   "2026-08-12",
+					Summary:  domain.ActivityHistoricalSummary{GroupType: "INTERVAL_TYPE_MONTHLY"},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantFrom:   "2026-07-01",
+		},
+		{
+			name: "defaults enums when omitted",
+			path: "/v1/order-trade/broker/activity/historical",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "", "", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:        "invalid interval returns 422",
+			path:        "/v1/order-trade/broker/activity/historical?interval=BOGUS",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "invalid net_interval returns 422",
+			path:        "/v1/order-trade/broker/activity/historical?net_interval=BOGUS",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "invalid market_board returns 422",
+			path:        "/v1/order-trade/broker/activity/historical?market_board=BOARD_TYPE_FOO",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "invalid date_from returns 422",
+			path:        "/v1/order-trade/broker/activity/historical?date_from=not-a-date",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "upstream 400 returns 422",
+			path: "/v1/order-trade/broker/activity/historical?date_from=2026-07-01&date_to=2026-08-31",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "usecase error returns 500",
+			path: "/v1/order-trade/broker/activity/historical",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "", "", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(nil, errors.New("boom"))
+			},
+			wantStatus:  http.StatusInternalServerError,
+			wantErrCode: "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc := mocks.NewMockActivityUsecase(ctrl)
+			if tt.setup != nil {
+				tt.setup(uc)
+			}
+
+			r := chi.NewRouter()
+			h := NewActivityHandler(uc, validator.New())
+			r.Get("/v1/order-trade/broker/activity/historical", h.ActivityHistorical)
+
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+
+			var env struct {
+				Success bool `json:"success"`
+				Data    struct {
+					From string `json:"date_from"`
+				} `json:"data"`
+				Error *struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+
+			if tt.wantErrCode != "" {
+				require.NotNil(t, env.Error)
+				assert.Equal(t, tt.wantErrCode, env.Error.Code)
+				return
+			}
+			if tt.wantFrom != "" {
+				assert.Equal(t, tt.wantFrom, env.Data.From)
+			}
+		})
+	}
+}

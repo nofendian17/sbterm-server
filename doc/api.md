@@ -38,6 +38,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 26 | `GET /v1/order-trade/broker/top` | [Top brokers](#get-v1order-tradebrokertop) |
 | 27 | `GET /v1/order-trade/broker/activity-chart` | [Broker activity chart](#get-v1order-tradebrokeractivity-chart) |
 | 28 | `GET /v1/order-trade/broker/activity` | [Broker activity transactions](#get-v1order-tradebrokeractivity) |
+| 29 | `GET /v1/order-trade/broker/activity/historical` | [Broker activity historical](#get-v1order-tradebrokeractivityhistorical) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1589,6 +1590,97 @@ curl 'http://localhost:8080/v1/order-trade/broker/activity?broker_code=AK&broker
     "to": "2026-07-31",
     "broker_code": "AK, YU, ZP",
     "broker_name": ""
+  }
+}
+```
+
+### `GET /v1/order-trade/broker/activity/historical`
+Per-interval broker activity: bucketed trade/price rows plus a net-value summary
+grouped by `net_interval` (proxies `/order-trade/broker/activity/historical`).
+
+| param | required | values |
+|---|---|---|
+| `interval` | no | `INTERVAL_DAILY` (default), `INTERVAL_WEEKLY`, `INTERVAL_MONTHLY` |
+| `date_from` | no | `YYYY-MM-DD` |
+| `date_to` | no | `YYYY-MM-DD` |
+| `broker_codes` | no | repeatable (`?broker_codes=ZP&broker_codes=BK`) |
+| `symbols` | no | repeatable (`?symbols=CUAN&symbols=ADRO`) |
+| `market_board` | no | `BOARD_TYPE_ALL` (default), `BOARD_TYPE_REGULAR`, `BOARD_TYPE_CASH`, `BOARD_TYPE_NEGOTIATION` |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `net_interval` | no | `INTERVAL_MONTHLY` (default), `INTERVAL_DAILY`, `INTERVAL_WEEKLY` |
+
+- **Enum beda dari endpoint activity lain:** di sini `market_board` memakai
+  `BOARD_TYPE_*` (bukan `MARKET_TYPE_*`) dan `interval`/`net_interval` memakai
+  `INTERVAL_DAILY/WEEKLY/MONTHLY`.
+- `date_to` dicap ke tanggal tersedia terakhir di upstream (mis. minta sampai
+  `2026-08-31` → response `date_to: "2026-08-12"`).
+- `records` berisi satu bucket per `interval`; saat memfilter satu broker,
+  `broker_code` terisi per record, selain itu kosong (aggregat semua broker).
+- `summary` menggabungkan net-value per `net_interval`; upstream membalas
+  `summary.group_type` dengan `INTERVAL_TYPE_*` (mis. `INTERVAL_TYPE_MONTHLY`)
+  walau `net_interval` diminta sebagai `INTERVAL_MONTHLY`.
+
+`data: { date_from, date_to, symbols: [], broker_codes: [], broker_name, records: [], pagination, summary }`
+
+Record item:
+```
+{ date, broker_code, trade_activity: {
+    net_summary:     { avg_price, freq, lot, value },
+    buy_summary:     { avg_price, freq, lot, value },
+    sell_summary:    { avg_price, freq, lot, value },
+    foreign_summary: { foreign_buy, foreign_sell, net_foreign },
+    total_buy_lot:   { amount, pct },
+    total_sell_lot:  { amount, pct } },
+  price_activity: {
+    close_price: "870",             // string
+    return_summary: { amount, pct } } }
+```
+`pagination: { page, limit, has_next, has_prev }`;
+`summary: { group_type, data: [{ date_from, date_to, net_summary }] }`.
+All value/lot/freq/amount/pct fields are numbers (`lot`/`avg_price` bisa
+fraksional); `close_price` is a string.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "date_from": "2026-07-01",
+    "date_to": "2026-08-12",
+    "symbols": ["CUAN"],
+    "broker_codes": ["ZP", "BK"],
+    "broker_name": "",
+    "records": [
+      {
+        "date": "2026-08-12",
+        "broker_code": "",
+        "trade_activity": {
+          "net_summary": { "avg_price": 796.78, "freq": 4947, "lot": -141664, "value": -11740235500 },
+          "buy_summary": { "avg_price": 786.08, "freq": 1937, "lot": 422964, "value": 33248405500 },
+          "sell_summary": { "avg_price": 796.78, "freq": 4947, "lot": 564628, "value": 44988641000 },
+          "foreign_summary": { "foreign_buy": 0, "foreign_sell": 0, "net_foreign": 0 },
+          "total_buy_lot": { "amount": 422964, "pct": 42.83 },
+          "total_sell_lot": { "amount": 564628, "pct": 57.17 }
+        },
+        "price_activity": {
+          "close_price": "870",
+          "return_summary": { "amount": 73.22, "pct": 8.42 }
+        }
+      }
+    ],
+    "pagination": { "page": 1, "limit": 100, "has_next": false, "has_prev": false },
+    "summary": {
+      "group_type": "INTERVAL_TYPE_MONTHLY",
+      "data": [
+        { "date_from": "2026-08-01", "date_to": "2026-08-12", "net_summary": { "avg_price": 731.67, "freq": 13735, "lot": -514137, "value": -36687700500 } },
+        { "date_from": "2026-07-01", "date_to": "2026-07-31", "net_summary": { "avg_price": 676.19, "freq": 24248, "lot": 7726, "value": -1823597000 } }
+      ]
+    }
   }
 }
 ```

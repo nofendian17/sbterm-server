@@ -11,6 +11,7 @@ import (
 type ActivityUsecase interface {
 	GetActivityChart(ctx context.Context, symbols, brokersCode []string, from, to, period, investorType, marketBoard string) (*domain.ActivityChartData, error)
 	GetActivity(ctx context.Context, brokerCode []string, transactionType, investorType, marketBoard string, limit, page int, from, to, netValPeriod string) (*domain.ActivityData, error)
+	GetActivityHistorical(ctx context.Context, interval, dateFrom, dateTo string, brokerCodes, symbols []string, marketBoard, investorType, netInterval string) (*domain.ActivityHistoricalData, error)
 }
 
 type activityUsecase struct {
@@ -27,4 +28,8 @@ func (u *activityUsecase) GetActivityChart(ctx context.Context, symbols, brokers
 
 func (u *activityUsecase) GetActivity(ctx context.Context, brokerCode []string, transactionType, investorType, marketBoard string, limit, page int, from, to, netValPeriod string) (*domain.ActivityData, error) {
 	return u.repo.GetActivity(ctx, brokerCode, transactionType, investorType, marketBoard, limit, page, from, to, netValPeriod)
+}
+
+func (u *activityUsecase) GetActivityHistorical(ctx context.Context, interval, dateFrom, dateTo string, brokerCodes, symbols []string, marketBoard, investorType, netInterval string) (*domain.ActivityHistoricalData, error) {
+	return u.repo.GetActivityHistorical(ctx, interval, dateFrom, dateTo, brokerCodes, symbols, marketBoard, investorType, netInterval)
 }

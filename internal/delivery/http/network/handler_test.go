@@ -67,6 +67,24 @@ func TestShareholdingNetworkHandlerShareholdingNetwork(t *testing.T) {
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
+			name:        "non-numeric max_depth returns 422",
+			path:        "/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR&max_depth=abc",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "negative max_depth returns 422",
+			path:        "/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR&max_depth=-5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "negative max_edge_per_node returns 422",
+			path:        "/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR&max_edge_per_node=-5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
 			name: "usecase error returns 500",
 			path: "/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR",
 			setup: func(uc *mocks.MockShareholdingNetworkUsecase) {

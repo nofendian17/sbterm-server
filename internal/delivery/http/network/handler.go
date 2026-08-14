@@ -22,8 +22,8 @@ func NewShareholdingNetworkHandler(uc usecase.ShareholdingNetworkUsecase, v vali
 type networkRequest struct {
 	RootID         string `json:"root_id" validate:"required"`
 	RootType       string `json:"root_type" validate:"required"`
-	MaxDepth       int    `json:"max_depth" validate:"omitempty"`
-	MaxEdgePerNode int    `json:"max_edge_per_node" validate:"omitempty"`
+	MaxDepth       int    `json:"max_depth" validate:"omitempty,min=1"`
+	MaxEdgePerNode int    `json:"max_edge_per_node" validate:"omitempty,min=1"`
 }
 
 type shareholdingNetworkResponse struct {
@@ -88,16 +88,29 @@ type percentResponse struct {
 	Formatted string  `json:"formatted"`
 }
 
+func parseNetworkIntParam(w http.ResponseWriter, r *http.Request, name string) (int, bool) {
+	if v := r.URL.Query().Get(name); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			response.ValidationError(w, "validation failed", map[string]string{name: "must be a valid integer"})
+			return 0, false
+		}
+		return n, true
+	}
+	return 0, true
+}
+
 func (h *ShareholdingNetworkHandler) ShareholdingNetwork(w http.ResponseWriter, r *http.Request) {
 	req := networkRequest{
 		RootID:   r.URL.Query().Get("root_id"),
 		RootType: r.URL.Query().Get("root_type"),
 	}
-	if v := r.URL.Query().Get("max_depth"); v != "" {
-		req.MaxDepth, _ = strconv.Atoi(v)
+	var ok bool
+	if req.MaxDepth, ok = parseNetworkIntParam(w, r, "max_depth"); !ok {
+		return
 	}
-	if v := r.URL.Query().Get("max_edge_per_node"); v != "" {
-		req.MaxEdgePerNode, _ = strconv.Atoi(v)
+	if req.MaxEdgePerNode, ok = parseNetworkIntParam(w, r, "max_edge_per_node"); !ok {
+		return
 	}
 	if err := h.v.Validate(req); err != nil {
 		if verr, ok := validator.AsValidationError(err); ok {

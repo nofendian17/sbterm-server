@@ -56,6 +56,24 @@ func TestMarketDetectorHandlerMarketDetector(t *testing.T) {
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
+			name:        "invalid from date returns 422",
+			path:        "/v1/market-detector/BRPT?from=not-a-date&to=2026-08-10",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "non-numeric limit returns 422",
+			path:        "/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&limit=abc",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "negative limit returns 422",
+			path:        "/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&limit=-5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
 			name:        "invalid transaction_type returns 422",
 			path:        "/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&transaction_type=BAD",
 			wantStatus:  http.StatusUnprocessableEntity,
@@ -81,6 +99,15 @@ func TestMarketDetectorHandlerMarketDetector(t *testing.T) {
 			},
 			wantStatus:  http.StatusInternalServerError,
 			wantErrCode: "INTERNAL_ERROR",
+		},
+		{
+			name: "upstream 400 maps to 422",
+			path: "/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10",
+			setup: func(uc *mocks.MockMarketDetectorUsecase) {
+				uc.EXPECT().GetMarketDetector(gomock.Any(), "BRPT", "2026-08-03", "2026-08-10", "TRANSACTION_TYPE_NET", "MARKET_BOARD_REGULER", "INVESTOR_TYPE_ALL", 0).Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
 		},
 	}
 

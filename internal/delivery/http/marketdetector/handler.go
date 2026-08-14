@@ -1,6 +1,7 @@
 package marketdetector
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -30,12 +31,12 @@ func NewMarketDetectorHandler(uc usecase.MarketDetectorUsecase, v validator.Vali
 
 type marketDetectorRequest struct {
 	Symbol          string `json:"symbol" validate:"required"`
-	From            string `json:"from" validate:"required"`
-	To              string `json:"to" validate:"required"`
+	From            string `json:"from" validate:"required,datetime=2006-01-02"`
+	To              string `json:"to" validate:"required,datetime=2006-01-02"`
 	TransactionType string `json:"transaction_type" validate:"omitempty,oneof=TRANSACTION_TYPE_GROSS TRANSACTION_TYPE_NET"`
 	MarketBoard     string `json:"market_board" validate:"omitempty,oneof=MARKET_BOARD_ALL MARKET_BOARD_REGULER MARKET_BOARD_TUNAI MARKET_BOARD_NEGO"`
 	InvestorType    string `json:"investor_type" validate:"omitempty,oneof=INVESTOR_TYPE_ALL INVESTOR_TYPE_DOMESTIC INVESTOR_TYPE_FOREIGN"`
-	Limit           int    `json:"limit" validate:"omitempty"`
+	Limit           int    `json:"limit" validate:"omitempty,min=1"`
 }
 
 type marketDetectorResponse struct {
@@ -119,7 +120,12 @@ func (h *MarketDetectorHandler) MarketDetector(w http.ResponseWriter, r *http.Re
 		req.InvestorType = defaultInvestorType
 	}
 	if v := r.URL.Query().Get("limit"); v != "" {
-		req.Limit, _ = strconv.Atoi(v)
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			response.ValidationError(w, "validation failed", map[string]string{"limit": "must be a valid integer"})
+			return
+		}
+		req.Limit = n
 	}
 	if err := h.v.Validate(req); err != nil {
 		if verr, ok := validator.AsValidationError(err); ok {
@@ -132,6 +138,11 @@ func (h *MarketDetectorHandler) MarketDetector(w http.ResponseWriter, r *http.Re
 
 	data, err := h.uc.GetMarketDetector(r.Context(), req.Symbol, req.From, req.To, req.TransactionType, req.MarketBoard, req.InvestorType, req.Limit)
 	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no market detector data for the requested date range")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get market detector data")
 		return
 	}

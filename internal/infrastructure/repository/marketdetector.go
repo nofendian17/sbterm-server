@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nofendian17/sbterm-server/internal/domain"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
@@ -20,6 +21,13 @@ func NewMarketDetectorRepository(client *stockbit.Client) *MarketDetectorReposit
 func (r *MarketDetectorRepository) GetMarketDetector(ctx context.Context, symbol, from, to, transactionType, marketBoard, investorType string, limit int) (*domain.MarketDetectorData, error) {
 	resp, err := r.client.GetMarketDetector(ctx, symbol, from, to, transactionType, marketBoard, investorType, limit)
 	if err != nil {
+		// Translate the client's typed status error into a domain error so the
+		// delivery handler can map upstream 4xx responses (e.g. 400 for an
+		// invalid date range) to a client-facing status.
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
 		return nil, err
 	}
 	return &domain.MarketDetectorData{

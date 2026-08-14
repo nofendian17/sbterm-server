@@ -136,6 +136,21 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 			},
 		},
 		{
+			name:        "non-numeric limit returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=abc",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "daily negative limit returns 422",
+			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=-5",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"limit": "must be at least 1",
+			},
+		},
+		{
 			name: "usecase error returns 500",
 			path: "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10",
 			setup: func(uc *mocks.MockChartbitUsecase) {
@@ -249,6 +264,16 @@ func TestChartTimeframeRequirements(t *testing.T) {
 			name: "intraday limit zero",
 			req:  chartPriceRequest{Timeframe: "intraday", From: "1786230000", To: "1786143600", Limit: 0},
 			want: map[string]string{"limit": "must be at least 1 for intraday timeframe"},
+		},
+		{
+			name: "intraday negative limit",
+			req:  chartPriceRequest{Timeframe: "intraday", From: "1786230000", To: "1786143600", Limit: -2},
+			want: map[string]string{"limit": "must be at least 1 for intraday timeframe"},
+		},
+		{
+			name: "daily negative limit",
+			req:  chartPriceRequest{Timeframe: "daily", From: "2025-08-10", To: "2026-08-10", Limit: -5},
+			want: map[string]string{"limit": "must be at least 1"},
 		},
 		{
 			name:    "daily with from/to but limit ignored",

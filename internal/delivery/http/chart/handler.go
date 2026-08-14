@@ -64,7 +64,12 @@ func (h *ChartbitHandler) ChartPrice(w http.ResponseWriter, r *http.Request) {
 	req.From = r.URL.Query().Get("from")
 	req.To = r.URL.Query().Get("to")
 	if v := r.URL.Query().Get("limit"); v != "" {
-		req.Limit, _ = strconv.Atoi(v)
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			response.ValidationError(w, "validation failed", map[string]string{"limit": "must be a valid integer"})
+			return
+		}
+		req.Limit = n
 	}
 	if err := h.v.Validate(req); err != nil {
 		if verr, ok := validator.AsValidationError(err); ok {
@@ -105,6 +110,8 @@ func chartTimeframeRequirements(req chartPriceRequest) map[string]string {
 	}
 	if req.Timeframe == "intraday" && req.Limit < 1 {
 		fields["limit"] = "must be at least 1 for intraday timeframe"
+	} else if req.Limit < 0 {
+		fields["limit"] = "must be at least 1"
 	}
 	if len(fields) == 0 {
 		return nil

@@ -36,6 +36,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/session"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/shareholding"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/stocks"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/stream"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/subsidiary"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/topstock"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
@@ -349,6 +350,15 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewBrokerTopRepository(client), nil
 	})
 	do.MustAs[*infraRepo.BrokerTopRepository, repository.BrokerTopRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.StreamRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewStreamRepository(client), nil
+	})
+	do.MustAs[*infraRepo.StreamRepository, repository.StreamRepository](injector)
 }
 
 func provideStockbit(injector *do.RootScope) {
@@ -493,6 +503,10 @@ func provideUsecases(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (usecase.BrokerTopUsecase, error) {
 		return usecase.NewBrokerTopUsecase(do.MustInvoke[repository.BrokerTopRepository](i)), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.StreamUsecase, error) {
+		return usecase.NewStreamUsecase(do.MustInvoke[repository.StreamRepository](i)), nil
+	})
 }
 
 func provideHandlers(injector *do.RootScope) {
@@ -600,6 +614,10 @@ func provideHandlers(injector *do.RootScope) {
 		return brokertop.NewBrokerTopHandler(do.MustInvoke[usecase.BrokerTopUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*stream.StreamHandler, error) {
+		return stream.NewStreamHandler(do.MustInvoke[usecase.StreamUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
@@ -629,8 +647,9 @@ func provideHandlers(injector *do.RootScope) {
 		historicalSummaryHandler := do.MustInvoke[*historicalsummary.HistoricalSummaryHandler](i)
 		activityHandler := do.MustInvoke[*activity.ActivityHandler](i)
 		brokerTopHandler := do.MustInvoke[*brokertop.BrokerTopHandler](i)
+		streamHandler := do.MustInvoke[*stream.StreamHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

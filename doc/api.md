@@ -39,6 +39,8 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 27 | `GET /v1/order-trade/broker/activity-chart` | [Broker activity chart](#get-v1order-tradebrokeractivity-chart) |
 | 28 | `GET /v1/order-trade/broker/activity` | [Broker activity transactions](#get-v1order-tradebrokeractivity) |
 | 29 | `GET /v1/order-trade/broker/activity/historical` | [Broker activity historical](#get-v1order-tradebrokeractivityhistorical) |
+| 30 | `GET /v1/user/{username}/stream` | [Stream](#get-v1userusernamestream) |
+| 31 | `GET /v1/stream/announcement/{stream_id}` | [Stream](#get-v1streamannouncementstream_id) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1682,6 +1684,164 @@ curl 'http://localhost:8080/v1/order-trade/broker/activity/historical?interval=I
       ]
     }
   }
+}
+```
+
+## Stream
+
+### `GET /v1/user/{username}/stream`
+A user's stream feed (social posts / stock reports), paged by cursor
+(proxies `/stream/v3/user/{username}`).
+
+| param | required | values |
+|---|---|---|
+| `username` | path | |
+| `category` | no | `STREAM_CATEGORY_MAIN_IDEAS` (default), `STREAM_CATEGORY_NEWS` |
+| `last_stream_id` | no | int64 cursor — pass the previous response's `pagination.next_cursor` to fetch older posts (default 0) |
+| `limit` | no | int ≥ 1 (default 20) |
+
+- `category` defaults to `STREAM_CATEGORY_MAIN_IDEAS` when omitted; `limit` to `20`.
+- Non-numeric `last_stream_id`/`limit`, `limit=0`, or an invalid `category` →
+  `422 VALIDATION_ERROR`.
+- Upstream returns 400 when no data exists for the requested parameters
+  (`no user stream data for the requested parameters`), surfaced here as `422`.
+- `stream[].title_url` is a relative path such as `streams/announcement/<uuid>`;
+  resolve it against the [announcement endpoint](#get-v1streamannouncementstream_id)
+  to fetch the announcement attachments for that post.
+
+`data: { stream: [{ stream_id, title_url, title, content, created_at, created_display,
+updated_at, user: {...}, status: {...}, total_replies, total_likes, type,
+parent_stream_id, reports: [], topics: [], summary: {...} | null,
+reaction: {...} | null }], pagination: { is_last_page, next_cursor, total },
+invalid_watchlist_ids: [] }`
+
+- `user`: `{ user_id, is_author, username, fullname, avatar, is_verified,
+  user_privilege, is_pro, country, verified_status }`
+- `status`: `{ is_pinned, is_trending, is_reposted, is_liked, is_saved, is_followed,
+  is_unavailable, is_junk, is_spam, is_violation, is_deleted }` (booleans)
+- `reports`: `[{ type }]`; `topics`: `[string]`
+- `summary` (`null` when absent): `{ title, summary, key_points, key_takeaway,
+  model, model_version }`
+- `reaction` (`null` when absent): `{ reactions: [{ reaction, total }], total,
+  my_reaction }`
+- `type` is `STREAM_TYPE_REPORT` / `STREAM_TYPE_POST`; `pagination.next_cursor` is
+  the `last_stream_id` for the next page.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884487&limit=20'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "stream": [
+      {
+        "stream_id": 34884767,
+        "title_url": "streams/announcement/41a33437efb2c797eb3a8e9055bb318d",
+        "title": "Laporan Harian atas Nilai Aktiva Bersih dan Komposisi Portofolio [XKMS]",
+        "content": "",
+        "created_at": "2026-08-14 18:17:44",
+        "created_display": "14 Aug 26, 18:17",
+        "updated_at": "0000-00-00 00:00:00",
+        "user": {
+          "user_id": 3,
+          "is_author": false,
+          "username": "StockbitReports",
+          "fullname": "Stockbit Reports",
+          "avatar": "https://avatar.stockbit.com/3-1366883879.jpeg",
+          "is_verified": true,
+          "user_privilege": "PRIVILEGE_MEMBER",
+          "is_pro": false,
+          "country": "COUNTRY_ID",
+          "verified_status": "VERIFIED_STATUS_COMMUNITY"
+        },
+        "status": {
+          "is_pinned": false,
+          "is_trending": false,
+          "is_reposted": false,
+          "is_liked": false,
+          "is_saved": false,
+          "is_followed": false,
+          "is_unavailable": false,
+          "is_junk": false,
+          "is_spam": false,
+          "is_violation": false,
+          "is_deleted": false
+        },
+        "total_replies": 0,
+        "total_likes": 0,
+        "type": "STREAM_TYPE_REPORT",
+        "parent_stream_id": 0,
+        "reports": [{ "type": "Others" }],
+        "topics": ["XKMS"],
+        "summary": {
+          "title": "Laporan Harian Nilai Aset Bersih",
+          "summary": "XKMS melaporkan nilai aset bersih ...",
+          "key_points": ["Nilai aset bersih tercatat Rp126,71 miliar."],
+          "key_takeaway": "Laporan harian ini bersifat rutin.",
+          "model": "SUMMARY_MODEL_AI",
+          "model_version": "v1"
+        },
+        "reaction": null
+      }
+    ],
+    "pagination": { "is_last_page": false, "next_cursor": 34884487, "total": 20 },
+    "invalid_watchlist_ids": []
+  }
+}
+```
+
+### `GET /v1/stream/announcement/{stream_id}`
+Announcement attachments (e.g. PDF reports) published on a stream post
+(proxies `/stream/announcement/{id}`). Non-report posts return an empty list.
+
+| param | required | values |
+|---|---|---|
+| `stream_id` | path | stream UUID — the last segment of a post's `title_url` |
+
+- Empty `stream_id` → `422 VALIDATION_ERROR` (`{"stream_id":"is required"}`).
+  Via the router, an empty segment doesn't match the route and falls through to
+  `404` instead.
+- An unrecognised `stream_id` (upstream 400) → `422 VALIDATION_ERROR`
+  (`no announcement data for the requested stream`).
+- Each item is one attached file. One announcement is often split into a base
+  file plus `_lampN` (attachment) files sharing the same `headline`.
+
+`data: [{ id, company_id, posted_on, headline, title, attachment, retrieved_on,
+symbol, name, company_icon_url }]`
+
+- `id` is the attachment id (not the stream id); `title` is the file name;
+  `attachment` is the fully-qualified PDF URL.
+- `posted_on`/`retrieved_on` are `YYYY-MM-DD HH:MM:SS` strings.
+- `symbol`/`name` identify the issuing company; empty list responses are
+  `data: []`.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8aba'
+```
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 3547541,
+      "company_id": 497,
+      "posted_on": "2026-08-15 07:41:51",
+      "headline": "Rencana Transaksi Material Dengan Persetujuan RUPS (KOREKSI) [SILO]",
+      "title": "f-32120989-0_SILO_Rencana_Transaksi_Material_Dengan_Persetujuan_RUPS_32120989.pdf",
+      "attachment": "https://emitten-announcement.stockbit.com/attachments/f-32120989-0_SILO_Rencana_Transaksi_Material_Dengan_Persetujuan_RUPS_32120989.pdf",
+      "retrieved_on": "2026-08-15 00:50:17",
+      "symbol": "SILO",
+      "name": "Siloam International Hospitals Tbk",
+      "company_icon_url": "https://assets.stockbit.com/logos/companies/SILO.png"
+    }
+  ]
 }
 ```
 

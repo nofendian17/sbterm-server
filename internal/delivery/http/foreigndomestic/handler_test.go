@@ -1,0 +1,197 @@
+package foreigndomestic
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
+	"github.com/nofendian17/sbterm-server/internal/domain"
+	"github.com/nofendian17/sbterm-server/internal/mocks"
+	"github.com/nofendian17/sbterm-server/pkg/validator"
+)
+
+func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		setup          func(uc *mocks.MockForeignDomesticUsecase)
+		wantStatus     int
+		wantErrCode    string
+		wantErrDetails map[string]string
+		wantFrom       string
+	}{
+		{
+			name: "returns foreign domestic with period",
+			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
+			setup: func(uc *mocks.MockForeignDomesticUsecase) {
+				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_MONTH", "", "").Return(&domain.ForeignDomesticData{
+					From:        "2026-07-14",
+					To:          "2026-08-14",
+					LastUpdated: "14 Aug 26",
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+			wantFrom:   "2026-07-14",
+		},
+		{
+			name: "from/to range wins over period defaults",
+			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14",
+			setup: func(uc *mocks.MockForeignDomesticUsecase) {
+				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "2026-07-01", "2026-08-14").Return(&domain.ForeignDomesticData{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:        "missing symbol returns 422",
+			path:        "/v1/order-trade/foreign-domestic/historical?period=TB_PERIOD_LAST_1_MONTH",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "invalid market_type returns 422",
+			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_REGULAR",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "invalid period returns 422",
+			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&period=BOGUS",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:        "from without to returns 422",
+			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"to": "from and to must both be provided or both omitted",
+			},
+		},
+		{
+			name:        "reversed range returns 422",
+			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-08-14&to=2026-07-01",
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+			wantErrDetails: map[string]string{
+				"from": "must be earlier than or equal to to",
+			},
+		},
+		{
+			name: "upstream 400 returns 422",
+			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
+			setup: func(uc *mocks.MockForeignDomesticUsecase) {
+				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "", "").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "usecase error returns 500",
+			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
+			setup: func(uc *mocks.MockForeignDomesticUsecase) {
+				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "", "").Return(nil, errors.New("boom"))
+			},
+			wantStatus:  http.StatusInternalServerError,
+			wantErrCode: "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc := mocks.NewMockForeignDomesticUsecase(ctrl)
+			if tt.setup != nil {
+				tt.setup(uc)
+			}
+
+			r := chi.NewRouter()
+			h := NewForeignDomesticHandler(uc, validator.New())
+			r.Get("/v1/order-trade/foreign-domestic/historical", h.ForeignDomesticHistorical)
+
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+
+			var env struct {
+				Success bool `json:"success"`
+				Data    struct {
+					From string `json:"from"`
+				} `json:"data"`
+				Error *struct {
+					Code    string            `json:"code"`
+					Details map[string]string `json:"details"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+
+			if tt.wantErrCode != "" {
+				require.NotNil(t, env.Error)
+				assert.Equal(t, tt.wantErrCode, env.Error.Code)
+				if tt.wantErrDetails != nil {
+					assert.Equal(t, tt.wantErrDetails, env.Error.Details)
+				}
+				return
+			}
+			if tt.wantFrom != "" {
+				assert.Equal(t, tt.wantFrom, env.Data.From)
+			}
+		})
+	}
+}
+
+func TestForeignDomesticRangeRequirements(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     foreignDomesticRequest
+		wantNil bool
+		want    map[string]string
+	}{
+		{
+			name:    "from/to both present is valid",
+			req:     foreignDomesticRequest{From: "2026-07-01", To: "2026-08-14"},
+			wantNil: true,
+		},
+		{
+			name:    "both omitted is valid (period applies)",
+			req:     foreignDomesticRequest{},
+			wantNil: true,
+		},
+		{
+			name: "from without to",
+			req:  foreignDomesticRequest{From: "2026-07-01"},
+			want: map[string]string{"to": "from and to must both be provided or both omitted"},
+		},
+		{
+			name: "to without from",
+			req:  foreignDomesticRequest{To: "2026-08-14"},
+			want: map[string]string{"from": "from and to must both be provided or both omitted"},
+		},
+		{
+			name: "reversed range",
+			req:  foreignDomesticRequest{From: "2026-08-14", To: "2026-07-01"},
+			want: map[string]string{"from": "must be earlier than or equal to to"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := foreignDomesticRangeRequirements(tt.req)
+			if tt.wantNil {
+				assert.Nil(t, got)
+				return
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

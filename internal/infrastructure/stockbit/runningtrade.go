@@ -2,11 +2,16 @@ package stockbit
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 )
 
-const runningTradeChartPath = "/order-trade/running-trade/chart/%s"
+const (
+	runningTradeChartPath = "/order-trade/running-trade/chart/%s"
+	runningTradePath      = "/order-trade/running-trade"
+)
 
 // RunningTradeResponse is the running trade chart response.
 type RunningTradeResponse struct {
@@ -61,6 +66,78 @@ type RunningTradeChartPoint struct {
 	Open          *RunningTradeValue `json:"open"`
 	High          *RunningTradeValue `json:"high"`
 	Low           *RunningTradeValue `json:"low"`
+}
+
+// RunningTradeFeedResponse is the running trade feed response.
+type RunningTradeFeedResponse struct {
+	Message string               `json:"message"`
+	Data    RunningTradeFeedData `json:"data"`
+}
+
+type RunningTradeFeedData struct {
+	IsOpenMarket bool                   `json:"is_open_market"`
+	RunningTrade []RunningTradeFeedItem `json:"running_trade"`
+}
+
+// RunningTradeFeedItem is one executed trade in the feed. Lot/price/change are
+// display-formatted strings; value carries a numeric raw and a formatted string.
+type RunningTradeFeedItem struct {
+	ID               string                `json:"id"`
+	Time             string                `json:"time"`
+	Action           string                `json:"action"`
+	Code             string                `json:"code"`
+	Price            string                `json:"price"`
+	Change           string                `json:"change"`
+	Lot              string                `json:"lot"`
+	IsBrokerExists   bool                  `json:"is_broker_exists"`
+	Buyer            string                `json:"buyer"`
+	Seller           string                `json:"seller"`
+	TradeNumber      string                `json:"trade_number"`
+	BuyerType        string                `json:"buyer_type"`
+	SellerType       string                `json:"seller_type"`
+	MarketBoard      string                `json:"market_board"`
+	BuyOrderNumber   string                `json:"buy_order_number"`
+	SellOrderNumber  string                `json:"sell_order_number"`
+	GroupOrderNumber string                `json:"group_order_number"`
+	Value            RunningTradeFeedValue `json:"value"`
+}
+
+// RunningTradeFeedValue is a running trade value: upstream sends raw as a JSON
+// number (kept as json.Number so either 630000 or "630000" decodes) and
+// formatted as a display string.
+type RunningTradeFeedValue struct {
+	Raw       json.Number `json:"raw"`
+	Formatted string      `json:"formatted"`
+}
+
+// GetRunningTrade returns the running trade feed for a single symbol. sort
+// (ASC/DESC) and orderBy (RUNNING_TRADE_ORDER_BY_*) select the ordering;
+// tradeNumber is a cursor for paging (pass the last row's trade_number to fetch
+// the next page); date selects a session (YYYY-MM-DD) — empty lets upstream
+// fall back to the most recent data. The access token is attached automatically.
+func (c *Client) GetRunningTrade(ctx context.Context, symbol, sort, orderBy, date string, limit int, tradeNumber int64) (*RunningTradeFeedResponse, error) {
+	q := url.Values{}
+	q.Set("symbols[]", symbol)
+	if sort != "" {
+		q.Set("sort", sort)
+	}
+	if orderBy != "" {
+		q.Set("order_by", orderBy)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if tradeNumber > 0 {
+		q.Set("trade_number", strconv.FormatInt(tradeNumber, 10))
+	}
+	if date != "" {
+		q.Set("date", date)
+	}
+	var out RunningTradeFeedResponse
+	if err := c.Get(ctx, runningTradePath, q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // GetRunningTradeChart returns the running trade chart for a symbol. brokerCodes

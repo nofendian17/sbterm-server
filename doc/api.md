@@ -41,6 +41,9 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 29 | `GET /v1/order-trade/broker/activity/historical` | [Broker activity historical](#get-v1order-tradebrokeractivityhistorical) |
 | 30 | `GET /v1/user/{username}/stream` | [Stream](#get-v1userusernamestream) |
 | 31 | `GET /v1/stream/announcement/{stream_id}` | [Stream](#get-v1streamannouncementstream_id) |
+| 32 | `GET /v1/order-trade/running-trade` | [Running trade feed](#get-v1order-traderunning-trade) |
+| 33 | `GET /v1/company/{symbol}/orderbook` | [Order book](#get-v1companysymbolorderbook) |
+| 34 | `GET /v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-v1order-tradeforeign-domestichistorical) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1296,6 +1299,287 @@ Empirically verified against `/order-trade/running-trade/chart/DSSA`:
   `referer`; `X-Platform: web`/`ios` both work.
 - **Number formatting is accounting style:** negative values render as
   `raw: "-7852500", formatted: "(7.9M)"`.
+
+### `GET /v1/order-trade/running-trade`
+Running trade feed: the stream of executed trades for one symbol, paged by a
+`trade_number` cursor (proxies `/order-trade/running-trade`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | yes | one symbol (see note below) |
+| `sort` | no | `ASC` (default), `DESC` |
+| `order_by` | no | `RUNNING_TRADE_ORDER_BY_TIME` (default), `RUNNING_TRADE_ORDER_BY_LOT`, `RUNNING_TRADE_ORDER_BY_VALUE` |
+| `limit` | no | int ≥ 1 (default 80) |
+| `trade_number` | no | int64 cursor — pass the last row's `trade_number` to fetch the next page |
+| `date` | no | `YYYY-MM-DD` — **omitted/empty defaults to the most recent data available** |
+
+- **Single symbol only.** Upstream accepts `symbols[]=` (array syntax), but
+  passing more than one does **not** combine feeds — it returns data for one
+  symbol with inconsistent selection. Fetch per-symbol and merge client-side if
+  needed.
+- **Cursor paging:** response rows continue past `trade_number`; `limit` alone
+  can't page past the upstream cap (verified: `limit=2000` still returns 100
+  rows). Walk the feed with `trade_number` from the last row.
+- `date` empty → omitted from the request, so upstream falls back to the most
+  recent session with data. Invalid `YYYY-MM-DD` → `422 VALIDATION_ERROR`
+  (upstream rejects malformed dates with a 400 `Invalid date`).
+- Invalid `order_by` → `422 VALIDATION_ERROR` (upstream rejects unknown enum
+  values with a 400 `INVALID_PARAMETER`). `sort` is lenient upstream but this
+  server validates `ASC`/`DESC`.
+- Upstream 400 (e.g. no data for the requested parameters) → `422`.
+- `value.raw` is a **JSON number** (e.g. `630000`), not a string.
+
+`data: { is_open_market, running_trade: [{ id, time, action, code, price,
+change, lot, is_broker_exists, buyer, seller, trade_number, buyer_type,
+seller_type, market_board, buy_order_number, sell_order_number,
+group_order_number, value: { raw, formatted } }] }`
+
+`action` is `buy`/`sell`; `buyer`/`seller` are `"BROKER [D|F]"` labels
+(`D` = domestic, `F` = foreign); `buyer_type`/`seller_type` are
+`BROKER_TYPE_LOCAL`/`BROKER_TYPE_FOREIGN`; `lot`/`price`/`change` are
+display-formatted strings.
+
+#### Example: request / response
+
+```bash
+# Latest data (date omitted -> upstream falls back to the most recent session)
+curl 'http://localhost:8080/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&limit=80'
+
+# A specific session + next page (cursor from the last row's trade_number)
+curl 'http://localhost:8080/v1/order-trade/running-trade?symbol=BBCA&date=2026-08-13&limit=80&trade_number=31000'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "is_open_market": false,
+    "running_trade": [
+      {
+        "id": "4760187264",
+        "time": "08:58:00",
+        "action": "buy",
+        "code": "BBCA",
+        "price": "6,300",
+        "change": "-1.18%",
+        "lot": "1",
+        "is_broker_exists": true,
+        "buyer": "XL [D]",
+        "seller": "BK [F]",
+        "trade_number": "17797",
+        "buyer_type": "BROKER_TYPE_LOCAL",
+        "seller_type": "BROKER_TYPE_FOREIGN",
+        "market_board": "RG",
+        "buy_order_number": "85260",
+        "sell_order_number": "13070",
+        "group_order_number": "13070",
+        "value": { "raw": 630000, "formatted": "630.0K" }
+      }
+    ]
+  }
+}
+```
+
+### `GET /v1/order-trade/foreign-domestic/historical`
+Historical foreign/domestic buy-sell aggregates for a symbol, over a period or
+a date range (proxies `/order-trade/foreign-domestic/historical`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | yes | one symbol (see note below) |
+| `market_type` | no | `MARKET_TYPE_ALL` (default; the only value upstream accepts) |
+| `period` | no | `TB_PERIOD_LAST_1_DAY` (default), `TB_PERIOD_LAST_7_DAYS`, `TB_PERIOD_LAST_1_MONTH`, `TB_PERIOD_YEAR_TO_DATE`, `TB_PERIOD_LAST_1_YEAR` |
+| `from` | no | `YYYY-MM-DD`; see range rules |
+| `to` | no | `YYYY-MM-DD` |
+
+- **Range rules:** `from`/`to` must either both be provided or both omitted
+  (422 `from and to must both be provided or both omitted` otherwise). A
+  reversed range is rejected (422) because the upstream 400s on it
+  (`The Start date must be earlier than the End date`). When both are provided
+  the range **wins over `period`** (verified: `period=LAST_7_DAYS` + a month
+  range returns the month range).
+- **Single symbol only.** Upstream accepts a repeatable `symbols=` param but
+  only the first symbol's data is returned; call per-symbol to compare.
+- `market_type` only accepts `MARKET_TYPE_ALL` — any other value 400s upstream
+  and is rejected here with 422. Omitted → `ALL`.
+- A single bound (`from`-only or `to`-only) is silently ignored upstream
+  (returns the last day) — this server rejects it with 422 instead.
+- Empty `symbol` → 422; unknown symbol → upstream 404 (`Data tidak ditemukan`),
+  surfaced as a 500 here.
+- `historical_net[].*` raw values are **mixed JSON types upstream** (numbers
+  for most fields, a string for `net_frequency`, floats for the percentages) —
+  kept as-is, so consumers should handle `raw` as a number-or-string.
+
+`data: { historical_price: [{ date, datetime_label, open/high/low/close:
+{raw, formatted} }], historical_net: [{ date, datetime_label,
+datetime_label_table, net_foreign, foreign_buy, foreign_sell, foreign_flow,
+net_lot, net_frequency, average_price, percentage_foreign_value,
+percentage_domestic_value }], last_updated, from, to }`
+
+Each `historical_net` field is `{ raw, formatted }` (raw mixed number/string).
+Rows are newest-first; `from`/`to` echo the requested or upstream-derived range.
+
+#### Example: request / response
+
+```bash
+# Last 1 month of foreign/domestic history
+curl 'http://localhost:8080/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH'
+
+# Explicit date range (wins over period)
+curl 'http://localhost:8080/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "historical_price": [
+      {
+        "date": "2026-08-14",
+        "datetime_label": "14 Aug",
+        "open": { "raw": "820", "formatted": "820" },
+        "high": { "raw": "920", "formatted": "920" },
+        "low": { "raw": "810", "formatted": "810" },
+        "close": { "raw": "885", "formatted": "885" }
+      }
+    ],
+    "historical_net": [
+      {
+        "date": "2026-08-14",
+        "datetime_label": "14 Aug",
+        "datetime_label_table": "14 Aug 26",
+        "net_foreign": { "raw": 24004280500, "formatted": "24.00B" },
+        "foreign_buy": { "raw": 45454808500, "formatted": "45.45B" },
+        "foreign_sell": { "raw": 21450528000, "formatted": "21.45B" },
+        "foreign_flow": { "raw": 268726637000, "formatted": "268.73B" },
+        "net_lot": { "raw": 274408, "formatted": "274.41K" },
+        "net_frequency": { "raw": "2060", "formatted": "2.06K" },
+        "average_price": { "raw": 878, "formatted": "878" },
+        "percentage_foreign_value": { "raw": 18.86, "formatted": "18.86%" },
+        "percentage_domestic_value": { "raw": 81.14, "formatted": "81.14%" }
+      }
+    ],
+    "last_updated": "14 Aug 26",
+    "from": "2026-07-14",
+    "to": "2026-08-14"
+  }
+}
+```
+
+### `GET /v1/company/{symbol}/orderbook`
+Order book for a symbol: bid/offer price levels plus quote summary and
+market-wide aggregates (proxies
+`/company-price-feed/v2/orderbook/companies/{symbol}`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | path | |
+
+`data: { average, bid: [], change, close, country, domestic, down, exchange,
+fbuy, fnet, foreign, frequency, fsell, high, id, lastprice, low, offer: [],
+open, percentage_change, previous, status, symbol, symbol_2, symbol_3,
+tradable, unchanged, up, value, volume, corp_action, notation, uma,
+has_foreign_bs, iepiev, market_data, name, icon_url, ara, arb, company_type,
+total_bid_offer, next_ara, next_arb, autoreject_time_left_in_sec,
+auto_reject_estimation, orderbook_active_feature_mobile }`
+
+- `bid`/`offer` are price-level lists, each `{ price, que_num, volume,
+  change_percentage }` (all strings); `bid` is best-first, `offer` is
+  best-first.
+- `total_bid_offer`: `{ bid: { freq, lot, raw_lot, raw_freq }, offer: {...},
+  bid_percent }`.
+- `market_data`: `[{ label, frequency: {raw, formatted}, volume: {...},
+  value: {...} }]` — one row per market (All Market, Regular, Nego, Cash).
+- `ara`/`arb`/`next_ara`/`next_arb`: `{ value, visible }` price limits.
+- The deep structures `iepiev`, `notation`, and `auto_reject_estimation` are
+  passed through verbatim (opaque JSON) rather than re-typed.
+- Numeric stats (`fbuy`, `fnet`, `value`, `volume`, ...) are JSON numbers;
+  `percentage_change` is a float.
+- The endpoint works with any `X-Platform` header (verified `web` and `ios`).
+- Empty/missing `symbol` → `422 VALIDATION_ERROR`; upstream 400 → `422`.
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/company/VKTR/orderbook'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "average": 880,
+    "bid": [
+      { "price": "880", "que_num": "138", "volume": "823200", "change_percentage": "" },
+      { "price": "875", "que_num": "296", "volume": "2567800", "change_percentage": "" }
+    ],
+    "change": 65,
+    "close": 885,
+    "country": "ID",
+    "domestic": "81.14",
+    "down": "110",
+    "exchange": "IDX",
+    "fbuy": 45454808500,
+    "fnet": 24004280500,
+    "foreign": "18.86",
+    "frequency": 31496,
+    "fsell": 21450528000,
+    "high": 920,
+    "id": "VKTR-0",
+    "lastprice": 885,
+    "low": 810,
+    "offer": [
+      { "price": "885", "que_num": "72", "volume": "497200", "change_percentage": "" }
+    ],
+    "open": 820,
+    "percentage_change": 7.93,
+    "previous": 820,
+    "status": "Active",
+    "symbol": "VKTR",
+    "symbol_2": "VKTR",
+    "symbol_3": "VKTR",
+    "tradable": true,
+    "unchanged": "1118",
+    "up": "265",
+    "value": 177331201000,
+    "volume": 201417800,
+    "corp_action": {
+      "active": false,
+      "icon": "https://assets.stockbit.com/images/corp_action_event_icon.svg",
+      "text": "Perusahaan Memiliki Corporate Action"
+    },
+    "notation": [],
+    "uma": false,
+    "has_foreign_bs": true,
+    "iepiev": { "symbol": "", "status": "STATUS_UNSPECIFIED" },
+    "market_data": [
+      {
+        "label": "All Market",
+        "frequency": { "raw": "31496", "formatted": "31.5 K" },
+        "volume": { "raw": "201417800", "formatted": "201 M" },
+        "value": { "raw": "177331201000", "formatted": "177 B" }
+      }
+    ],
+    "name": "VKTR Teknologi Mobilitas Tbk.",
+    "icon_url": "https://assets.stockbit.com/logos/companies/VKTR.png",
+    "ara": { "value": "1,105", "visible": true },
+    "arb": { "value": "755", "visible": true },
+    "company_type": "Saham",
+    "total_bid_offer": {
+      "bid": { "freq": "2,762", "lot": "39,578,900", "raw_lot": "39578900", "raw_freq": "2762" },
+      "offer": { "freq": "3,885", "lot": "53,346,400", "raw_lot": "53346400", "raw_freq": "3885" },
+      "bid_percent": 42.6
+    },
+    "next_ara": { "value": "1,105", "visible": true },
+    "next_arb": { "value": "755", "visible": true },
+    "autoreject_time_left_in_sec": 0,
+    "auto_reject_estimation": [
+      { "value": 115100, "change_to_prev": { "value": 19175, "percentage": 19.99 }, "type": "AUTO_REJECT_TYPE_POSITIVE" }
+    ],
+    "orderbook_active_feature_mobile": "ORDER_BOOK_FEATURE_FOREIGN_BS"
+  }
+}
+```
 
 ### `GET /v1/company/{symbol}/historical-summary`
 Historical price summary for a symbol: one row per period over a date range,

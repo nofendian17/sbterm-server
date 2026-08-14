@@ -67,6 +67,45 @@ func (r *RunningTradeRepository) GetRunningTradeChart(ctx context.Context, symbo
 	return out, nil
 }
 
+func (r *RunningTradeRepository) GetRunningTrade(ctx context.Context, symbol, sort, orderBy, date string, limit int, tradeNumber int64) (*domain.RunningTradeFeed, error) {
+	resp, err := r.client.GetRunningTrade(ctx, symbol, sort, orderBy, date, limit, tradeNumber)
+	if err != nil {
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
+		return nil, err
+	}
+	d := resp.Data
+	out := &domain.RunningTradeFeed{
+		IsOpenMarket: d.IsOpenMarket,
+		RunningTrade: make([]domain.RunningTradeFeedItem, 0, len(d.RunningTrade)),
+	}
+	for _, t := range d.RunningTrade {
+		out.RunningTrade = append(out.RunningTrade, domain.RunningTradeFeedItem{
+			ID:               t.ID,
+			Time:             t.Time,
+			Action:           t.Action,
+			Code:             t.Code,
+			Price:            t.Price,
+			Change:           t.Change,
+			Lot:              t.Lot,
+			IsBrokerExists:   t.IsBrokerExists,
+			Buyer:            t.Buyer,
+			Seller:           t.Seller,
+			TradeNumber:      t.TradeNumber,
+			BuyerType:        t.BuyerType,
+			SellerType:       t.SellerType,
+			MarketBoard:      t.MarketBoard,
+			BuyOrderNumber:   t.BuyOrderNumber,
+			SellOrderNumber:  t.SellOrderNumber,
+			GroupOrderNumber: t.GroupOrderNumber,
+			Value:            domain.RunningTradeFeedValue{Raw: t.Value.Raw, Formatted: t.Value.Formatted},
+		})
+	}
+	return out, nil
+}
+
 func toRunningTradeChartPoints(points []stockbit.RunningTradeChartPoint) []domain.RunningTradeChartPoint {
 	out := make([]domain.RunningTradeChartPoint, 0, len(points))
 	for _, p := range points {

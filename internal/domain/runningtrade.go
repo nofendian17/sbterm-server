@@ -1,5 +1,7 @@
 package domain
 
+import "encoding/json"
+
 // RunningTradeData is the running trade chart for a symbol: the price series
 // plus per-broker value/volume series for the requested range or period.
 type RunningTradeData struct {
@@ -46,4 +48,38 @@ type RunningTradeChartPoint struct {
 	Open          *RawFormatted
 	High          *RawFormatted
 	Low           *RawFormatted
+}
+
+// RunningTradeFeed is the running trade feed for a single symbol.
+type RunningTradeFeed struct {
+	IsOpenMarket bool
+	RunningTrade []RunningTradeFeedItem
+}
+
+// RunningTradeFeedItem is one executed trade in the feed.
+type RunningTradeFeedItem struct {
+	ID               string
+	Time             string
+	Action           string
+	Code             string
+	Price            string
+	Change           string
+	Lot              string
+	IsBrokerExists   bool
+	Buyer            string
+	Seller           string
+	TradeNumber      string
+	BuyerType        string
+	SellerType       string
+	MarketBoard      string
+	BuyOrderNumber   string
+	SellOrderNumber  string
+	GroupOrderNumber string
+	Value            RunningTradeFeedValue
+}
+
+// RunningTradeFeedValue carries a trade's value: raw is numeric upstream.
+type RunningTradeFeedValue struct {
+	Raw       json.Number
+	Formatted string
 }

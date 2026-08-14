@@ -15,6 +15,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/findata"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/foreigndomestic"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/fundachart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/historicalsummary"
@@ -25,6 +26,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/marketdetector"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderbook"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/runningtrade"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
@@ -64,6 +66,8 @@ func TestRouter(t *testing.T) {
 		setupFindataFinancial  func(uc *mocks.MockFindataFinancialUsecase)
 		setupIndexSummary      func(uc *mocks.MockIndexSummaryUsecase)
 		setupRunningTrade      func(uc *mocks.MockRunningTradeUsecase)
+		setupOrderBook         func(uc *mocks.MockOrderBookUsecase)
+		setupForeignDomestic   func(uc *mocks.MockForeignDomesticUsecase)
 		setupHistoricalSummary func(uc *mocks.MockHistoricalSummaryUsecase)
 		setupActivity          func(uc *mocks.MockActivityUsecase)
 		setupBrokerTop         func(uc *mocks.MockBrokerTopUsecase)
@@ -248,6 +252,33 @@ func TestRouter(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "get running trade feed returns 200",
+			method: http.MethodGet,
+			path:   "/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&date=2026-08-13&limit=80&trade_number=17796",
+			setupRunningTrade: func(uc *mocks.MockRunningTradeUsecase) {
+				uc.EXPECT().GetRunningTrade(gomock.Any(), "BBCA", "ASC", "RUNNING_TRADE_ORDER_BY_TIME", "2026-08-13", 80, int64(17796)).Return(&domain.RunningTradeFeed{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get order book returns 200",
+			method: http.MethodGet,
+			path:   "/v1/company/VKTR/orderbook",
+			setupOrderBook: func(uc *mocks.MockOrderBookUsecase) {
+				uc.EXPECT().GetOrderBook(gomock.Any(), "VKTR").Return(&domain.OrderBookData{Symbol: "VKTR"}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "get foreign domestic historical returns 200",
+			method: http.MethodGet,
+			path:   "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
+			setupForeignDomestic: func(uc *mocks.MockForeignDomesticUsecase) {
+				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_MONTH", "", "").Return(&domain.ForeignDomesticData{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:   "get historical summary returns 200",
 			method: http.MethodGet,
 			path:   "/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11",
@@ -420,6 +451,16 @@ func TestRouter(t *testing.T) {
 				tt.setupRunningTrade(ucRunningTrade)
 			}
 			runningTradeHandler := runningtrade.NewRunningTradeHandler(ucRunningTrade, validator.New())
+			ucOrderBook := mocks.NewMockOrderBookUsecase(ctrl)
+			if tt.setupOrderBook != nil {
+				tt.setupOrderBook(ucOrderBook)
+			}
+			orderBookHandler := orderbook.NewOrderBookHandler(ucOrderBook, validator.New())
+			ucForeignDomestic := mocks.NewMockForeignDomesticUsecase(ctrl)
+			if tt.setupForeignDomestic != nil {
+				tt.setupForeignDomestic(ucForeignDomestic)
+			}
+			foreignDomesticHandler := foreigndomestic.NewForeignDomesticHandler(ucForeignDomestic, validator.New())
 			ucHistoricalSummary := mocks.NewMockHistoricalSummaryUsecase(ctrl)
 			if tt.setupHistoricalSummary != nil {
 				tt.setupHistoricalSummary(ucHistoricalSummary)
@@ -440,7 +481,7 @@ func TestRouter(t *testing.T) {
 				tt.setupStream(ucStream)
 			}
 			streamHandler := stream.NewStreamHandler(ucStream, validator.New())
-			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, logger)
+			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -471,7 +512,7 @@ func TestRouterRateLimit(t *testing.T) {
 			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), marketdetector.NewMarketDetectorHandler(mocks.NewMockMarketDetectorUsecase(ctrl), validator.New()), topstock.NewTopStockHandler(mocks.NewMockTopStockUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), keystats.NewKeystatsHandler(mocks.NewMockKeystatsUsecase(ctrl), validator.New()), priceperformance.NewPricePerformanceHandler(mocks.NewMockPricePerformanceUsecase(ctrl), validator.New()), chart.NewChartbitHandler(mocks.NewMockChartbitUsecase(ctrl), validator.New()), fundachart.NewFundaChartHandler(mocks.NewMockFundaChartUsecase(ctrl), validator.New()), fundachart.NewFundaChartMetricsHandler(mocks.NewMockFundaChartMetricsUsecase(ctrl), validator.New()), findata.NewFindataFinancialHandler(mocks.NewMockFindataFinancialUsecase(ctrl), validator.New()), indexsummary.NewIndexSummaryHandler(mocks.NewMockIndexSummaryUsecase(ctrl), validator.New()), runningtrade.NewRunningTradeHandler(mocks.NewMockRunningTradeUsecase(ctrl), validator.New()), historicalsummary.NewHistoricalSummaryHandler(mocks.NewMockHistoricalSummaryUsecase(ctrl), validator.New()), activity.NewActivityHandler(nil, validator.New()), brokertop.NewBrokerTopHandler(mocks.NewMockBrokerTopUsecase(ctrl), validator.New()), stream.NewStreamHandler(mocks.NewMockStreamUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
+			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), marketdetector.NewMarketDetectorHandler(mocks.NewMockMarketDetectorUsecase(ctrl), validator.New()), topstock.NewTopStockHandler(mocks.NewMockTopStockUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), keystats.NewKeystatsHandler(mocks.NewMockKeystatsUsecase(ctrl), validator.New()), priceperformance.NewPricePerformanceHandler(mocks.NewMockPricePerformanceUsecase(ctrl), validator.New()), chart.NewChartbitHandler(mocks.NewMockChartbitUsecase(ctrl), validator.New()), fundachart.NewFundaChartHandler(mocks.NewMockFundaChartUsecase(ctrl), validator.New()), fundachart.NewFundaChartMetricsHandler(mocks.NewMockFundaChartMetricsUsecase(ctrl), validator.New()), findata.NewFindataFinancialHandler(mocks.NewMockFindataFinancialUsecase(ctrl), validator.New()), indexsummary.NewIndexSummaryHandler(mocks.NewMockIndexSummaryUsecase(ctrl), validator.New()), runningtrade.NewRunningTradeHandler(mocks.NewMockRunningTradeUsecase(ctrl), validator.New()), orderbook.NewOrderBookHandler(mocks.NewMockOrderBookUsecase(ctrl), validator.New()), foreigndomestic.NewForeignDomesticHandler(mocks.NewMockForeignDomesticUsecase(ctrl), validator.New()), historicalsummary.NewHistoricalSummaryHandler(mocks.NewMockHistoricalSummaryUsecase(ctrl), validator.New()), activity.NewActivityHandler(nil, validator.New()), brokertop.NewBrokerTopHandler(mocks.NewMockBrokerTopUsecase(ctrl), validator.New()), stream.NewStreamHandler(mocks.NewMockStreamUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
 
 			for _, want := range tt.wantCodes {
 				rec := httptest.NewRecorder()

@@ -20,6 +20,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/corpaction"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/findata"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/foreigndomestic"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/fundachart"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/health"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/historicalsummary"
@@ -30,6 +31,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/marketdetector"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderbook"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/runningtrade"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/sectors"
@@ -324,6 +326,24 @@ func provideRepositories(injector *do.RootScope) {
 	})
 	do.MustAs[*infraRepo.RunningTradeRepository, repository.RunningTradeRepository](injector)
 
+	do.Provide(injector, func(i do.Injector) (*infraRepo.OrderBookRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewOrderBookRepository(client), nil
+	})
+	do.MustAs[*infraRepo.OrderBookRepository, repository.OrderBookRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.ForeignDomesticRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewForeignDomesticRepository(client), nil
+	})
+	do.MustAs[*infraRepo.ForeignDomesticRepository, repository.ForeignDomesticRepository](injector)
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HistoricalSummaryRepository, error) {
 		client, err := do.Invoke[*stockbit.Client](i)
 		if err != nil {
@@ -492,6 +512,14 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewRunningTradeUsecase(do.MustInvoke[repository.RunningTradeRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.OrderBookUsecase, error) {
+		return usecase.NewOrderBookUsecase(do.MustInvoke[repository.OrderBookRepository](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.ForeignDomesticUsecase, error) {
+		return usecase.NewForeignDomesticUsecase(do.MustInvoke[repository.ForeignDomesticRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.HistoricalSummaryUsecase, error) {
 		return usecase.NewHistoricalSummaryUsecase(do.MustInvoke[repository.HistoricalSummaryRepository](i)), nil
 	})
@@ -602,6 +630,14 @@ func provideHandlers(injector *do.RootScope) {
 		return runningtrade.NewRunningTradeHandler(do.MustInvoke[usecase.RunningTradeUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*orderbook.OrderBookHandler, error) {
+		return orderbook.NewOrderBookHandler(do.MustInvoke[usecase.OrderBookUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*foreigndomestic.ForeignDomesticHandler, error) {
+		return foreigndomestic.NewForeignDomesticHandler(do.MustInvoke[usecase.ForeignDomesticUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*historicalsummary.HistoricalSummaryHandler, error) {
 		return historicalsummary.NewHistoricalSummaryHandler(do.MustInvoke[usecase.HistoricalSummaryUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
@@ -644,12 +680,14 @@ func provideHandlers(injector *do.RootScope) {
 		findataFinancialHandler := do.MustInvoke[*findata.FindataFinancialHandler](i)
 		indexSummaryHandler := do.MustInvoke[*indexsummary.IndexSummaryHandler](i)
 		runningTradeHandler := do.MustInvoke[*runningtrade.RunningTradeHandler](i)
+		orderBookHandler := do.MustInvoke[*orderbook.OrderBookHandler](i)
+		foreignDomesticHandler := do.MustInvoke[*foreigndomestic.ForeignDomesticHandler](i)
 		historicalSummaryHandler := do.MustInvoke[*historicalsummary.HistoricalSummaryHandler](i)
 		activityHandler := do.MustInvoke[*activity.ActivityHandler](i)
 		brokerTopHandler := do.MustInvoke[*brokertop.BrokerTopHandler](i)
 		streamHandler := do.MustInvoke[*stream.StreamHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

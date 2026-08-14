@@ -1,8 +1,10 @@
 package runningtrade
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -17,6 +19,9 @@ const (
 	defaultInvestorType = "INVESTOR_TYPE_ALL"
 	defaultMarketBoard  = "BOARD_TYPE_ALL"
 	defaultPeriod       = "RT_PERIOD_LAST_1_DAY"
+	defaultSort         = "ASC"
+	defaultOrderBy      = "RUNNING_TRADE_ORDER_BY_TIME"
+	defaultFeedLimit    = 80
 )
 
 type RunningTradeHandler struct {
@@ -36,6 +41,15 @@ type runningTradeRequest struct {
 	InvestorType string   `json:"investor_type" validate:"omitempty,oneof=INVESTOR_TYPE_ALL INVESTOR_TYPE_FOREIGN INVESTOR_TYPE_DOMESTIC"`
 	MarketBoard  string   `json:"market_board" validate:"omitempty,oneof=BOARD_TYPE_ALL BOARD_TYPE_REGULAR BOARD_TYPE_CASH BOARD_TYPE_NEGOTIATION"`
 	Period       string   `json:"period" validate:"omitempty,oneof=RT_PERIOD_LAST_1_DAY RT_PERIOD_LAST_7_DAYS RT_PERIOD_LAST_1_MONTH RT_PERIOD_LAST_3_MONTHS RT_PERIOD_YEAR_TO_DATE RT_PERIOD_LAST_1_YEAR"`
+}
+
+type runningTradeFeedRequest struct {
+	Symbol      string `json:"symbol" validate:"required"`
+	Sort        string `json:"sort" validate:"omitempty,oneof=ASC DESC"`
+	OrderBy     string `json:"order_by" validate:"omitempty,oneof=RUNNING_TRADE_ORDER_BY_TIME RUNNING_TRADE_ORDER_BY_LOT RUNNING_TRADE_ORDER_BY_VALUE"`
+	Date        string `json:"date" validate:"omitempty,datetime=2006-01-02"`
+	Limit       int    `validate:"min=1"`
+	TradeNumber int64
 }
 
 type runningTradeResponse struct {
@@ -81,6 +95,37 @@ type runningTradeChartPointResp struct {
 type rawFormatted struct {
 	Raw       string `json:"raw"`
 	Formatted string `json:"formatted"`
+}
+
+type runningTradeFeedResponse struct {
+	IsOpenMarket bool                           `json:"is_open_market"`
+	RunningTrade []runningTradeFeedItemResponse `json:"running_trade"`
+}
+
+type runningTradeFeedItemResponse struct {
+	ID               string                        `json:"id"`
+	Time             string                        `json:"time"`
+	Action           string                        `json:"action"`
+	Code             string                        `json:"code"`
+	Price            string                        `json:"price"`
+	Change           string                        `json:"change"`
+	Lot              string                        `json:"lot"`
+	IsBrokerExists   bool                          `json:"is_broker_exists"`
+	Buyer            string                        `json:"buyer"`
+	Seller           string                        `json:"seller"`
+	TradeNumber      string                        `json:"trade_number"`
+	BuyerType        string                        `json:"buyer_type"`
+	SellerType       string                        `json:"seller_type"`
+	MarketBoard      string                        `json:"market_board"`
+	BuyOrderNumber   string                        `json:"buy_order_number"`
+	SellOrderNumber  string                        `json:"sell_order_number"`
+	GroupOrderNumber string                        `json:"group_order_number"`
+	Value            runningTradeFeedValueResponse `json:"value"`
+}
+
+type runningTradeFeedValueResponse struct {
+	Raw       json.Number `json:"raw"`
+	Formatted string      `json:"formatted"`
 }
 
 // runningTradeRangeRequirements returns per-field validation messages for the
@@ -149,6 +194,110 @@ func (h *RunningTradeHandler) RunningTradeChart(w http.ResponseWriter, r *http.R
 		return
 	}
 	response.OK(w, toResponse(data))
+}
+
+func (h *RunningTradeHandler) RunningTrade(w http.ResponseWriter, r *http.Request) {
+	req := runningTradeFeedRequest{
+		Symbol:  r.URL.Query().Get("symbol"),
+		Sort:    r.URL.Query().Get("sort"),
+		OrderBy: r.URL.Query().Get("order_by"),
+		Date:    r.URL.Query().Get("date"),
+	}
+	limit, err := parseIntQuery(r.URL.Query().Get("limit"), defaultFeedLimit)
+	if err != nil {
+		response.ValidationError(w, "validation failed", map[string]string{"limit": "must be a valid integer"})
+		return
+	}
+	req.Limit = limit
+
+	tradeNumber, err := parseInt64Query(r.URL.Query().Get("trade_number"))
+	if err != nil {
+		response.ValidationError(w, "validation failed", map[string]string{"trade_number": "must be a valid integer"})
+		return
+	}
+	req.TradeNumber = tradeNumber
+
+	if req.Sort == "" {
+		req.Sort = defaultSort
+	}
+	if req.OrderBy == "" {
+		req.OrderBy = defaultOrderBy
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to validate running trade params")
+		return
+	}
+
+	// An empty date is omitted upstream so it falls back to the most recent
+	// session with data.
+	data, err := h.uc.GetRunningTrade(r.Context(), req.Symbol, req.Sort, req.OrderBy, req.Date, req.Limit, req.TradeNumber)
+	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no running trade data for the requested parameters")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get running trade")
+		return
+	}
+	response.OK(w, toRunningTradeFeedResponse(data))
+}
+
+func toRunningTradeFeedResponse(d *domain.RunningTradeFeed) runningTradeFeedResponse {
+	out := runningTradeFeedResponse{
+		IsOpenMarket: d.IsOpenMarket,
+		RunningTrade: make([]runningTradeFeedItemResponse, 0, len(d.RunningTrade)),
+	}
+	for _, t := range d.RunningTrade {
+		out.RunningTrade = append(out.RunningTrade, runningTradeFeedItemResponse{
+			ID:               t.ID,
+			Time:             t.Time,
+			Action:           t.Action,
+			Code:             t.Code,
+			Price:            t.Price,
+			Change:           t.Change,
+			Lot:              t.Lot,
+			IsBrokerExists:   t.IsBrokerExists,
+			Buyer:            t.Buyer,
+			Seller:           t.Seller,
+			TradeNumber:      t.TradeNumber,
+			BuyerType:        t.BuyerType,
+			SellerType:       t.SellerType,
+			MarketBoard:      t.MarketBoard,
+			BuyOrderNumber:   t.BuyOrderNumber,
+			SellOrderNumber:  t.SellOrderNumber,
+			GroupOrderNumber: t.GroupOrderNumber,
+			Value:            runningTradeFeedValueResponse{Raw: t.Value.Raw, Formatted: t.Value.Formatted},
+		})
+	}
+	return out
+}
+
+func parseIntQuery(s string, def int) (int, error) {
+	if s == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func parseInt64Query(s string) (int64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func toResponse(d *domain.RunningTradeData) runningTradeResponse {

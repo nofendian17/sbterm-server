@@ -41,6 +41,45 @@ func (m *MockRunningTradeRepository) EXPECT() *MockRunningTradeRepositoryMockRec
 	return m.recorder
 }
 
+// GetRunningTrade mocks base method.
+func (m *MockRunningTradeRepository) GetRunningTrade(ctx context.Context, symbol, sort, orderBy, date string, limit int, tradeNumber int64) (*domain.RunningTradeFeed, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRunningTrade", ctx, symbol, sort, orderBy, date, limit, tradeNumber)
+	ret0, _ := ret[0].(*domain.RunningTradeFeed)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRunningTrade indicates an expected call of GetRunningTrade.
+func (mr *MockRunningTradeRepositoryMockRecorder) GetRunningTrade(ctx, symbol, sort, orderBy, date, limit, tradeNumber any) *MockRunningTradeRepositoryGetRunningTradeCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningTrade", reflect.TypeOf((*MockRunningTradeRepository)(nil).GetRunningTrade), ctx, symbol, sort, orderBy, date, limit, tradeNumber)
+	return &MockRunningTradeRepositoryGetRunningTradeCall{Call: call}
+}
+
+// MockRunningTradeRepositoryGetRunningTradeCall wrap *gomock.Call
+type MockRunningTradeRepositoryGetRunningTradeCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRunningTradeRepositoryGetRunningTradeCall) Return(arg0 *domain.RunningTradeFeed, arg1 error) *MockRunningTradeRepositoryGetRunningTradeCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRunningTradeRepositoryGetRunningTradeCall) Do(f func(context.Context, string, string, string, string, int, int64) (*domain.RunningTradeFeed, error)) *MockRunningTradeRepositoryGetRunningTradeCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRunningTradeRepositoryGetRunningTradeCall) DoAndReturn(f func(context.Context, string, string, string, string, int, int64) (*domain.RunningTradeFeed, error)) *MockRunningTradeRepositoryGetRunningTradeCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetRunningTradeChart mocks base method.
 func (m *MockRunningTradeRepository) GetRunningTradeChart(ctx context.Context, symbol string, brokerCodes []string, from, to, investorType, marketBoard, period string) (*domain.RunningTradeData, error) {
 	m.ctrl.T.Helper()

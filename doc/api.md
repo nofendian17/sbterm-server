@@ -44,6 +44,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 32 | `GET /v1/order-trade/running-trade` | [Running trade feed](#get-v1order-traderunning-trade) |
 | 33 | `GET /v1/company/{symbol}/orderbook` | [Order book](#get-v1companysymbolorderbook) |
 | 34 | `GET /v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-v1order-tradeforeign-domestichistorical) |
+| 35 | `GET /v1/search` | [Search](#get-v1search) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -2126,6 +2127,72 @@ curl 'http://localhost:8080/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8
       "company_icon_url": "https://assets.stockbit.com/logos/companies/SILO.png"
     }
   ]
+}
+```
+
+### `GET /v1/search`
+Global symbol/entity search (proxies `/search`). Returns matching companies,
+insider labels, chat rooms, people, sectors and industries in one payload.
+
+| param | required | values |
+|---|---|---|
+| `keyword` | yes | search text, e.g. `BBRI` |
+| `page` | no | int ≥ 1 (default 1) |
+| `type` | no | `company` (default), `insider`, `people`, `sector`, `industries`, `chat`, `all` |
+
+- Missing `keyword` → `422 VALIDATION_ERROR` (`{"keyword":"is required"}`).
+- Invalid `page` (non-numeric or < 1) or unknown `type` → `422 VALIDATION_ERROR`.
+- Upstream rejects empty `type` with a 400 → mapped to `422 VALIDATION_ERROR`
+  (`invalid search parameters`).
+- `data.pagination` only exposes `has_more_*` flags (no page/total counts).
+- Empty sections are `[]` (never `null`).
+
+`data: { chat, company, insider, people, sector, industries, pagination }` — each
+section item carries an `id` plus type-specific fields (`name`/`label`,
+`is_verified`, `is_following`, `is_tradeable`/`tradeable`, `icon_url`, …).
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/v1/search?keyword=BBRI&page=1&type=company'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "chat": [],
+    "company": [
+      {
+        "id": "59",
+        "name": "BBRI",
+        "country": "ID",
+        "desc": "Bank Rakyat Indonesia (Persero) Tbk.",
+        "exchange": "IDX",
+        "is_following": false,
+        "img": "https://assets.stockbit.com/logos/companies/BBRI.png",
+        "is_verified": false,
+        "other": "PT Bank Rakyat Indonesia (Persero) Tbk",
+        "status": "ACTIVE",
+        "symbol_2": "",
+        "symbol_3": "",
+        "total_followers": 107291,
+        "is_tradeable": true,
+        "type": "Saham",
+        "url": "symbol/BBRI",
+        "icon_url": "https://assets.stockbit.com/logos/companies/BBRI.png"
+      }
+    ],
+    "insider": [],
+    "people": [],
+    "sector": [],
+    "industries": [],
+    "pagination": {
+      "has_more_companies": false,
+      "has_more_insiders": false,
+      "has_more_users": false
+    }
+  }
 }
 ```
 

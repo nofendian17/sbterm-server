@@ -29,7 +29,7 @@ func TestHistoricalSummaryHandler(t *testing.T) {
 	}{
 		{
 			name: "returns historical summary with all params",
-			path: "/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11&limit=12&page=1",
+			path: "/api/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11&limit=12&page=1",
 			setup: func(uc *mocks.MockHistoricalSummaryUsecase) {
 				uc.EXPECT().GetHistoricalSummary(gomock.Any(), "DSSA", "HS_PERIOD_WEEKLY", "2025-08-11", "2026-08-11", 12, 1).Return(&domain.HistoricalSummaryData{
 					Result:   []domain.HistoricalSummaryItem{{Date: "2026-08-10", Close: 945}},
@@ -42,7 +42,7 @@ func TestHistoricalSummaryHandler(t *testing.T) {
 		},
 		{
 			name: "defaults period/limit/page when omitted",
-			path: "/v1/company/DSSA/historical-summary",
+			path: "/api/v1/company/DSSA/historical-summary",
 			setup: func(uc *mocks.MockHistoricalSummaryUsecase) {
 				uc.EXPECT().GetHistoricalSummary(gomock.Any(), "DSSA", "HS_PERIOD_DAILY", "", "", 50, 1).Return(&domain.HistoricalSummaryData{}, nil)
 			},
@@ -50,25 +50,25 @@ func TestHistoricalSummaryHandler(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/company//historical-summary",
+			path:        "/api/v1/company//historical-summary",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid period returns 422",
-			path:        "/v1/company/DSSA/historical-summary?period=HS_PERIOD_YEARLY",
+			path:        "/api/v1/company/DSSA/historical-summary?period=HS_PERIOD_YEARLY",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid start_date format returns 422",
-			path:        "/v1/company/DSSA/historical-summary?start_date=11-08-2025",
+			path:        "/api/v1/company/DSSA/historical-summary?start_date=11-08-2025",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/historical-summary",
+			path: "/api/v1/company/DSSA/historical-summary",
 			setup: func(uc *mocks.MockHistoricalSummaryUsecase) {
 				uc.EXPECT().GetHistoricalSummary(gomock.Any(), "DSSA", "HS_PERIOD_DAILY", "", "", 50, 1).Return(nil, errors.New("boom"))
 			},
@@ -89,7 +89,7 @@ func TestHistoricalSummaryHandler(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewHistoricalSummaryHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/historical-summary", h.HistoricalSummary)
+			r.Get("/api/v1/company/{symbol}/historical-summary", h.HistoricalSummary)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

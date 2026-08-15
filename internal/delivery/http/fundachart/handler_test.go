@@ -29,7 +29,7 @@ func TestFundaChartHandlerFundaChart(t *testing.T) {
 	}{
 		{
 			name: "returns funda chart",
-			path: "/v1/company/BUVA/fundachart?item=12148&timeframe=10y",
+			path: "/api/v1/company/BUVA/fundachart?item=12148&timeframe=10y",
 			setup: func(uc *mocks.MockFundaChartUsecase) {
 				uc.EXPECT().GetFundaChart(gomock.Any(), "BUVA", "12148", "10y").Return([]domain.FundaChartCompany{
 					{CompanyName: "BUVA", Ratios: []domain.FundaChartRatio{{ItemName: "Current PE Ratio (Annualised)"}}},
@@ -41,13 +41,13 @@ func TestFundaChartHandlerFundaChart(t *testing.T) {
 		},
 		{
 			name:        "missing item returns 422",
-			path:        "/v1/company/BUVA/fundachart",
+			path:        "/api/v1/company/BUVA/fundachart",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/BUVA/fundachart?item=12148",
+			path: "/api/v1/company/BUVA/fundachart?item=12148",
 			setup: func(uc *mocks.MockFundaChartUsecase) {
 				uc.EXPECT().GetFundaChart(gomock.Any(), "BUVA", "12148", "10y").Return(nil, errors.New("boom"))
 			},
@@ -68,7 +68,7 @@ func TestFundaChartHandlerFundaChart(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewFundaChartHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/fundachart", h.FundaChart)
+			r.Get("/api/v1/company/{symbol}/fundachart", h.FundaChart)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

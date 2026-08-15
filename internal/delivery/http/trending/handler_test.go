@@ -55,7 +55,7 @@ func TestTrendingHandlerTrending(t *testing.T) {
 
 			h := NewTrendingHandler(uc)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/trending", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/trending", nil)
 			h.Trending(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

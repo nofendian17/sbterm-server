@@ -29,7 +29,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 	}{
 		{
 			name: "returns chart price",
-			path: "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=0",
+			path: "/api/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=0",
 			setup: func(uc *mocks.MockChartbitUsecase) {
 				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "daily", "2025-08-10", "2026-08-10", 0).Return(&domain.ChartPriceData{
 					Chartbit: []domain.ChartPrice{{Close: 985, High: 1075, Low: 975, Open: 990}},
@@ -40,7 +40,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name: "intraday returns chart price",
-			path: "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=5",
+			path: "/api/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=5",
 			setup: func(uc *mocks.MockChartbitUsecase) {
 				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "intraday", "1786230000", "1786143600", 5).Return(&domain.ChartPriceData{
 					Chartbit: []domain.ChartPrice{{Close: 3130, Symbol: "DSSA"}},
@@ -51,19 +51,19 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/company//chart?timeframe=daily",
+			path:        "/api/v1/company//chart?timeframe=daily",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid timeframe returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=hourly",
+			path:        "/api/v1/company/DSSA/chart?timeframe=hourly",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "daily missing from returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=daily&to=2026-08-10",
+			path:        "/api/v1/company/DSSA/chart?timeframe=daily&to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -72,7 +72,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "daily missing to returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10",
+			path:        "/api/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -81,7 +81,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "daily missing from and to returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=daily",
+			path:        "/api/v1/company/DSSA/chart?timeframe=daily",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -91,7 +91,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "intraday missing from returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=intraday&to=1786143600&limit=5",
+			path:        "/api/v1/company/DSSA/chart?timeframe=intraday&to=1786143600&limit=5",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -100,7 +100,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "intraday missing to returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&limit=5",
+			path:        "/api/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&limit=5",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -109,7 +109,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "intraday missing from and to returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=intraday&limit=5",
+			path:        "/api/v1/company/DSSA/chart?timeframe=intraday&limit=5",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -119,7 +119,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "intraday missing limit returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600",
+			path:        "/api/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -128,7 +128,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "intraday limit zero returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=0",
+			path:        "/api/v1/company/DSSA/chart?timeframe=intraday&from=1786230000&to=1786143600&limit=0",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -137,13 +137,13 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name:        "non-numeric limit returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=abc",
+			path:        "/api/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=abc",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "daily negative limit returns 422",
-			path:        "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=-5",
+			path:        "/api/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=-5",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -152,7 +152,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10",
+			path: "/api/v1/company/DSSA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10",
 			setup: func(uc *mocks.MockChartbitUsecase) {
 				uc.EXPECT().GetChartPrice(gomock.Any(), "DSSA", "daily", "2025-08-10", "2026-08-10", 0).Return(nil, errors.New("boom"))
 			},
@@ -173,7 +173,7 @@ func TestChartbitHandlerChartPrice(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewChartbitHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/chart", h.ChartPrice)
+			r.Get("/api/v1/company/{symbol}/chart", h.ChartPrice)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

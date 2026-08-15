@@ -55,7 +55,7 @@ func TestStocksHandlerStocks(t *testing.T) {
 
 			h := NewStocksHandler(uc)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/stocks", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/stocks", nil)
 			h.Stocks(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

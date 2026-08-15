@@ -29,7 +29,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 	}{
 		{
 			name: "returns foreign domestic with period",
-			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
+			path: "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
 			setup: func(uc *mocks.MockForeignDomesticUsecase) {
 				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_MONTH", "", "").Return(&domain.ForeignDomesticData{
 					From:        "2026-07-14",
@@ -42,7 +42,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 		},
 		{
 			name: "from/to range wins over period defaults",
-			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14",
+			path: "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14",
 			setup: func(uc *mocks.MockForeignDomesticUsecase) {
 				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "2026-07-01", "2026-08-14").Return(&domain.ForeignDomesticData{}, nil)
 			},
@@ -50,25 +50,25 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/order-trade/foreign-domestic/historical?period=TB_PERIOD_LAST_1_MONTH",
+			path:        "/api/v1/order-trade/foreign-domestic/historical?period=TB_PERIOD_LAST_1_MONTH",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid market_type returns 422",
-			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_REGULAR",
+			path:        "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_REGULAR",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid period returns 422",
-			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&period=BOGUS",
+			path:        "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&period=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "from without to returns 422",
-			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01",
+			path:        "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -77,7 +77,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 		},
 		{
 			name:        "reversed range returns 422",
-			path:        "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-08-14&to=2026-07-01",
+			path:        "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-08-14&to=2026-07-01",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -86,7 +86,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
+			path: "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
 			setup: func(uc *mocks.MockForeignDomesticUsecase) {
 				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "", "").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -95,7 +95,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
+			path: "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR",
 			setup: func(uc *mocks.MockForeignDomesticUsecase) {
 				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_DAY", "", "").Return(nil, errors.New("boom"))
 			},
@@ -116,7 +116,7 @@ func TestForeignDomesticHandlerForeignDomesticHistorical(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewForeignDomesticHandler(uc, validator.New())
-			r.Get("/v1/order-trade/foreign-domestic/historical", h.ForeignDomesticHistorical)
+			r.Get("/api/v1/order-trade/foreign-domestic/historical", h.ForeignDomesticHistorical)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

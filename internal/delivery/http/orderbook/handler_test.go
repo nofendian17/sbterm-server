@@ -28,7 +28,7 @@ func TestOrderBookHandlerOrderBook(t *testing.T) {
 	}{
 		{
 			name: "returns order book",
-			path: "/v1/company/VKTR/orderbook",
+			path: "/api/v1/company/VKTR/orderbook",
 			setup: func(uc *mocks.MockOrderBookUsecase) {
 				uc.EXPECT().GetOrderBook(gomock.Any(), "VKTR").Return(&domain.OrderBookData{
 					Symbol:    "VKTR",
@@ -43,13 +43,13 @@ func TestOrderBookHandlerOrderBook(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/company//orderbook",
+			path:        "/api/v1/company//orderbook",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/company/VKTR/orderbook",
+			path: "/api/v1/company/VKTR/orderbook",
 			setup: func(uc *mocks.MockOrderBookUsecase) {
 				uc.EXPECT().GetOrderBook(gomock.Any(), "VKTR").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -58,7 +58,7 @@ func TestOrderBookHandlerOrderBook(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/VKTR/orderbook",
+			path: "/api/v1/company/VKTR/orderbook",
 			setup: func(uc *mocks.MockOrderBookUsecase) {
 				uc.EXPECT().GetOrderBook(gomock.Any(), "VKTR").Return(nil, errors.New("boom"))
 			},
@@ -79,7 +79,7 @@ func TestOrderBookHandlerOrderBook(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewOrderBookHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/orderbook", h.OrderBook)
+			r.Get("/api/v1/company/{symbol}/orderbook", h.OrderBook)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

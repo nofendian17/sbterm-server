@@ -28,7 +28,7 @@ func TestCompanyProfileHandlerCompanyProfile(t *testing.T) {
 	}{
 		{
 			name: "returns company profile",
-			path: "/v1/company/DSSA/profile",
+			path: "/api/v1/company/DSSA/profile",
 			setup: func(uc *mocks.MockCompanyProfileUsecase) {
 				uc.EXPECT().GetProfile(gomock.Any(), "DSSA").Return(&domain.CompanyProfile{
 					Background: "PT Dian Swastatika",
@@ -50,13 +50,13 @@ func TestCompanyProfileHandlerCompanyProfile(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//profile",
+			path:        "/api/v1/company//profile",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/profile",
+			path: "/api/v1/company/DSSA/profile",
 			setup: func(uc *mocks.MockCompanyProfileUsecase) {
 				uc.EXPECT().GetProfile(gomock.Any(), "DSSA").Return(nil, errors.New("boom"))
 			},
@@ -77,7 +77,7 @@ func TestCompanyProfileHandlerCompanyProfile(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewCompanyProfileHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/profile", h.CompanyProfile)
+			r.Get("/api/v1/company/{symbol}/profile", h.CompanyProfile)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

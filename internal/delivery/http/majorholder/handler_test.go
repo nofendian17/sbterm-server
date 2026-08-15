@@ -28,7 +28,7 @@ func TestMajorHolderHandlerMajorHolder(t *testing.T) {
 	}{
 		{
 			name: "returns major holder movements",
-			path: "/v1/insider/majorholder?symbols=DSSA&page=1&limit=20&action_type=ACTION_TYPE_BUY&source_type=SOURCE_TYPE_KSEI",
+			path: "/api/v1/insider/majorholder?symbols=DSSA&page=1&limit=20&action_type=ACTION_TYPE_BUY&source_type=SOURCE_TYPE_KSEI",
 			setup: func(uc *mocks.MockMajorHolderUsecase) {
 				uc.EXPECT().GetMajorHolder(gomock.Any(), "DSSA", "ACTION_TYPE_BUY", "SOURCE_TYPE_KSEI", 1, 20).Return(&domain.MajorHolderData{
 					Movement: []domain.MajorHolderMovement{{Name: "DIAN SWASTATIKA SENTOSA", Symbol: "DSSA"}},
@@ -40,19 +40,19 @@ func TestMajorHolderHandlerMajorHolder(t *testing.T) {
 		},
 		{
 			name:        "missing symbols returns 422",
-			path:        "/v1/insider/majorholder?action_type=ACTION_TYPE_BUY",
+			path:        "/api/v1/insider/majorholder?action_type=ACTION_TYPE_BUY",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid action_type returns 422",
-			path:        "/v1/insider/majorholder?symbols=DSSA&action_type=BAD",
+			path:        "/api/v1/insider/majorholder?symbols=DSSA&action_type=BAD",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/insider/majorholder?symbols=DSSA",
+			path: "/api/v1/insider/majorholder?symbols=DSSA",
 			setup: func(uc *mocks.MockMajorHolderUsecase) {
 				uc.EXPECT().GetMajorHolder(gomock.Any(), "DSSA", "", "", 0, 0).Return(nil, errors.New("boom"))
 			},

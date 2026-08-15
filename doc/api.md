@@ -1,6 +1,6 @@
 # REST API Reference
 
-All endpoints return a single response envelope. Every `/v1/*` route proxies the
+All endpoints return a single response envelope. Every `/api/v1/*` route proxies the
 Stockbit (Exodus) API using the server's own credentials — no client `Authorization`
 header is needed.
 
@@ -11,40 +11,40 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | # | endpoint | section |
 |---|---|---|
 | 1 | `GET /health` | [Health & ops](#get-health) |
-| 2 | `GET /v1/trending` | [Market data](#get-v1trending) |
-| 3 | `GET /v1/market-mover` | [Market data](#get-v1market-mover) |
-| 4 | `GET /v1/market-session` | [Market data](#get-v1market-session) |
-| 5 | `GET /v1/indexes` | [Market data](#get-v1indexes) |
-| 6 | `GET /v1/sectors` | [Market data](#get-v1sectors) |
-| 7 | `GET /v1/stocks` | [Market data](#get-v1stocks) |
-| 8 | `GET /v1/company/{symbol}/profile` | [Company fundamentals](#get-v1companysymbolprofile) |
-| 9 | `GET /v1/company/{symbol}/subsidiaries` | [Company fundamentals](#get-v1companysymbolsubsidiaries) |
-| 10 | `GET /v1/company/{symbol}/shareholding-composition` | [Company fundamentals](#get-v1companysymbolshareholding-composition) |
-| 11 | `GET /v1/insider/shareholding-network` | [Company fundamentals](#get-v1insidershareholding-network) |
-| 12 | `GET /v1/insider/majorholder` | [Company fundamentals](#get-v1insidermajorholder) |
-| 13 | `GET /v1/market-detector/{symbol}` | [Market detector](#get-v1market-detectorsymbol) |
-| 14 | `GET /v1/top-stock` | [Top stock](#get-v1top-stock) |
-| 15 | `GET /v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-v1companysymbolcorp-actions) |
-| 16 | `GET /v1/company/{symbol}/keystats` | [Company fundamentals](#get-v1companysymbolkeystats) |
-| 17 | `GET /v1/company/{symbol}/price-performance` | [Company fundamentals](#get-v1companysymbolprice-performance) |
-| 18 | `GET /v1/company/{symbol}/chart` | [Company fundamentals](#get-v1companysymbolchart) |
-| 19 | `GET /v1/company/{symbol}/fundachart` | [Company fundamentals](#get-v1companysymbolfundachart) |
-| 20 | `GET /v1/fundachart/metrics` | [Company fundamentals](#get-v1fundachartmetrics) |
-| 21 | `GET /v1/company/{symbol}/financial` | [Company fundamentals](#get-v1companysymbolfinancial) |
-| 22 | `GET /v1/index/{symbol}/summary` | [Index summary](#get-v1indexsymbolsummary) |
-| 23 | `GET /v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-v1indexsymbolchart) |
-| 24 | `GET /v1/company/{symbol}/running-trade-chart` | [Running trade chart](#get-v1companysymbolrunning-trade-chart) |
-| 25 | `GET /v1/company/{symbol}/historical-summary` | [Historical price summary](#get-v1companysymbolhistorical-summary) |
-| 26 | `GET /v1/order-trade/broker/top` | [Top brokers](#get-v1order-tradebrokertop) |
-| 27 | `GET /v1/order-trade/broker/activity-chart` | [Broker activity chart](#get-v1order-tradebrokeractivity-chart) |
-| 28 | `GET /v1/order-trade/broker/activity` | [Broker activity transactions](#get-v1order-tradebrokeractivity) |
-| 29 | `GET /v1/order-trade/broker/activity/historical` | [Broker activity historical](#get-v1order-tradebrokeractivityhistorical) |
-| 30 | `GET /v1/user/{username}/stream` | [Stream](#get-v1userusernamestream) |
-| 31 | `GET /v1/stream/announcement/{stream_id}` | [Stream](#get-v1streamannouncementstream_id) |
-| 32 | `GET /v1/order-trade/running-trade` | [Running trade feed](#get-v1order-traderunning-trade) |
-| 33 | `GET /v1/company/{symbol}/orderbook` | [Order book](#get-v1companysymbolorderbook) |
-| 34 | `GET /v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-v1order-tradeforeign-domestichistorical) |
-| 35 | `GET /v1/search` | [Search](#get-v1search) |
+| 2 | `GET /api/v1/trending` | [Market data](#get-apiv1trending) |
+| 3 | `GET /api/v1/market-mover` | [Market data](#get-apiv1market-mover) |
+| 4 | `GET /api/v1/market-session` | [Market data](#get-apiv1market-session) |
+| 5 | `GET /api/v1/indexes` | [Market data](#get-apiv1indexes) |
+| 6 | `GET /api/v1/sectors` | [Market data](#get-apiv1sectors) |
+| 7 | `GET /api/v1/stocks` | [Market data](#get-apiv1stocks) |
+| 8 | `GET /api/v1/company/{symbol}/profile` | [Company fundamentals](#get-apiv1companysymbolprofile) |
+| 9 | `GET /api/v1/company/{symbol}/subsidiaries` | [Company fundamentals](#get-apiv1companysymbolsubsidiaries) |
+| 10 | `GET /api/v1/company/{symbol}/shareholding-composition` | [Company fundamentals](#get-apiv1companysymbolshareholding-composition) |
+| 11 | `GET /api/v1/insider/shareholding-network` | [Company fundamentals](#get-apiv1insidershareholding-network) |
+| 12 | `GET /api/v1/insider/majorholder` | [Company fundamentals](#get-apiv1insidermajorholder) |
+| 13 | `GET /api/v1/market-detector/{symbol}` | [Market detector](#get-apiv1market-detectorsymbol) |
+| 14 | `GET /api/v1/top-stock` | [Top stock](#get-apiv1top-stock) |
+| 15 | `GET /api/v1/company/{symbol}/corp-actions` | [Company fundamentals](#get-apiv1companysymbolcorp-actions) |
+| 16 | `GET /api/v1/company/{symbol}/keystats` | [Company fundamentals](#get-apiv1companysymbolkeystats) |
+| 17 | `GET /api/v1/company/{symbol}/price-performance` | [Company fundamentals](#get-apiv1companysymbolprice-performance) |
+| 18 | `GET /api/v1/company/{symbol}/chart` | [Company fundamentals](#get-apiv1companysymbolchart) |
+| 19 | `GET /api/v1/company/{symbol}/fundachart` | [Company fundamentals](#get-apiv1companysymbolfundachart) |
+| 20 | `GET /api/v1/fundachart/metrics` | [Company fundamentals](#get-apiv1fundachartmetrics) |
+| 21 | `GET /api/v1/company/{symbol}/financial` | [Company fundamentals](#get-apiv1companysymbolfinancial) |
+| 22 | `GET /api/v1/index/{symbol}/summary` | [Index summary](#get-apiv1indexsymbolsummary) |
+| 23 | `GET /api/v1/index/{symbol}/chart` | [Index chart (summary + OHLC)](#get-apiv1indexsymbolchart) |
+| 24 | `GET /api/v1/company/{symbol}/running-trade-chart` | [Running trade chart](#get-apiv1companysymbolrunning-trade-chart) |
+| 25 | `GET /api/v1/company/{symbol}/historical-summary` | [Historical price summary](#get-apiv1companysymbolhistorical-summary) |
+| 26 | `GET /api/v1/order-trade/broker/top` | [Top brokers](#get-apiv1order-tradebrokertop) |
+| 27 | `GET /api/v1/order-trade/broker/activity-chart` | [Broker activity chart](#get-apiv1order-tradebrokeractivity-chart) |
+| 28 | `GET /api/v1/order-trade/broker/activity` | [Broker activity transactions](#get-apiv1order-tradebrokeractivity) |
+| 29 | `GET /api/v1/order-trade/broker/activity/historical` | [Broker activity historical](#get-apiv1order-tradebrokeractivityhistorical) |
+| 30 | `GET /api/v1/user/{username}/stream` | [Stream](#get-apiv1userusernamestream) |
+| 31 | `GET /api/v1/stream/announcement/{stream_id}` | [Stream](#get-apiv1streamannouncementstream_id) |
+| 32 | `GET /api/v1/order-trade/running-trade` | [Running trade feed](#get-apiv1order-traderunning-trade) |
+| 33 | `GET /api/v1/company/{symbol}/orderbook` | [Order book](#get-apiv1companysymbolorderbook) |
+| 34 | `GET /api/v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-apiv1order-tradeforeign-domestichistorical) |
+| 35 | `GET /api/v1/search` | [Search](#get-apiv1search) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -96,13 +96,13 @@ curl 'http://localhost:8080/health'
 
 ## Market data
 
-### `GET /v1/trending`
+### `GET /api/v1/trending`
 Top trending stocks. `data: [{ symbol, name, last, change, percent, previous, logo, status }]`
 
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/trending'
+curl 'http://localhost:8080/api/v1/trending'
 ```
 
 ```json
@@ -123,7 +123,7 @@ curl 'http://localhost:8080/v1/trending'
 }
 ```
 
-### `GET /v1/market-mover`
+### `GET /api/v1/market-mover`
 Market movers by type.
 
 | param | required | values |
@@ -137,11 +137,11 @@ Market movers by type.
 
 ```bash
 # Top gainers on the main board
-curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_TOP_GAINER&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD'
+curl 'http://localhost:8080/api/v1/market-mover?mover_type=MOVER_TYPE_TOP_GAINER&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD'
 
 # Net foreign buy across all boards (filter optional, repeatable)
-curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_NET_FOREIGN_BUY'
-curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_TOP_VALUE&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD&filter_stocks=FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD'
+curl 'http://localhost:8080/api/v1/market-mover?mover_type=MOVER_TYPE_NET_FOREIGN_BUY'
+curl 'http://localhost:8080/api/v1/market-mover?mover_type=MOVER_TYPE_TOP_VALUE&filter_stocks=FILTER_STOCKS_TYPE_MAIN_BOARD&filter_stocks=FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD'
 ```
 
 - `filter_stocks` can be repeated (`?filter_stocks=A&filter_stocks=B`) to combine boards.
@@ -149,7 +149,7 @@ curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_TOP_VALUE&filt
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_TOP_GAINER'
+curl 'http://localhost:8080/api/v1/market-mover?mover_type=MOVER_TYPE_TOP_GAINER'
 ```
 
 ```json
@@ -176,7 +176,7 @@ curl 'http://localhost:8080/v1/market-mover?mover_type=MOVER_TYPE_TOP_GAINER'
 }
 ```
 
-### `GET /v1/market-session`
+### `GET /api/v1/market-session`
 Current / upcoming market session. `data: { datetime, fca, regular }` — `fca` and
 `regular` are session states with `{ state_name, is_last_session, is_end_of_day,
 state_start_time, state_end_time, time_left }`.
@@ -184,7 +184,7 @@ state_start_time, state_end_time, time_left }`.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/market-session'
+curl 'http://localhost:8080/api/v1/market-session'
 ```
 
 ```json
@@ -214,13 +214,13 @@ curl 'http://localhost:8080/v1/market-session'
 
 `datetime` and `time_left` are live snapshots and change on every call.
 
-### `GET /v1/indexes`
+### `GET /api/v1/indexes`
 IDX index list. `data: { main: [{symbol,name,last,change,percent,marketcap}], all: [...] }`
 
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/indexes'
+curl 'http://localhost:8080/api/v1/indexes'
 ```
 
 ```json
@@ -237,7 +237,7 @@ curl 'http://localhost:8080/v1/indexes'
 }
 ```
 
-### `GET /v1/sectors`
+### `GET /api/v1/sectors`
 Sector indexes with nested constituent companies.
 
 `data: [{ symbol, icon, type, last, change, percent, companies: [{ symbol, name, last, change, percent, volume, value, marketcap, icon_url, company_status, is_uma }] }]`
@@ -245,7 +245,7 @@ Sector indexes with nested constituent companies.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/sectors'
+curl 'http://localhost:8080/api/v1/sectors'
 ```
 
 ```json
@@ -276,13 +276,13 @@ curl 'http://localhost:8080/v1/sectors'
 }
 ```
 
-### `GET /v1/stocks`
+### `GET /api/v1/stocks`
 IHSG constituent list. `data: [{ symbol, name, last, change, percent, volume, value, marketcap, icon_url, company_status, is_uma }]`
 
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/stocks'
+curl 'http://localhost:8080/api/v1/stocks'
 ```
 
 ```json
@@ -308,7 +308,7 @@ curl 'http://localhost:8080/v1/stocks'
 
 ## Company fundamentals
 
-### `GET /v1/company/{symbol}/profile`
+### `GET /api/v1/company/{symbol}/profile`
 Company profile. `symbol` is path param (required, uppercase as traded).
 
 `data: { background, history, key_executive, address, subsidiary, beneficiary, shareholder, shareholder_director_commissioner, shareholder_numbers, shareholder_one_percent }`
@@ -316,7 +316,7 @@ Company profile. `symbol` is path param (required, uppercase as traded).
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/profile'
+curl 'http://localhost:8080/api/v1/company/BBCA/profile'
 ```
 
 ```json
@@ -339,7 +339,7 @@ curl 'http://localhost:8080/v1/company/BBCA/profile'
 }
 ```
 
-### `GET /v1/company/{symbol}/subsidiaries`
+### `GET /api/v1/company/{symbol}/subsidiaries`
 Subsidiary list.
 
 `data: { currency, last_updated_period, unit, subsidiaries: [{ company_name, business_type, location, commercial_year, total_assets, percentage, operational_status, period, raw }] }`
@@ -347,7 +347,7 @@ Subsidiary list.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/subsidiaries'
+curl 'http://localhost:8080/api/v1/company/BBCA/subsidiaries'
 ```
 
 ```json
@@ -373,7 +373,7 @@ curl 'http://localhost:8080/v1/company/BBCA/subsidiaries'
 }
 ```
 
-### `GET /v1/company/{symbol}/shareholding-composition`
+### `GET /api/v1/company/{symbol}/shareholding-composition`
 Insider shareholding composition per reporting period.
 
 | param | required | notes |
@@ -387,7 +387,7 @@ Insider shareholding composition per reporting period.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/shareholding-composition'
+curl 'http://localhost:8080/api/v1/company/BBCA/shareholding-composition'
 ```
 
 ```json
@@ -410,7 +410,7 @@ curl 'http://localhost:8080/v1/company/BBCA/shareholding-composition'
 }
 ```
 
-### `GET /v1/insider/shareholding-network`
+### `GET /api/v1/insider/shareholding-network`
 Shareholding network graph for a root node.
 
 | param | required | values |
@@ -426,10 +426,10 @@ Shareholding network graph for a root node.
 
 ```bash
 # root_id is required; set root_type to a supported node type (see table above)
-curl 'http://localhost:8080/v1/insider/shareholding-network?root_id=12345&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR'
+curl 'http://localhost:8080/api/v1/insider/shareholding-network?root_id=12345&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR'
 
 # Cap graph depth and branches per node (optional)
-curl 'http://localhost:8080/v1/insider/shareholding-network?root_id=12345&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_COMPANY&max_depth=3&max_edge_per_node=10'
+curl 'http://localhost:8080/api/v1/insider/shareholding-network?root_id=12345&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_COMPANY&max_depth=3&max_edge_per_node=10'
 ```
 
 - Empty `root_id` → `422 VALIDATION_ERROR` (`{"root_id":"is required"}`). `root_type`
@@ -439,7 +439,7 @@ curl 'http://localhost:8080/v1/insider/shareholding-network?root_id=12345&root_t
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/insider/shareholding-network?root_id=54&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_COMPANY'
+curl 'http://localhost:8080/api/v1/insider/shareholding-network?root_id=54&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_COMPANY'
 ```
 
 ```json
@@ -466,7 +466,7 @@ curl 'http://localhost:8080/v1/insider/shareholding-network?root_id=54&root_type
 }
 ```
 
-### `GET /v1/insider/majorholder`
+### `GET /api/v1/insider/majorholder`
 Major-holder movement log (paginated).
 
 | param | required | values |
@@ -483,10 +483,10 @@ Major-holder movement log (paginated).
 
 ```bash
 # Movement log for one or more symbols (comma-separated)
-curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA,BBRI&page=1&limit=10'
+curl 'http://localhost:8080/api/v1/insider/majorholder?symbols=BBCA,BBRI&page=1&limit=10'
 
 # Filter by action type + data source + paging
-curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA&action_type=ACTION_TYPE_BUY&source_type=SOURCE_TYPE_KSEI&page=2&limit=20'
+curl 'http://localhost:8080/api/v1/insider/majorholder?symbols=BBCA&action_type=ACTION_TYPE_BUY&source_type=SOURCE_TYPE_KSEI&page=2&limit=20'
 ```
 
 - `page`/`limit` default to upstream values (limit 20); `is_more` indicates whether
@@ -495,7 +495,7 @@ curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA&action_type=ACTI
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA&page=1&limit=2'
+curl 'http://localhost:8080/api/v1/insider/majorholder?symbols=BBCA&page=1&limit=2'
 ```
 
 ```json
@@ -519,7 +519,7 @@ curl 'http://localhost:8080/v1/insider/majorholder?symbols=BBCA&page=1&limit=2'
 }
 ```
 
-### `GET /v1/market-detector/{symbol}`
+### `GET /api/v1/market-detector/{symbol}`
 Bandar detector aggregates and broker buy/sell summaries for a symbol over a date
 range. Proxies `/marketdetectors/{symbol}`.
 
@@ -543,7 +543,7 @@ and echoes `symbol`/`from`/`to`.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&limit=25'
+curl 'http://localhost:8080/api/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10&limit=25'
 ```
 
 ```json
@@ -580,7 +580,7 @@ curl 'http://localhost:8080/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-1
 }
 ```
 
-### `GET /v1/top-stock`
+### `GET /api/v1/top-stock`
 Top buy/sell leaderboards over a date range (proxies `/order-trade/top-stock`).
 
 | param | required | values |
@@ -597,7 +597,7 @@ Top buy/sell leaderboards over a date range (proxies `/order-trade/top-stock`).
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/top-stock?start=2026-08-09&end=2026-08-10&limit=25'
+curl 'http://localhost:8080/api/v1/top-stock?start=2026-08-09&end=2026-08-10&limit=25'
 ```
 
 ```json
@@ -634,7 +634,7 @@ curl 'http://localhost:8080/v1/top-stock?start=2026-08-09&end=2026-08-10&limit=2
 }
 ```
 
-### `GET /v1/company/{symbol}/corp-actions`
+### `GET /api/v1/company/{symbol}/corp-actions`
 Corporate action history. `action_info` is a typed payload dispatched by `action_type`.
 
 | param | required | notes |
@@ -647,7 +647,7 @@ Corporate action history. `action_info` is a typed payload dispatched by `action
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/corp-actions'
+curl 'http://localhost:8080/api/v1/company/BBCA/corp-actions'
 ```
 
 ```json
@@ -672,7 +672,7 @@ curl 'http://localhost:8080/v1/company/BBCA/corp-actions'
 }
 ```
 
-### `GET /v1/company/{symbol}/keystats`
+### `GET /api/v1/company/{symbol}/keystats`
 Key-stat ratios (display-formatted strings, ~10 years).
 
 | param | required | notes |
@@ -685,7 +685,7 @@ Key-stat ratios (display-formatted strings, ~10 years).
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/keystats'
+curl 'http://localhost:8080/api/v1/company/BBCA/keystats'
 ```
 
 ```json
@@ -717,14 +717,14 @@ curl 'http://localhost:8080/v1/company/BBCA/keystats'
 }
 ```
 
-### `GET /v1/company/{symbol}/price-performance`
+### `GET /api/v1/company/{symbol}/price-performance`
 Price performance per timeframe. `data: { prices: [{ close, high, low, percentage, timeframe }] }`
 (timeframes: `1D 1W 1M 3M 6M YTD 1Y`).
 
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/price-performance'
+curl 'http://localhost:8080/api/v1/company/BBCA/price-performance'
 ```
 
 ```json
@@ -744,7 +744,7 @@ curl 'http://localhost:8080/v1/company/BBCA/price-performance'
 }
 ```
 
-### `GET /v1/company/{symbol}/chart`
+### `GET /api/v1/company/{symbol}/chart`
 OHLC price bars for building candlestick/line charts (proxies Stockbit Chartbit).
 `timeframe` selects the upstream path; `from`/`to` format depends on it:
 
@@ -775,7 +775,7 @@ or `""`.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-07-07'
+curl 'http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-07-07'
 ```
 
 ```json
@@ -821,10 +821,10 @@ minus the range. Example calls (dates as of 2026-08-07):
 
 | range | `from` | `to` | curl |
 |---|---|---|---|
-| 1M | `2026-08-07` | `2026-07-07` | `curl 'http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-07-07'` |
-| 3M | `2026-08-07` | `2026-05-07` | `curl 'http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-05-07'` |
-| 6M | `2026-08-07` | `2026-02-07` | `curl 'http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-02-07'` |
-| 1Y | `2026-08-07` | `2025-08-07` | `curl 'http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2025-08-07'` |
+| 1M | `2026-08-07` | `2026-07-07` | `curl 'http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-07-07'` |
+| 3M | `2026-08-07` | `2026-05-07` | `curl 'http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-05-07'` |
+| 6M | `2026-08-07` | `2026-02-07` | `curl 'http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2026-02-07'` |
+| 1Y | `2026-08-07` | `2025-08-07` | `curl 'http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=2026-08-07&to=2025-08-07'` |
 
 To generate the `to` date dynamically from a client:
 
@@ -832,12 +832,12 @@ To generate the `to` date dynamically from a client:
 # GNU date (Linux)
 TO=$(date -d '3 months ago' +%F)
 FROM=$(date +%F)
-curl "http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=$FROM&to=$TO"
+curl "http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=$FROM&to=$TO"
 
 # BSD date (macOS)
 TO=$(date -v-3m +%F)
 FROM=$(date +%F)
-curl "http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=$FROM&to=$TO"
+curl "http://localhost:8080/api/v1/company/BBCA/chart?timeframe=daily&from=$FROM&to=$TO"
 ```
 
 > If `date +%F` lands on a weekend/holiday (non-trading day), use the most
@@ -845,7 +845,7 @@ curl "http://localhost:8080/v1/company/BBCA/chart?timeframe=daily&from=$FROM&to=
 > — since a non-trading-day `from` is untested upstream behavior and may return
 > an empty or partial `chartbit`.
 
-### `GET /v1/company/{symbol}/fundachart`
+### `GET /api/v1/company/{symbol}/fundachart`
 Raw historical ratio series for one or more fin-items. **This is the raw-number source
 for keystats items.**
 
@@ -861,10 +861,10 @@ for keystats items.**
 
 ```bash
 # Fetch several items at once (comma-separated) over a 5-year window
-curl 'http://localhost:8080/v1/company/BBCA/fundachart?item=2661,2525&timeframe=5y'
+curl 'http://localhost:8080/api/v1/company/BBCA/fundachart?item=2661,2525&timeframe=5y'
 
 # List available item_id values
-curl 'http://localhost:8080/v1/fundachart/metrics?metric_name=fundachart'
+curl 'http://localhost:8080/api/v1/fundachart/metrics?metric_name=fundachart'
 ```
 
 - `timeframe` optional (`1y 3y 5y 10y`, default `10y`); `item` required.
@@ -872,7 +872,7 @@ curl 'http://localhost:8080/v1/fundachart/metrics?metric_name=fundachart'
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/fundachart?item=2661&timeframe=5y'
+curl 'http://localhost:8080/api/v1/company/BBCA/fundachart?item=2661&timeframe=5y'
 ```
 
 ```json
@@ -902,7 +902,7 @@ curl 'http://localhost:8080/v1/company/BBCA/fundachart?item=2661&timeframe=5y'
 }
 ```
 
-### `GET /v1/fundachart/metrics`
+### `GET /api/v1/fundachart/metrics`
 Catalog of available `item` ids (recursive 3-level tree) to use with `/fundachart`.
 
 | param | required | values |
@@ -914,7 +914,7 @@ Catalog of available `item` ids (recursive 3-level tree) to use with `/fundachar
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/fundachart/metrics?metric_name=fundachart'
+curl 'http://localhost:8080/api/v1/fundachart/metrics?metric_name=fundachart'
 ```
 
 ```json
@@ -933,7 +933,7 @@ curl 'http://localhost:8080/v1/fundachart/metrics?metric_name=fundachart'
 }
 ```
 
-### `GET /v1/company/{symbol}/financial`
+### `GET /api/v1/company/{symbol}/financial`
 Structured financial statement (II-a). No HTML; `data_tables` is the parsed table.
 
 | param | required | values |
@@ -954,16 +954,16 @@ unit divisor (e.g. `1000000000` = billions).
 
 ```bash
 # Page 1 - Income Statement, Annual (10 newest periods: 12M 2025, 12M 2024, ...)
-curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=2'
+curl 'http://localhost:8080/api/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=2'
 
 # Page 2 - one period back (overlap), continuing into older periods
-curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=2&report_type=1&statement_type=2'
+curl 'http://localhost:8080/api/v1/company/BBCA/financial?data_type=1&page=2&report_type=1&statement_type=2'
 
 # Balance Sheet, Annual, as percentages
-curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&is_percentage=1&page=1&report_type=2&statement_type=2'
+curl 'http://localhost:8080/api/v1/company/BBCA/financial?data_type=1&is_percentage=1&page=1&report_type=2&statement_type=2'
 
 # Income Statement, TTM (periods become quarterly: Q2 2026, Q1 2026, ...)
-curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=3'
+curl 'http://localhost:8080/api/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=3'
 ```
 
 **Pagination (summary):** `page` required ≥ 1 → 10 periods per page, moving further
@@ -975,7 +975,7 @@ reports return an empty `periods: []`. See the param table above for valid
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=2'
+curl 'http://localhost:8080/api/v1/company/BBCA/financial?data_type=1&page=1&report_type=1&statement_type=2'
 ```
 
 ```json
@@ -1007,7 +1007,7 @@ curl 'http://localhost:8080/v1/company/BBCA/financial?data_type=1&page=1&report_
 }
 ```
 
-### `GET /v1/index/{symbol}/summary`
+### `GET /api/v1/index/{symbol}/summary`
 Intraday/daily price series plus per-day summary for an index (e.g. IHSG).
 Proxies Stockbit's `/charts/{symbol}/daily`; the path segment is fixed to
 `daily` because upstream rejects other segments (`weekly`, `monthly`, ... return
@@ -1048,7 +1048,7 @@ line chart. `previous_timeframe_price` is the prior session close.
 #### Example: minutely IHSG summary
 
 ```bash
-curl 'http://localhost:8080/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
+curl 'http://localhost:8080/api/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
 ```
 
 ```json
@@ -1081,8 +1081,8 @@ curl 'http://localhost:8080/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&
 }
 ```
 
-### `GET /v1/index/{symbol}/chart`
-Combines the [index summary](#get-v1indexsymbolsummary) (`summary`) with
+### `GET /api/v1/index/{symbol}/chart`
+Combines the [index summary](#get-apiv1indexsymbolsummary) (`summary`) with
 chartbit OHLC bars (`chart`) for the same index in one response, so a chart
 page can render the intraday line and the daily candles with a single call.
 
@@ -1118,7 +1118,7 @@ page can render the intraday line and the daily candles with a single call.
 #### Example: IHSG summary + daily OHLC
 
 ```bash
-curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
+curl 'http://localhost:8080/api/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY'
 ```
 
 ```json
@@ -1144,7 +1144,7 @@ curl 'http://localhost:8080/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&in
 }
 ```
 
-### `GET /v1/company/{symbol}/running-trade-chart`
+### `GET /api/v1/company/{symbol}/running-trade-chart`
 Running trade chart: the price series plus per-broker value/volume series over a
 date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol}`).
 
@@ -1186,7 +1186,7 @@ values are strings.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-08-02&to=2026-08-11'
+curl 'http://localhost:8080/api/v1/company/DSSA/running-trade-chart?broker_code=DR&broker_code=AK&from=2026-08-02&to=2026-08-11'
 ```
 
 ```json
@@ -1258,10 +1258,10 @@ curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&b
 
 ```bash
 # No from/to -> period defaults to the last 1 day (minutely points)
-curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR'
+curl 'http://localhost:8080/api/v1/company/DSSA/running-trade-chart?broker_code=DR'
 
 # Explicit 7-day period
-curl 'http://localhost:8080/v1/company/DSSA/running-trade-chart?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
+curl 'http://localhost:8080/api/v1/company/DSSA/running-trade-chart?broker_code=DR&period=RT_PERIOD_LAST_7_DAYS'
 ```
 
 #### Behavior notes (probed live against the upstream)
@@ -1301,7 +1301,7 @@ Empirically verified against `/order-trade/running-trade/chart/DSSA`:
 - **Number formatting is accounting style:** negative values render as
   `raw: "-7852500", formatted: "(7.9M)"`.
 
-### `GET /v1/order-trade/running-trade`
+### `GET /api/v1/order-trade/running-trade`
 Running trade feed: the stream of executed trades for one symbol, paged by a
 `trade_number` cursor (proxies `/order-trade/running-trade`).
 
@@ -1344,10 +1344,10 @@ display-formatted strings.
 
 ```bash
 # Latest data (date omitted -> upstream falls back to the most recent session)
-curl 'http://localhost:8080/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&limit=80'
+curl 'http://localhost:8080/api/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&limit=80'
 
 # A specific session + next page (cursor from the last row's trade_number)
-curl 'http://localhost:8080/v1/order-trade/running-trade?symbol=BBCA&date=2026-08-13&limit=80&trade_number=31000'
+curl 'http://localhost:8080/api/v1/order-trade/running-trade?symbol=BBCA&date=2026-08-13&limit=80&trade_number=31000'
 ```
 
 ```json
@@ -1381,7 +1381,7 @@ curl 'http://localhost:8080/v1/order-trade/running-trade?symbol=BBCA&date=2026-0
 }
 ```
 
-### `GET /v1/order-trade/foreign-domestic/historical`
+### `GET /api/v1/order-trade/foreign-domestic/historical`
 Historical foreign/domestic buy-sell aggregates for a symbol, over a period or
 a date range (proxies `/order-trade/foreign-domestic/historical`).
 
@@ -1424,10 +1424,10 @@ Rows are newest-first; `from`/`to` echo the requested or upstream-derived range.
 
 ```bash
 # Last 1 month of foreign/domestic history
-curl 'http://localhost:8080/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH'
+curl 'http://localhost:8080/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH'
 
 # Explicit date range (wins over period)
-curl 'http://localhost:8080/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14'
+curl 'http://localhost:8080/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&from=2026-07-01&to=2026-08-14'
 ```
 
 ```json
@@ -1467,7 +1467,7 @@ curl 'http://localhost:8080/v1/order-trade/foreign-domestic/historical?symbol=VK
 }
 ```
 
-### `GET /v1/company/{symbol}/orderbook`
+### `GET /api/v1/company/{symbol}/orderbook`
 Order book for a symbol: bid/offer price levels plus quote summary and
 market-wide aggregates (proxies
 `/company-price-feed/v2/orderbook/companies/{symbol}`).
@@ -1502,7 +1502,7 @@ auto_reject_estimation, orderbook_active_feature_mobile }`
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/company/VKTR/orderbook'
+curl 'http://localhost:8080/api/v1/company/VKTR/orderbook'
 ```
 
 ```json
@@ -1582,7 +1582,7 @@ curl 'http://localhost:8080/v1/company/VKTR/orderbook'
 }
 ```
 
-### `GET /v1/company/{symbol}/historical-summary`
+### `GET /api/v1/company/{symbol}/historical-summary`
 Historical price summary for a symbol: one row per period over a date range,
 with pagination (proxies
 `/company-price-feed/historical/summary/{symbol}`).
@@ -1615,7 +1615,7 @@ stop when `result` is empty.
 
 ```bash
 # Last 12 weekly bars, from the upstream curl.
-curl 'http://localhost:8080/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11&limit=12&page=1'
+curl 'http://localhost:8080/api/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11&limit=12&page=1'
 ```
 
 ```json
@@ -1657,7 +1657,7 @@ Empirically verified against `/company-price-feed/historical/summary/DSSA`:
 - **`next_page` is a string cursor that keeps incrementing even past the end**
   (page 1000 → `"1001"` with an empty `result`); stop when `result` is empty.
 
-### `GET /v1/order-trade/broker/top`
+### `GET /api/v1/order-trade/broker/top`
 Top brokers ranked by a sort key over a period (proxies
 `/order-trade/broker/top`).
 
@@ -1685,7 +1685,7 @@ serializes as strings, e.g. `"3954882296950"`). `group` is `BROKER_GROUP_LOCAL` 
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/order-trade/broker/top?sort=TB_SORT_BY_TOTAL_VALUE&order=ORDER_BY_DESC&period=TB_PERIOD_LAST_1_DAY&market_type=MARKET_TYPE_ALL&eod_only=true'
+curl 'http://localhost:8080/api/v1/order-trade/broker/top?sort=TB_SORT_BY_TOTAL_VALUE&order=ORDER_BY_DESC&period=TB_PERIOD_LAST_1_DAY&market_type=MARKET_TYPE_ALL&eod_only=true'
 ```
 
 ```json
@@ -1719,7 +1719,7 @@ curl 'http://localhost:8080/v1/order-trade/broker/top?sort=TB_SORT_BY_TOTAL_VALU
   `false` (89 rows); this server defaults it to `true` (112 rows) to match the
   reference curl.
 
-### `GET /v1/order-trade/broker/activity-chart`
+### `GET /api/v1/order-trade/broker/activity-chart`
 Broker activity chart for selected symbols and brokers over a date range or
 period (proxies `/order-trade/broker/activity-chart`).
 
@@ -1749,7 +1749,7 @@ running-trade point, activity-chart points only have `value` (no `open/high/low`
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/order-trade/broker/activity-chart?period=RT_PERIOD_LAST_1_YEAR&symbols=BUMI&symbols=DSSA&brokers_code=XL&brokers_code=ZP&investor_type=INVESTOR_TYPE_ALL&market_board=BOARD_TYPE_REGULAR'
+curl 'http://localhost:8080/api/v1/order-trade/broker/activity-chart?period=RT_PERIOD_LAST_1_YEAR&symbols=BUMI&symbols=DSSA&brokers_code=XL&brokers_code=ZP&investor_type=INVESTOR_TYPE_ALL&market_board=BOARD_TYPE_REGULAR'
 ```
 
 ```json
@@ -1802,7 +1802,7 @@ curl 'http://localhost:8080/v1/order-trade/broker/activity-chart?period=RT_PERIO
 }
 ```
 
-### `GET /v1/order-trade/broker/activity`
+### `GET /api/v1/order-trade/broker/activity`
 Broker activity transactions: per-broker buy/sell trading rows over a date range
 (proxies `/order-trade/broker/activity`).
 
@@ -1843,7 +1843,7 @@ fraksional); `type` is `BROKER_TYPE_LOCAL`/`BROKER_TYPE_FOREIGN`;
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/order-trade/broker/activity?broker_code=AK&broker_code=ZP&broker_code=YU&transaction_type=TRANSACTION_TYPE_GROSS&investor_type=INVESTOR_TYPE_ALL&limit=1&market_board=MARKET_TYPE_REGULER&page=1&from=2026-07-14&to=2026-07-31&net_val_period=NET_VAL_PERIOD_7D'
+curl 'http://localhost:8080/api/v1/order-trade/broker/activity?broker_code=AK&broker_code=ZP&broker_code=YU&transaction_type=TRANSACTION_TYPE_GROSS&investor_type=INVESTOR_TYPE_ALL&limit=1&market_board=MARKET_TYPE_REGULER&page=1&from=2026-07-14&to=2026-07-31&net_val_period=NET_VAL_PERIOD_7D'
 ```
 
 ```json
@@ -1881,7 +1881,7 @@ curl 'http://localhost:8080/v1/order-trade/broker/activity?broker_code=AK&broker
 }
 ```
 
-### `GET /v1/order-trade/broker/activity/historical`
+### `GET /api/v1/order-trade/broker/activity/historical`
 Per-interval broker activity: bucketed trade/price rows plus a net-value summary
 grouped by `net_interval` (proxies `/order-trade/broker/activity/historical`).
 
@@ -1930,7 +1930,7 @@ fraksional); `close_price` is a string.
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY'
+curl 'http://localhost:8080/api/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY'
 ```
 
 ```json
@@ -1974,7 +1974,7 @@ curl 'http://localhost:8080/v1/order-trade/broker/activity/historical?interval=I
 
 ## Stream
 
-### `GET /v1/user/{username}/stream`
+### `GET /api/v1/user/{username}/stream`
 A user's stream feed (social posts / stock reports), paged by cursor
 (proxies `/stream/v3/user/{username}`).
 
@@ -1991,7 +1991,7 @@ A user's stream feed (social posts / stock reports), paged by cursor
 - Upstream returns 400 when no data exists for the requested parameters
   (`no user stream data for the requested parameters`), surfaced here as `422`.
 - `stream[].title_url` is a relative path such as `streams/announcement/<uuid>`;
-  resolve it against the [announcement endpoint](#get-v1streamannouncementstream_id)
+  resolve it against the [announcement endpoint](#get-apiv1streamannouncementstream_id)
   to fetch the announcement attachments for that post.
 
 `data: { stream: [{ stream_id, title_url, title, content, created_at, created_display,
@@ -2015,7 +2015,7 @@ invalid_watchlist_ids: [] }`
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884487&limit=20'
+curl 'http://localhost:8080/api/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884487&limit=20'
 ```
 
 ```json
@@ -2079,7 +2079,7 @@ curl 'http://localhost:8080/v1/user/StockbitReports/stream?category=STREAM_CATEG
 }
 ```
 
-### `GET /v1/stream/announcement/{stream_id}`
+### `GET /api/v1/stream/announcement/{stream_id}`
 Announcement attachments (e.g. PDF reports) published on a stream post
 (proxies `/stream/announcement/{id}`). Non-report posts return an empty list.
 
@@ -2107,7 +2107,7 @@ symbol, name, company_icon_url }]`
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8aba'
+curl 'http://localhost:8080/api/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8aba'
 ```
 
 ```json
@@ -2130,7 +2130,7 @@ curl 'http://localhost:8080/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8
 }
 ```
 
-### `GET /v1/search`
+### `GET /api/v1/search`
 Global symbol/entity search (proxies `/search`). Returns matching companies,
 insider labels, chat rooms, people, sectors and industries in one payload.
 
@@ -2154,7 +2154,7 @@ section item carries an `id` plus type-specific fields (`name`/`label`,
 #### Example: request / response
 
 ```bash
-curl 'http://localhost:8080/v1/search?keyword=BBRI&page=1&type=company'
+curl 'http://localhost:8080/api/v1/search?keyword=BBRI&page=1&type=company'
 ```
 
 ```json

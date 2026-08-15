@@ -29,7 +29,7 @@ func TestSearchHandler(t *testing.T) {
 	}{
 		{
 			name: "returns search results with all params",
-			path: "/v1/search?keyword=BBRI&page=1&type=company",
+			path: "/api/v1/search?keyword=BBRI&page=1&type=company",
 			setup: func(uc *mocks.MockSearchUsecase) {
 				uc.EXPECT().GetSearch(gomock.Any(), "BBRI", 1, "company").Return(&domain.SearchResult{
 					Company: []domain.SearchCompany{{ID: "59", Name: "BBRI", Desc: "Bank Rakyat Indonesia (Persero) Tbk.", Exchange: "IDX", IsTradeable: true, Type: "Saham", URL: "symbol/BBRI"}},
@@ -41,7 +41,7 @@ func TestSearchHandler(t *testing.T) {
 		},
 		{
 			name: "defaults type to company when omitted",
-			path: "/v1/search?keyword=BBRI",
+			path: "/api/v1/search?keyword=BBRI",
 			setup: func(uc *mocks.MockSearchUsecase) {
 				uc.EXPECT().GetSearch(gomock.Any(), "BBRI", 1, "company").Return(&domain.SearchResult{}, nil)
 			},
@@ -49,31 +49,31 @@ func TestSearchHandler(t *testing.T) {
 		},
 		{
 			name:        "missing keyword returns 422",
-			path:        "/v1/search",
+			path:        "/api/v1/search",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid page returns 422",
-			path:        "/v1/search?keyword=BBRI&page=0",
+			path:        "/api/v1/search?keyword=BBRI&page=0",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "non-numeric page returns 422",
-			path:        "/v1/search?keyword=BBRI&page=abc",
+			path:        "/api/v1/search?keyword=BBRI&page=abc",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid type returns 422",
-			path:        "/v1/search?keyword=BBRI&type=BOGUS",
+			path:        "/api/v1/search?keyword=BBRI&type=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/search?keyword=BBRI",
+			path: "/api/v1/search?keyword=BBRI",
 			setup: func(uc *mocks.MockSearchUsecase) {
 				uc.EXPECT().GetSearch(gomock.Any(), "BBRI", 1, "company").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "boom"})
 			},
@@ -82,7 +82,7 @@ func TestSearchHandler(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/search?keyword=BBRI",
+			path: "/api/v1/search?keyword=BBRI",
 			setup: func(uc *mocks.MockSearchUsecase) {
 				uc.EXPECT().GetSearch(gomock.Any(), "BBRI", 1, "company").Return(nil, errors.New("boom"))
 			},
@@ -103,7 +103,7 @@ func TestSearchHandler(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewSearchHandler(uc, validator.New())
-			r.Get("/v1/search", h.Search)
+			r.Get("/api/v1/search", h.Search)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

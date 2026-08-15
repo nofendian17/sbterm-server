@@ -29,7 +29,7 @@ func TestBrokerTopHandler(t *testing.T) {
 	}{
 		{
 			name: "returns broker top with all params",
-			path: "/v1/broker/top?sort=TB_SORT_BY_TOTAL_VALUE&order=ORDER_BY_DESC&period=TB_PERIOD_LAST_1_DAY&market_type=MARKET_TYPE_ALL&eod_only=true",
+			path: "/api/v1/broker/top?sort=TB_SORT_BY_TOTAL_VALUE&order=ORDER_BY_DESC&period=TB_PERIOD_LAST_1_DAY&market_type=MARKET_TYPE_ALL&eod_only=true",
 			setup: func(uc *mocks.MockBrokerTopUsecase) {
 				uc.EXPECT().GetBrokerTop(gomock.Any(), "TB_SORT_BY_TOTAL_VALUE", "ORDER_BY_DESC", "TB_PERIOD_LAST_1_DAY", "MARKET_TYPE_ALL", true).Return(&domain.BrokerTopData{
 					Date: domain.BrokerTopDate{From: "2026-08-11", To: "2026-08-11", Idx: "2026-08-11"},
@@ -42,7 +42,7 @@ func TestBrokerTopHandler(t *testing.T) {
 		},
 		{
 			name: "defaults params when omitted",
-			path: "/v1/broker/top",
+			path: "/api/v1/broker/top",
 			setup: func(uc *mocks.MockBrokerTopUsecase) {
 				uc.EXPECT().GetBrokerTop(gomock.Any(), "TB_SORT_BY_TOTAL_VALUE", "ORDER_BY_DESC", "TB_PERIOD_LAST_1_DAY", "MARKET_TYPE_ALL", true).Return(&domain.BrokerTopData{}, nil)
 			},
@@ -50,37 +50,37 @@ func TestBrokerTopHandler(t *testing.T) {
 		},
 		{
 			name:        "invalid sort returns 422",
-			path:        "/v1/broker/top?sort=BOGUS",
+			path:        "/api/v1/broker/top?sort=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid order returns 422",
-			path:        "/v1/broker/top?order=BOGUS",
+			path:        "/api/v1/broker/top?order=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid period returns 422",
-			path:        "/v1/broker/top?period=BOGUS",
+			path:        "/api/v1/broker/top?period=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid market_type returns 422",
-			path:        "/v1/broker/top?market_type=MARKET_TYPE_REGULAR",
+			path:        "/api/v1/broker/top?market_type=MARKET_TYPE_REGULAR",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid eod_only returns 422",
-			path:        "/v1/broker/top?eod_only=notabool",
+			path:        "/api/v1/broker/top?eod_only=notabool",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/broker/top",
+			path: "/api/v1/broker/top",
 			setup: func(uc *mocks.MockBrokerTopUsecase) {
 				uc.EXPECT().GetBrokerTop(gomock.Any(), "TB_SORT_BY_TOTAL_VALUE", "ORDER_BY_DESC", "TB_PERIOD_LAST_1_DAY", "MARKET_TYPE_ALL", true).Return(nil, errors.New("boom"))
 			},
@@ -101,7 +101,7 @@ func TestBrokerTopHandler(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewBrokerTopHandler(uc, validator.New())
-			r.Get("/v1/broker/top", h.BrokerTop)
+			r.Get("/api/v1/broker/top", h.BrokerTop)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

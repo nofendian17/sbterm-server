@@ -58,7 +58,7 @@ func TestSectorsHandlerSectors(t *testing.T) {
 
 			h := NewSectorsHandler(uc)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/sectors", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/sectors", nil)
 			h.Sectors(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

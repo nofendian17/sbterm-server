@@ -28,7 +28,7 @@ func TestFundaChartMetricsHandlerMetrics(t *testing.T) {
 	}{
 		{
 			name: "returns metrics",
-			path: "/v1/fundachart/metrics?metric_name=fundachart",
+			path: "/api/v1/fundachart/metrics?metric_name=fundachart",
 			setup: func(uc *mocks.MockFundaChartMetricsUsecase) {
 				uc.EXPECT().GetFundaChartMetrics(gomock.Any(), "fundachart").Return([]domain.FundaChartMetric{
 					{FitemID: 18, FitemName: "Size", Child: []domain.FundaChartMetric{{FitemID: 2892, FitemName: "Market Cap"}}},
@@ -40,13 +40,13 @@ func TestFundaChartMetricsHandlerMetrics(t *testing.T) {
 		},
 		{
 			name:        "missing metric_name returns 422",
-			path:        "/v1/fundachart/metrics",
+			path:        "/api/v1/fundachart/metrics",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/fundachart/metrics?metric_name=fundachart",
+			path: "/api/v1/fundachart/metrics?metric_name=fundachart",
 			setup: func(uc *mocks.MockFundaChartMetricsUsecase) {
 				uc.EXPECT().GetFundaChartMetrics(gomock.Any(), "fundachart").Return(nil, errors.New("boom"))
 			},

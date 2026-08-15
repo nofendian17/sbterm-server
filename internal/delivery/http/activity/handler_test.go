@@ -28,7 +28,7 @@ func TestActivityHandlerActivity(t *testing.T) {
 	}{
 		{
 			name: "returns activity with all params",
-			path: "/v1/order-trade/broker/activity?broker_code=AK&broker_code=ZP&transaction_type=TRANSACTION_TYPE_GROSS&investor_type=INVESTOR_TYPE_ALL&limit=20&market_board=MARKET_TYPE_REGULER&page=1&from=2026-07-14&to=2026-07-31&net_val_period=NET_VAL_PERIOD_7D",
+			path: "/api/v1/order-trade/broker/activity?broker_code=AK&broker_code=ZP&transaction_type=TRANSACTION_TYPE_GROSS&investor_type=INVESTOR_TYPE_ALL&limit=20&market_board=MARKET_TYPE_REGULER&page=1&from=2026-07-14&to=2026-07-31&net_val_period=NET_VAL_PERIOD_7D",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivity(gomock.Any(), []string{"AK", "ZP"}, "TRANSACTION_TYPE_GROSS", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", 20, 1, "2026-07-14", "2026-07-31", "NET_VAL_PERIOD_7D").Return(&domain.ActivityData{
 					From:       "2026-07-14",
@@ -41,7 +41,7 @@ func TestActivityHandlerActivity(t *testing.T) {
 		},
 		{
 			name: "defaults enums and pagination when omitted",
-			path: "/v1/order-trade/broker/activity",
+			path: "/api/v1/order-trade/broker/activity",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivity(gomock.Any(), nil, "TRANSACTION_TYPE_GROSS", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", 20, 1, "", "", "NET_VAL_PERIOD_7D").Return(&domain.ActivityData{}, nil)
 			},
@@ -49,31 +49,31 @@ func TestActivityHandlerActivity(t *testing.T) {
 		},
 		{
 			name:        "invalid transaction_type returns 422",
-			path:        "/v1/order-trade/broker/activity?transaction_type=BUY",
+			path:        "/api/v1/order-trade/broker/activity?transaction_type=BUY",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid market_board returns 422",
-			path:        "/v1/order-trade/broker/activity?market_board=BOARD_TYPE_REGULAR",
+			path:        "/api/v1/order-trade/broker/activity?market_board=BOARD_TYPE_REGULAR",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid net_val_period returns 422",
-			path:        "/v1/order-trade/broker/activity?net_val_period=BOGUS",
+			path:        "/api/v1/order-trade/broker/activity?net_val_period=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid limit returns 422",
-			path:        "/v1/order-trade/broker/activity?limit=abc",
+			path:        "/api/v1/order-trade/broker/activity?limit=abc",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/order-trade/broker/activity?from=2026-07-14&to=2026-07-31",
+			path: "/api/v1/order-trade/broker/activity?from=2026-07-14&to=2026-07-31",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivity(gomock.Any(), nil, "TRANSACTION_TYPE_GROSS", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", 20, 1, "2026-07-14", "2026-07-31", "NET_VAL_PERIOD_7D").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -82,7 +82,7 @@ func TestActivityHandlerActivity(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/order-trade/broker/activity",
+			path: "/api/v1/order-trade/broker/activity",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivity(gomock.Any(), nil, "TRANSACTION_TYPE_GROSS", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", 20, 1, "", "", "NET_VAL_PERIOD_7D").Return(nil, errors.New("boom"))
 			},
@@ -103,7 +103,7 @@ func TestActivityHandlerActivity(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewActivityHandler(uc, validator.New())
-			r.Get("/v1/order-trade/broker/activity", h.Activity)
+			r.Get("/api/v1/order-trade/broker/activity", h.Activity)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
@@ -144,7 +144,7 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 	}{
 		{
 			name: "returns activity chart with symbols, brokers and range",
-			path: "/v1/order-trade/broker/activity-chart?symbols=BUMI&symbols=DSSA&brokers_code=XL&brokers_code=ZP&from=2025-08-11&to=2026-08-11",
+			path: "/api/v1/order-trade/broker/activity-chart?symbols=BUMI&symbols=DSSA&brokers_code=XL&brokers_code=ZP&from=2025-08-11&to=2026-08-11",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityChart(gomock.Any(), []string{"BUMI", "DSSA"}, []string{"XL", "ZP"}, "2025-08-11", "2026-08-11", "", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL").Return(&domain.ActivityChartData{
 					From:       "2025-08-11",
@@ -157,7 +157,7 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 		},
 		{
 			name: "sends period when from/to omitted and defaults period when all omitted",
-			path: "/v1/order-trade/broker/activity-chart",
+			path: "/api/v1/order-trade/broker/activity-chart",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityChart(gomock.Any(), nil, nil, "", "", "RT_PERIOD_LAST_1_DAY", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL").Return(&domain.ActivityChartData{}, nil)
 			},
@@ -165,19 +165,19 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 		},
 		{
 			name:        "invalid period returns 422",
-			path:        "/v1/order-trade/broker/activity-chart?period=BOGUS",
+			path:        "/api/v1/order-trade/broker/activity-chart?period=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid investor type returns 422",
-			path:        "/v1/order-trade/broker/activity-chart?investor_type=BOGUS",
+			path:        "/api/v1/order-trade/broker/activity-chart?investor_type=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 for date with no data returns 422",
-			path: "/v1/order-trade/broker/activity-chart?from=2026-08-11&to=2026-08-11",
+			path: "/api/v1/order-trade/broker/activity-chart?from=2026-08-11&to=2026-08-11",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityChart(gomock.Any(), nil, nil, "2026-08-11", "2026-08-11", "", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -186,7 +186,7 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/order-trade/broker/activity-chart",
+			path: "/api/v1/order-trade/broker/activity-chart",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityChart(gomock.Any(), nil, nil, "", "", "RT_PERIOD_LAST_1_DAY", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL").Return(nil, errors.New("boom"))
 			},
@@ -207,7 +207,7 @@ func TestActivityHandlerActivityChart(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewActivityHandler(uc, validator.New())
-			r.Get("/v1/order-trade/broker/activity-chart", h.ActivityChart)
+			r.Get("/api/v1/order-trade/broker/activity-chart", h.ActivityChart)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
@@ -248,7 +248,7 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 	}{
 		{
 			name: "returns activity historical with all params",
-			path: "/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
+			path: "/api/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{
 					DateFrom: "2026-07-01",
@@ -261,7 +261,7 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 		},
 		{
 			name: "defaults enums when omitted",
-			path: "/v1/order-trade/broker/activity/historical",
+			path: "/api/v1/order-trade/broker/activity/historical",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "", "", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{}, nil)
 			},
@@ -269,31 +269,31 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 		},
 		{
 			name:        "invalid interval returns 422",
-			path:        "/v1/order-trade/broker/activity/historical?interval=BOGUS",
+			path:        "/api/v1/order-trade/broker/activity/historical?interval=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid net_interval returns 422",
-			path:        "/v1/order-trade/broker/activity/historical?net_interval=BOGUS",
+			path:        "/api/v1/order-trade/broker/activity/historical?net_interval=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid market_board returns 422",
-			path:        "/v1/order-trade/broker/activity/historical?market_board=BOARD_TYPE_FOO",
+			path:        "/api/v1/order-trade/broker/activity/historical?market_board=BOARD_TYPE_FOO",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid date_from returns 422",
-			path:        "/v1/order-trade/broker/activity/historical?date_from=not-a-date",
+			path:        "/api/v1/order-trade/broker/activity/historical?date_from=not-a-date",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/order-trade/broker/activity/historical?date_from=2026-07-01&date_to=2026-08-31",
+			path: "/api/v1/order-trade/broker/activity/historical?date_from=2026-07-01&date_to=2026-08-31",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -302,7 +302,7 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/order-trade/broker/activity/historical",
+			path: "/api/v1/order-trade/broker/activity/historical",
 			setup: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "", "", nil, nil, "BOARD_TYPE_ALL", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(nil, errors.New("boom"))
 			},
@@ -323,7 +323,7 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewActivityHandler(uc, validator.New())
-			r.Get("/v1/order-trade/broker/activity/historical", h.ActivityHistorical)
+			r.Get("/api/v1/order-trade/broker/activity/historical", h.ActivityHistorical)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

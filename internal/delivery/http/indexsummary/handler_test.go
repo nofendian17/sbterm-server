@@ -29,7 +29,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 	}{
 		{
 			name: "returns index summary",
-			path: "/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
+			path: "/api/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexSummary(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexSummaryData{
 					XAxisOpt: "intraday",
@@ -41,7 +41,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "missing symbol returns 422",
-			path:        "/v1/index//summary?from=2026-08-10&to=2026-08-10",
+			path:        "/api/v1/index//summary?from=2026-08-10&to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -50,7 +50,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name: "omitted range defaults to last session",
-			path: "/v1/index/IHSG/summary?interval=INTERVAL_CHART_MINUTELY",
+			path: "/api/v1/index/IHSG/summary?interval=INTERVAL_CHART_MINUTELY",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexSummary(gomock.Any(), "IHSG", "", "", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexSummaryData{
 					XAxisOpt: "intraday",
@@ -62,7 +62,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "from without to returns 422",
-			path:        "/v1/index/IHSG/summary?from=2026-08-10",
+			path:        "/api/v1/index/IHSG/summary?from=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -71,7 +71,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "to without from returns 422",
-			path:        "/v1/index/IHSG/summary?to=2026-08-10",
+			path:        "/api/v1/index/IHSG/summary?to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -80,7 +80,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "invalid from date returns 422",
-			path:        "/v1/index/IHSG/summary?from=10-08-2026&to=2026-08-10",
+			path:        "/api/v1/index/IHSG/summary?from=10-08-2026&to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -89,7 +89,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "impossible from date returns 422",
-			path:        "/v1/index/IHSG/summary?from=2026-13-40&to=2026-08-10",
+			path:        "/api/v1/index/IHSG/summary?from=2026-13-40&to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -98,7 +98,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "invalid to date returns 422",
-			path:        "/v1/index/IHSG/summary?from=2026-08-10&to=2026/08/10",
+			path:        "/api/v1/index/IHSG/summary?from=2026-08-10&to=2026/08/10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -107,7 +107,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name:        "reversed range returns 422",
-			path:        "/v1/index/IHSG/summary?from=2026-08-10&to=2025-08-10",
+			path:        "/api/v1/index/IHSG/summary?from=2026-08-10&to=2025-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -116,7 +116,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10",
+			path: "/api/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexSummary(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "").Return(nil, errors.New("boom"))
 			},
@@ -137,7 +137,7 @@ func TestIndexSummaryHandlerIndexSummary(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewIndexSummaryHandler(uc, validator.New())
-			r.Get("/v1/index/{symbol}/summary", h.IndexSummary)
+			r.Get("/api/v1/index/{symbol}/summary", h.IndexSummary)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
@@ -184,7 +184,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 	}{
 		{
 			name: "returns summary and chart",
-			path: "/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
+			path: "/api/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexChart(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexChartData{
 					Summary: domain.IndexSummaryData{
@@ -201,7 +201,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name: "omitted range defaults to last session",
-			path: "/v1/index/IHSG/chart?interval=INTERVAL_CHART_MINUTELY",
+			path: "/api/v1/index/IHSG/chart?interval=INTERVAL_CHART_MINUTELY",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexChart(gomock.Any(), "IHSG", "", "", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexChartData{
 					Summary: domain.IndexSummaryData{Prices: []domain.IndexSummaryPrice{{Value: "6442.65"}}},
@@ -213,7 +213,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name:        "from without to returns 422",
-			path:        "/v1/index/IHSG/chart?from=2026-08-10",
+			path:        "/api/v1/index/IHSG/chart?from=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -222,7 +222,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name:        "to without from returns 422",
-			path:        "/v1/index/IHSG/chart?to=2026-08-10",
+			path:        "/api/v1/index/IHSG/chart?to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -231,7 +231,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name:        "invalid from date returns 422",
-			path:        "/v1/index/IHSG/chart?from=10-08-2026&to=2026-08-10",
+			path:        "/api/v1/index/IHSG/chart?from=10-08-2026&to=2026-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -240,7 +240,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name:        "reversed range returns 422",
-			path:        "/v1/index/IHSG/chart?from=2026-08-10&to=2025-08-10",
+			path:        "/api/v1/index/IHSG/chart?from=2026-08-10&to=2025-08-10",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 			wantErrDetails: map[string]string{
@@ -249,7 +249,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10",
+			path: "/api/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10",
 			setup: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexChart(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "").Return(nil, errors.New("boom"))
 			},
@@ -270,7 +270,7 @@ func TestIndexSummaryHandlerIndexChart(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewIndexSummaryHandler(uc, validator.New())
-			r.Get("/v1/index/{symbol}/chart", h.IndexChart)
+			r.Get("/api/v1/index/{symbol}/chart", h.IndexChart)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

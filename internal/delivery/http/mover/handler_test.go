@@ -83,7 +83,7 @@ func TestMarketMoverHandlerMarketMover(t *testing.T) {
 
 			h := NewMarketMoverHandler(uc, validator.New())
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/market-mover"+tt.query, nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/market-mover"+tt.query, nil)
 			h.MarketMover(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

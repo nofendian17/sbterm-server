@@ -28,7 +28,7 @@ func TestKeystatsHandlerKeystats(t *testing.T) {
 	}{
 		{
 			name: "returns keystats",
-			path: "/v1/company/BUVA/keystats?year_limit=10",
+			path: "/api/v1/company/BUVA/keystats?year_limit=10",
 			setup: func(uc *mocks.MockKeystatsUsecase) {
 				uc.EXPECT().GetKeystats(gomock.Any(), "BUVA", 10).Return(&domain.Keystats{
 					Stats:                   domain.KeystatsStats{MarketCap: "19,324 B", CurrentShareOutstanding: "24.62 B"},
@@ -44,13 +44,13 @@ func TestKeystatsHandlerKeystats(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//keystats",
+			path:        "/api/v1/company//keystats",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/BUVA/keystats",
+			path: "/api/v1/company/BUVA/keystats",
 			setup: func(uc *mocks.MockKeystatsUsecase) {
 				uc.EXPECT().GetKeystats(gomock.Any(), "BUVA", 0).Return(nil, errors.New("boom"))
 			},
@@ -71,7 +71,7 @@ func TestKeystatsHandlerKeystats(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewKeystatsHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/keystats", h.Keystats)
+			r.Get("/api/v1/company/{symbol}/keystats", h.Keystats)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

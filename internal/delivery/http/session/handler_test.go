@@ -54,7 +54,7 @@ func TestMarketSessionHandlerMarketSession(t *testing.T) {
 
 			h := NewMarketSessionHandler(uc)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/market-session", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/market-session", nil)
 			h.MarketSession(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

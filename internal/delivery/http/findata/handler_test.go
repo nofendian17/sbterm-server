@@ -27,7 +27,7 @@ func TestFindataFinancialHandlerFinancial(t *testing.T) {
 	}{
 		{
 			name: "returns structured financial report",
-			path: "/v1/company/BRPT/financial?data_type=1&is_percentage=0&page=1&report_type=3&statement_type=2",
+			path: "/api/v1/company/BRPT/financial?data_type=1&is_percentage=0&page=1&report_type=3&statement_type=2",
 			setup: func(uc *mocks.MockFindataFinancialUsecase) {
 				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 1, 0, 1, 3, 2).Return(&domain.FindataFinancial{
 					DefaultCurrency: "IDR",
@@ -41,19 +41,19 @@ func TestFindataFinancialHandlerFinancial(t *testing.T) {
 		},
 		{
 			name:        "missing page returns 422",
-			path:        "/v1/company/BRPT/financial?report_type=3&statement_type=2",
+			path:        "/api/v1/company/BRPT/financial?report_type=3&statement_type=2",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid statement_type returns 422",
-			path:        "/v1/company/BRPT/financial?page=1&report_type=3&statement_type=99",
+			path:        "/api/v1/company/BRPT/financial?page=1&report_type=3&statement_type=99",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "defaults data_type to 1 when omitted",
-			path: "/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
+			path: "/api/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
 			setup: func(uc *mocks.MockFindataFinancialUsecase) {
 				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 1, 0, 1, 3, 2).Return(&domain.FindataFinancial{
 					DefaultCurrency: "IDR",
@@ -67,7 +67,7 @@ func TestFindataFinancialHandlerFinancial(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
+			path: "/api/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
 			setup: func(uc *mocks.MockFindataFinancialUsecase) {
 				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 1, 0, 1, 3, 2).Return(nil, errors.New("boom"))
 			},
@@ -88,7 +88,7 @@ func TestFindataFinancialHandlerFinancial(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewFindataFinancialHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/financial", h.Financial)
+			r.Get("/api/v1/company/{symbol}/financial", h.Financial)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

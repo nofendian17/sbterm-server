@@ -29,7 +29,7 @@ func TestSubsidiaryHandlerSubsidiaries(t *testing.T) {
 	}{
 		{
 			name: "returns subsidiaries",
-			path: "/v1/company/DSSA/subsidiaries",
+			path: "/api/v1/company/DSSA/subsidiaries",
 			setup: func(uc *mocks.MockSubsidiaryUsecase) {
 				uc.EXPECT().GetSubsidiaries(gomock.Any(), "DSSA").Return(&domain.SubsidiaryData{
 					Currency:          "CURRENCY_USD",
@@ -44,13 +44,13 @@ func TestSubsidiaryHandlerSubsidiaries(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//subsidiaries",
+			path:        "/api/v1/company//subsidiaries",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/subsidiaries",
+			path: "/api/v1/company/DSSA/subsidiaries",
 			setup: func(uc *mocks.MockSubsidiaryUsecase) {
 				uc.EXPECT().GetSubsidiaries(gomock.Any(), "DSSA").Return(nil, errors.New("boom"))
 			},
@@ -71,7 +71,7 @@ func TestSubsidiaryHandlerSubsidiaries(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewSubsidiaryHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/subsidiaries", h.Subsidiaries)
+			r.Get("/api/v1/company/{symbol}/subsidiaries", h.Subsidiaries)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

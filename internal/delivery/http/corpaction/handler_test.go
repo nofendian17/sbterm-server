@@ -29,7 +29,7 @@ func TestCorpActionHandlerCorpActions(t *testing.T) {
 	}{
 		{
 			name: "returns corp actions",
-			path: "/v1/company/BUVA/corp-actions?limit=30",
+			path: "/api/v1/company/BUVA/corp-actions?limit=30",
 			setup: func(uc *mocks.MockCorpActionUsecase) {
 				uc.EXPECT().GetCorpActions(gomock.Any(), "BUVA", 30).Return([]domain.CompanyCorpAction{
 					{ActionType: "rups", Rups: &domain.RupsInfo{RupsID: "1460868", RupsDate: "2026-06-11"}},
@@ -41,13 +41,13 @@ func TestCorpActionHandlerCorpActions(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//corp-actions",
+			path:        "/api/v1/company//corp-actions",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/BUVA/corp-actions",
+			path: "/api/v1/company/BUVA/corp-actions",
 			setup: func(uc *mocks.MockCorpActionUsecase) {
 				uc.EXPECT().GetCorpActions(gomock.Any(), "BUVA", 0).Return(nil, errors.New("boom"))
 			},
@@ -68,7 +68,7 @@ func TestCorpActionHandlerCorpActions(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewCorpActionHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/corp-actions", h.CorpActions)
+			r.Get("/api/v1/company/{symbol}/corp-actions", h.CorpActions)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

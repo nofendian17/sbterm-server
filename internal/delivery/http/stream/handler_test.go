@@ -30,7 +30,7 @@ func TestStreamHandlerStreamAnnouncement(t *testing.T) {
 	}{
 		{
 			name: "returns stream announcements",
-			path: "/v1/stream/announcement/" + streamID,
+			path: "/api/v1/stream/announcement/" + streamID,
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetStreamAnnouncement(gomock.Any(), streamID).Return([]domain.StreamAnnouncement{
 					{ID: 3547541, CompanyID: 497, PostedOn: "2026-08-15 07:41:51", Headline: "Rencana Transaksi Material Dengan Persetujuan RUPS (KOREKSI) [SILO]", Title: "f-32120989-0_SILO.pdf", Attachment: "https://emitten-announcement.stockbit.com/attachments/f-32120989-0_SILO.pdf", RetrievedOn: "2026-08-15 00:50:17", Symbol: "SILO", Name: "Siloam International Hospitals Tbk", CompanyIconURL: "https://assets.stockbit.com/logos/companies/SILO.png"},
@@ -41,14 +41,14 @@ func TestStreamHandlerStreamAnnouncement(t *testing.T) {
 		},
 		{
 			name:        "missing stream_id returns 422",
-			path:        "/v1/stream/announcement/",
+			path:        "/api/v1/stream/announcement/",
 			direct:      true,
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/stream/announcement/" + streamID,
+			path: "/api/v1/stream/announcement/" + streamID,
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetStreamAnnouncement(gomock.Any(), streamID).Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -57,7 +57,7 @@ func TestStreamHandlerStreamAnnouncement(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/stream/announcement/" + streamID,
+			path: "/api/v1/stream/announcement/" + streamID,
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetStreamAnnouncement(gomock.Any(), streamID).Return(nil, errors.New("boom"))
 			},
@@ -83,7 +83,7 @@ func TestStreamHandlerStreamAnnouncement(t *testing.T) {
 			} else {
 				r := chi.NewRouter()
 				h := NewStreamHandler(uc, validator.New())
-				r.Get("/v1/stream/announcement/{stream_id}", h.StreamAnnouncement)
+				r.Get("/api/v1/stream/announcement/{stream_id}", h.StreamAnnouncement)
 				r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
 			}
 
@@ -126,7 +126,7 @@ func TestStreamHandlerUserStream(t *testing.T) {
 	}{
 		{
 			name: "returns stream with all params",
-			path: "/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884782&limit=20",
+			path: "/api/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884782&limit=20",
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_MAIN_IDEAS", int64(34884782), 20).Return(&domain.UserStreamData{
 					Stream: []domain.StreamPost{
@@ -171,7 +171,7 @@ func TestStreamHandlerUserStream(t *testing.T) {
 		},
 		{
 			name: "defaults category and limit when omitted",
-			path: "/v1/user/StockbitReports/stream",
+			path: "/api/v1/user/StockbitReports/stream",
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_MAIN_IDEAS", int64(0), 20).Return(&domain.UserStreamData{}, nil)
 			},
@@ -179,7 +179,7 @@ func TestStreamHandlerUserStream(t *testing.T) {
 		},
 		{
 			name: "accepts news category",
-			path: "/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_NEWS",
+			path: "/api/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_NEWS",
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_NEWS", int64(0), 20).Return(&domain.UserStreamData{}, nil)
 			},
@@ -187,38 +187,38 @@ func TestStreamHandlerUserStream(t *testing.T) {
 		},
 		{
 			name:        "invalid category returns 422",
-			path:        "/v1/user/StockbitReports/stream?category=BOGUS",
+			path:        "/api/v1/user/StockbitReports/stream?category=BOGUS",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid last_stream_id returns 422",
-			path:        "/v1/user/StockbitReports/stream?last_stream_id=abc",
+			path:        "/api/v1/user/StockbitReports/stream?last_stream_id=abc",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "invalid limit returns 422",
-			path:        "/v1/user/StockbitReports/stream?limit=abc",
+			path:        "/api/v1/user/StockbitReports/stream?limit=abc",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "zero limit returns 422",
-			path:        "/v1/user/StockbitReports/stream?limit=0",
+			path:        "/api/v1/user/StockbitReports/stream?limit=0",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name:        "missing username returns 422",
-			path:        "/v1/user/stream",
+			path:        "/api/v1/user/stream",
 			direct:      true,
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "upstream 400 returns 422",
-			path: "/v1/user/StockbitReports/stream",
+			path: "/api/v1/user/StockbitReports/stream",
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_MAIN_IDEAS", int64(0), 20).Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
 			},
@@ -227,7 +227,7 @@ func TestStreamHandlerUserStream(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/user/StockbitReports/stream",
+			path: "/api/v1/user/StockbitReports/stream",
 			setup: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_MAIN_IDEAS", int64(0), 20).Return(nil, errors.New("boom"))
 			},
@@ -253,7 +253,7 @@ func TestStreamHandlerUserStream(t *testing.T) {
 			} else {
 				r := chi.NewRouter()
 				h := NewStreamHandler(uc, validator.New())
-				r.Get("/v1/user/{username}/stream", h.UserStream)
+				r.Get("/api/v1/user/{username}/stream", h.UserStream)
 				r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
 			}
 

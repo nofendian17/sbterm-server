@@ -30,7 +30,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 	}{
 		{
 			name: "returns top stock data with defaults",
-			path: "/v1/top-stock?start=2026-08-09&end=2026-08-10",
+			path: "/api/v1/top-stock?start=2026-08-09&end=2026-08-10",
 			setup: func(uc *mocks.MockTopStockUsecase) {
 				uc.EXPECT().GetTopStock(gomock.Any(), "2026-08-09", "2026-08-10", "INVESTOR_TYPE_ALL", "MARKET_TYPE_ALL", "VALUE_TYPE_NET", 0).Return(&domain.TopStockData{
 					TopBuy:       []domain.TopStockItem{{Rank: 1, Code: "DSSA", Value: domain.RawFormatted{Raw: "1297165000000", Formatted: "1,297.2B"}}},
@@ -43,7 +43,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name: "passes explicit filter params",
-			path: "/v1/top-stock?start=2026-08-09&end=2026-08-10&investor_type=INVESTOR_TYPE_FOREIGN&market_type=MARKET_TYPE_NEGO&value_type=VALUE_TYPE_GROSS&page=2",
+			path: "/api/v1/top-stock?start=2026-08-09&end=2026-08-10&investor_type=INVESTOR_TYPE_FOREIGN&market_type=MARKET_TYPE_NEGO&value_type=VALUE_TYPE_GROSS&page=2",
 			setup: func(uc *mocks.MockTopStockUsecase) {
 				uc.EXPECT().GetTopStock(gomock.Any(), "2026-08-09", "2026-08-10", "INVESTOR_TYPE_FOREIGN", "MARKET_TYPE_NEGO", "VALUE_TYPE_GROSS", 2).Return(&domain.TopStockData{}, nil)
 			},
@@ -51,7 +51,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "missing start returns 422",
-			path:         "/v1/top-stock?end=2026-08-10",
+			path:         "/api/v1/top-stock?end=2026-08-10",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "start",
@@ -59,7 +59,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "missing end returns 422",
-			path:         "/v1/top-stock?start=2026-08-09",
+			path:         "/api/v1/top-stock?start=2026-08-09",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "end",
@@ -67,7 +67,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "invalid investor_type returns 422",
-			path:         "/v1/top-stock?start=2026-08-09&end=2026-08-10&investor_type=BAD",
+			path:         "/api/v1/top-stock?start=2026-08-09&end=2026-08-10&investor_type=BAD",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "investor_type",
@@ -75,7 +75,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "invalid market_type returns 422",
-			path:         "/v1/top-stock?start=2026-08-09&end=2026-08-10&market_type=BAD",
+			path:         "/api/v1/top-stock?start=2026-08-09&end=2026-08-10&market_type=BAD",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "market_type",
@@ -83,7 +83,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "invalid value_type returns 422",
-			path:         "/v1/top-stock?start=2026-08-09&end=2026-08-10&value_type=BAD",
+			path:         "/api/v1/top-stock?start=2026-08-09&end=2026-08-10&value_type=BAD",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "value_type",
@@ -91,7 +91,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "invalid start date format returns 422",
-			path:         "/v1/top-stock?start=09-08-2026&end=2026-08-10",
+			path:         "/api/v1/top-stock?start=09-08-2026&end=2026-08-10",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "start",
@@ -99,7 +99,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "invalid end date format returns 422",
-			path:         "/v1/top-stock?start=2026-08-09&end=2026/08/10",
+			path:         "/api/v1/top-stock?start=2026-08-09&end=2026/08/10",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "end",
@@ -107,7 +107,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name:         "impossible calendar date returns 422",
-			path:         "/v1/top-stock?start=2026-13-40&end=2026-08-10",
+			path:         "/api/v1/top-stock?start=2026-13-40&end=2026-08-10",
 			wantStatus:   http.StatusUnprocessableEntity,
 			wantErrCode:  "VALIDATION_ERROR",
 			wantErrField: "start",
@@ -115,7 +115,7 @@ func TestTopStockHandlerTopStock(t *testing.T) {
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/top-stock?start=2026-08-09&end=2026-08-10",
+			path: "/api/v1/top-stock?start=2026-08-09&end=2026-08-10",
 			setup: func(uc *mocks.MockTopStockUsecase) {
 				uc.EXPECT().GetTopStock(gomock.Any(), "2026-08-09", "2026-08-10", "INVESTOR_TYPE_ALL", "MARKET_TYPE_ALL", "VALUE_TYPE_NET", 0).Return(nil, errors.New("boom"))
 			},

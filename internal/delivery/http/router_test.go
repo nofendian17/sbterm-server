@@ -94,7 +94,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get stocks returns 200",
 			method: http.MethodGet,
-			path:   "/v1/stocks",
+			path:   "/api/v1/stocks",
 			setupStocks: func(uc *mocks.MockStocksUsecase) {
 				uc.EXPECT().GetStocks(gomock.Any()).Return([]domain.Stock{{Symbol: "BBCA"}}, nil)
 			},
@@ -103,7 +103,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get company profile returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/profile",
+			path:   "/api/v1/company/DSSA/profile",
 			setupCompanyProfile: func(uc *mocks.MockCompanyProfileUsecase) {
 				uc.EXPECT().GetProfile(gomock.Any(), "DSSA").Return(&domain.CompanyProfile{Background: "PT Dian Swastatika"}, nil)
 			},
@@ -112,7 +112,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get company subsidiaries returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/subsidiaries",
+			path:   "/api/v1/company/DSSA/subsidiaries",
 			setupSubsidiary: func(uc *mocks.MockSubsidiaryUsecase) {
 				uc.EXPECT().GetSubsidiaries(gomock.Any(), "DSSA").Return(&domain.SubsidiaryData{Subsidiaries: []domain.Subsidiary{{CompanyName: "PT DSST Mas Gemilang"}}}, nil)
 			},
@@ -121,7 +121,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get company shareholding composition returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/shareholding-composition",
+			path:   "/api/v1/company/DSSA/shareholding-composition",
 			setupShareholding: func(uc *mocks.MockShareholdingCompositionUsecase) {
 				uc.EXPECT().GetShareholdingComposition(gomock.Any(), "DSSA", "", "").Return([]domain.ShareholdingCompositionPeriod{{ReportDate: "2026-07-31"}}, nil)
 			},
@@ -130,7 +130,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get shareholding network returns 200",
 			method: http.MethodGet,
-			path:   "/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR",
+			path:   "/api/v1/insider/shareholding-network?root_id=8824&root_type=SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR",
 			setupNetwork: func(uc *mocks.MockShareholdingNetworkUsecase) {
 				uc.EXPECT().GetShareholdingNetwork(gomock.Any(), "8824", "SHAREHOLDING_NETWORK_NODE_TYPE_INVESTOR", 0, 0).Return(&domain.ShareholdingNetwork{RootID: "investor:8824"}, nil)
 			},
@@ -139,7 +139,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get major holder returns 200",
 			method: http.MethodGet,
-			path:   "/v1/insider/majorholder?symbols=DSSA",
+			path:   "/api/v1/insider/majorholder?symbols=DSSA",
 			setupMajorHolder: func(uc *mocks.MockMajorHolderUsecase) {
 				uc.EXPECT().GetMajorHolder(gomock.Any(), "DSSA", "", "", 0, 0).Return(&domain.MajorHolderData{}, nil)
 			},
@@ -148,7 +148,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get market detector returns 200",
 			method: http.MethodGet,
-			path:   "/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10",
+			path:   "/api/v1/market-detector/BRPT?from=2026-08-03&to=2026-08-10",
 			setupMarketDetector: func(uc *mocks.MockMarketDetectorUsecase) {
 				uc.EXPECT().GetMarketDetector(gomock.Any(), "BRPT", "2026-08-03", "2026-08-10", "TRANSACTION_TYPE_NET", "MARKET_BOARD_REGULER", "INVESTOR_TYPE_ALL", 0).Return(&domain.MarketDetectorData{}, nil)
 			},
@@ -157,7 +157,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get top stock returns 200",
 			method: http.MethodGet,
-			path:   "/v1/top-stock?start=2026-08-09&end=2026-08-10",
+			path:   "/api/v1/top-stock?start=2026-08-09&end=2026-08-10",
 			setupTopStock: func(uc *mocks.MockTopStockUsecase) {
 				uc.EXPECT().GetTopStock(gomock.Any(), "2026-08-09", "2026-08-10", "INVESTOR_TYPE_ALL", "MARKET_TYPE_ALL", "VALUE_TYPE_NET", 0).Return(&domain.TopStockData{}, nil)
 			},
@@ -166,7 +166,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get corp actions returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/corp-actions",
+			path:   "/api/v1/company/BUVA/corp-actions",
 			setupCorpAction: func(uc *mocks.MockCorpActionUsecase) {
 				uc.EXPECT().GetCorpActions(gomock.Any(), "BUVA", 0).Return([]domain.CompanyCorpAction{{ActionType: "rups"}}, nil)
 			},
@@ -175,7 +175,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get keystats returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/keystats",
+			path:   "/api/v1/company/BUVA/keystats",
 			setupKeystats: func(uc *mocks.MockKeystatsUsecase) {
 				uc.EXPECT().GetKeystats(gomock.Any(), "BUVA", 0).Return(&domain.Keystats{Stats: domain.KeystatsStats{MarketCap: "19,324 B"}}, nil)
 			},
@@ -184,7 +184,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get price performance returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/price-performance",
+			path:   "/api/v1/company/BUVA/price-performance",
 			setupPricePerformance: func(uc *mocks.MockPricePerformanceUsecase) {
 				uc.EXPECT().GetPricePerformance(gomock.Any(), "BUVA").Return(&domain.PricePerformanceData{Prices: []domain.PricePerformance{{Timeframe: "1D"}}}, nil)
 			},
@@ -193,7 +193,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get chart returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=0",
+			path:   "/api/v1/company/BUVA/chart?timeframe=daily&from=2025-08-10&to=2026-08-10&limit=0",
 			setupChart: func(uc *mocks.MockChartbitUsecase) {
 				uc.EXPECT().GetChartPrice(gomock.Any(), "BUVA", "daily", "2025-08-10", "2026-08-10", 0).Return(&domain.ChartPriceData{Chartbit: []domain.ChartPrice{{Close: 985}}}, nil)
 			},
@@ -202,7 +202,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get funda chart returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/fundachart?item=12148",
+			path:   "/api/v1/company/BUVA/fundachart?item=12148",
 			setupFundaChart: func(uc *mocks.MockFundaChartUsecase) {
 				uc.EXPECT().GetFundaChart(gomock.Any(), "BUVA", "12148", "10y").Return([]domain.FundaChartCompany{{CompanyName: "BUVA"}}, nil)
 			},
@@ -211,7 +211,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get funda chart metrics returns 200",
 			method: http.MethodGet,
-			path:   "/v1/fundachart/metrics?metric_name=fundachart",
+			path:   "/api/v1/fundachart/metrics?metric_name=fundachart",
 			setupFundaChartMetrics: func(uc *mocks.MockFundaChartMetricsUsecase) {
 				uc.EXPECT().GetFundaChartMetrics(gomock.Any(), "fundachart").Return([]domain.FundaChartMetric{{FitemID: 18, FitemName: "Size"}}, nil)
 			},
@@ -220,7 +220,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get financial report returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/BUVA/financial?page=1&report_type=1&statement_type=1",
+			path:   "/api/v1/company/BUVA/financial?page=1&report_type=1&statement_type=1",
 			setupFindataFinancial: func(uc *mocks.MockFindataFinancialUsecase) {
 				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BUVA", 1, 0, 1, 1, 1).Return(&domain.FindataFinancial{DefaultCurrency: "IDR"}, nil)
 			},
@@ -229,7 +229,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get index summary returns 200",
 			method: http.MethodGet,
-			path:   "/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
+			path:   "/api/v1/index/IHSG/summary?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
 			setupIndexSummary: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexSummary(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexSummaryData{Prices: []domain.IndexSummaryPrice{{Value: "6442.65"}}}, nil)
 			},
@@ -238,7 +238,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get index chart returns 200",
 			method: http.MethodGet,
-			path:   "/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
+			path:   "/api/v1/index/IHSG/chart?from=2026-08-10&to=2026-08-10&interval=INTERVAL_CHART_MINUTELY",
 			setupIndexSummary: func(uc *mocks.MockIndexSummaryUsecase) {
 				uc.EXPECT().GetIndexChart(gomock.Any(), "IHSG", "2026-08-10", "2026-08-10", "INTERVAL_CHART_MINUTELY").Return(&domain.IndexChartData{Chart: domain.ChartPriceData{Chartbit: []domain.ChartPrice{{Close: 6365.374}}}}, nil)
 			},
@@ -247,7 +247,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get running trade returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/running-trade-chart?broker_code=DR&from=2026-07-01&to=2026-08-10",
+			path:   "/api/v1/company/DSSA/running-trade-chart?broker_code=DR&from=2026-07-01&to=2026-08-10",
 			setupRunningTrade: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTradeChart(gomock.Any(), "DSSA", []string{"DR"}, "2026-07-01", "2026-08-10", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL", "").Return(&domain.RunningTradeData{From: "2026-07-01", DateSessionInfo: "10 Aug 2026"}, nil)
 			},
@@ -256,7 +256,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get running trade feed returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&date=2026-08-13&limit=80&trade_number=17796",
+			path:   "/api/v1/order-trade/running-trade?symbol=BBCA&sort=ASC&order_by=RUNNING_TRADE_ORDER_BY_TIME&date=2026-08-13&limit=80&trade_number=17796",
 			setupRunningTrade: func(uc *mocks.MockRunningTradeUsecase) {
 				uc.EXPECT().GetRunningTrade(gomock.Any(), "BBCA", "ASC", "RUNNING_TRADE_ORDER_BY_TIME", "2026-08-13", 80, int64(17796)).Return(&domain.RunningTradeFeed{}, nil)
 			},
@@ -265,7 +265,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get order book returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/VKTR/orderbook",
+			path:   "/api/v1/company/VKTR/orderbook",
 			setupOrderBook: func(uc *mocks.MockOrderBookUsecase) {
 				uc.EXPECT().GetOrderBook(gomock.Any(), "VKTR").Return(&domain.OrderBookData{Symbol: "VKTR"}, nil)
 			},
@@ -274,7 +274,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get foreign domestic historical returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
+			path:   "/api/v1/order-trade/foreign-domestic/historical?symbol=VKTR&market_type=MARKET_TYPE_ALL&period=TB_PERIOD_LAST_1_MONTH",
 			setupForeignDomestic: func(uc *mocks.MockForeignDomesticUsecase) {
 				uc.EXPECT().GetForeignDomesticHistorical(gomock.Any(), "VKTR", "MARKET_TYPE_ALL", "TB_PERIOD_LAST_1_MONTH", "", "").Return(&domain.ForeignDomesticData{}, nil)
 			},
@@ -283,7 +283,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get historical summary returns 200",
 			method: http.MethodGet,
-			path:   "/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11",
+			path:   "/api/v1/company/DSSA/historical-summary?period=HS_PERIOD_WEEKLY&start_date=2025-08-11&end_date=2026-08-11",
 			setupHistoricalSummary: func(uc *mocks.MockHistoricalSummaryUsecase) {
 				uc.EXPECT().GetHistoricalSummary(gomock.Any(), "DSSA", "HS_PERIOD_WEEKLY", "2025-08-11", "2026-08-11", 50, 1).Return(&domain.HistoricalSummaryData{}, nil)
 			},
@@ -292,7 +292,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get activity chart returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/broker/activity-chart?symbols=BBRI&brokers_code=DR&from=2026-07-01&to=2026-08-10",
+			path:   "/api/v1/order-trade/broker/activity-chart?symbols=BBRI&brokers_code=DR&from=2026-07-01&to=2026-08-10",
 			setupActivity: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityChart(gomock.Any(), []string{"BBRI"}, []string{"DR"}, "2026-07-01", "2026-08-10", "", "INVESTOR_TYPE_ALL", "BOARD_TYPE_ALL").Return(&domain.ActivityChartData{}, nil)
 			},
@@ -301,7 +301,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get activity returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/broker/activity?broker_code=DR&transaction_type=TRANSACTION_TYPE_GROSS&from=2026-07-14&to=2026-07-31&limit=20",
+			path:   "/api/v1/order-trade/broker/activity?broker_code=DR&transaction_type=TRANSACTION_TYPE_GROSS&from=2026-07-14&to=2026-07-31&limit=20",
 			setupActivity: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivity(gomock.Any(), []string{"DR"}, "TRANSACTION_TYPE_GROSS", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", 20, 1, "2026-07-14", "2026-07-31", "NET_VAL_PERIOD_7D").Return(&domain.ActivityData{}, nil)
 			},
@@ -310,7 +310,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get activity historical returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
+			path:   "/api/v1/order-trade/broker/activity/historical?interval=INTERVAL_DAILY&date_from=2026-07-01&date_to=2026-08-31&broker_codes=ZP&broker_codes=BK&symbols=CUAN&market_board=BOARD_TYPE_REGULAR&investor_type=INVESTOR_TYPE_ALL&net_interval=INTERVAL_MONTHLY",
 			setupActivity: func(uc *mocks.MockActivityUsecase) {
 				uc.EXPECT().GetActivityHistorical(gomock.Any(), "INTERVAL_DAILY", "2026-07-01", "2026-08-31", []string{"ZP", "BK"}, []string{"CUAN"}, "BOARD_TYPE_REGULAR", "INVESTOR_TYPE_ALL", "INTERVAL_MONTHLY").Return(&domain.ActivityHistoricalData{}, nil)
 			},
@@ -319,7 +319,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get broker top returns 200",
 			method: http.MethodGet,
-			path:   "/v1/order-trade/broker/top?period=TB_PERIOD_LAST_1_DAY",
+			path:   "/api/v1/order-trade/broker/top?period=TB_PERIOD_LAST_1_DAY",
 			setupBrokerTop: func(uc *mocks.MockBrokerTopUsecase) {
 				uc.EXPECT().GetBrokerTop(gomock.Any(), "TB_SORT_BY_TOTAL_VALUE", "ORDER_BY_DESC", "TB_PERIOD_LAST_1_DAY", "MARKET_TYPE_ALL", true).Return(&domain.BrokerTopData{}, nil)
 			},
@@ -328,7 +328,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get user stream returns 200",
 			method: http.MethodGet,
-			path:   "/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884782&limit=20",
+			path:   "/api/v1/user/StockbitReports/stream?category=STREAM_CATEGORY_MAIN_IDEAS&last_stream_id=34884782&limit=20",
 			setupStream: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetUserStream(gomock.Any(), "StockbitReports", "STREAM_CATEGORY_MAIN_IDEAS", int64(34884782), 20).Return(&domain.UserStreamData{}, nil)
 			},
@@ -337,7 +337,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get stream announcement returns 200",
 			method: http.MethodGet,
-			path:   "/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8aba",
+			path:   "/api/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3beafc8aba",
 			setupStream: func(uc *mocks.MockStreamUsecase) {
 				uc.EXPECT().GetStreamAnnouncement(gomock.Any(), "f3e83a0aeb3c9c48800b7f3beafc8aba").Return([]domain.StreamAnnouncement{}, nil)
 			},
@@ -346,7 +346,7 @@ func TestRouter(t *testing.T) {
 		{
 			name:   "get search returns 200",
 			method: http.MethodGet,
-			path:   "/v1/search?keyword=BBRI",
+			path:   "/api/v1/search?keyword=BBRI",
 			setupSearch: func(uc *mocks.MockSearchUsecase) {
 				uc.EXPECT().GetSearch(gomock.Any(), "BBRI", 1, "company").Return(&domain.SearchResult{}, nil)
 			},

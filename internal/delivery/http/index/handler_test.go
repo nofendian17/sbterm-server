@@ -56,7 +56,7 @@ func TestIndexHandlerIndex(t *testing.T) {
 
 			h := NewIndexHandler(uc)
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/indexes", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/indexes", nil)
 			h.Index(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

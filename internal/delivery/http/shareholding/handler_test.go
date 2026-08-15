@@ -29,7 +29,7 @@ func TestShareholdingHandlerShareholdingComposition(t *testing.T) {
 	}{
 		{
 			name: "returns composition periods",
-			path: "/v1/company/DSSA/shareholding-composition?period_start=2026-06-01&period_end=2026-06-30",
+			path: "/api/v1/company/DSSA/shareholding-composition?period_start=2026-06-01&period_end=2026-06-30",
 			setup: func(uc *mocks.MockShareholdingCompositionUsecase) {
 				uc.EXPECT().GetShareholdingComposition(gomock.Any(), "DSSA", "2026-06-01", "2026-06-30").Return([]domain.ShareholdingCompositionPeriod{{
 					ReportDate:   "2026-06-30",
@@ -42,13 +42,13 @@ func TestShareholdingHandlerShareholdingComposition(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//shareholding-composition",
+			path:        "/api/v1/company//shareholding-composition",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/DSSA/shareholding-composition",
+			path: "/api/v1/company/DSSA/shareholding-composition",
 			setup: func(uc *mocks.MockShareholdingCompositionUsecase) {
 				uc.EXPECT().GetShareholdingComposition(gomock.Any(), "DSSA", "", "").Return(nil, errors.New("boom"))
 			},
@@ -69,7 +69,7 @@ func TestShareholdingHandlerShareholdingComposition(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewShareholdingHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/shareholding-composition", h.ShareholdingComposition)
+			r.Get("/api/v1/company/{symbol}/shareholding-composition", h.ShareholdingComposition)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

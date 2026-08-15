@@ -29,7 +29,7 @@ func TestPricePerformanceHandlerPricePerformance(t *testing.T) {
 	}{
 		{
 			name: "returns price performance",
-			path: "/v1/company/BUVA/price-performance",
+			path: "/api/v1/company/BUVA/price-performance",
 			setup: func(uc *mocks.MockPricePerformanceUsecase) {
 				uc.EXPECT().GetPricePerformance(gomock.Any(), "BUVA").Return(&domain.PricePerformanceData{
 					Prices: []domain.PricePerformance{{Timeframe: "1D", Close: domain.PriceRawFormatted{Raw: 785, Formatted: "785"}}},
@@ -41,13 +41,13 @@ func TestPricePerformanceHandlerPricePerformance(t *testing.T) {
 		},
 		{
 			name:        "missing path param returns 422",
-			path:        "/v1/company//price-performance",
+			path:        "/api/v1/company//price-performance",
 			wantStatus:  http.StatusUnprocessableEntity,
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
 			name: "usecase error returns 500",
-			path: "/v1/company/BUVA/price-performance",
+			path: "/api/v1/company/BUVA/price-performance",
 			setup: func(uc *mocks.MockPricePerformanceUsecase) {
 				uc.EXPECT().GetPricePerformance(gomock.Any(), "BUVA").Return(nil, errors.New("boom"))
 			},
@@ -68,7 +68,7 @@ func TestPricePerformanceHandlerPricePerformance(t *testing.T) {
 
 			r := chi.NewRouter()
 			h := NewPricePerformanceHandler(uc, validator.New())
-			r.Get("/v1/company/{symbol}/price-performance", h.PricePerformance)
+			r.Get("/api/v1/company/{symbol}/price-performance", h.PricePerformance)
 
 			rec := httptest.NewRecorder()
 			r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))

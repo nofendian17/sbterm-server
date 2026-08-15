@@ -222,7 +222,7 @@ func TestRouter(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/v1/company/BUVA/financial?page=1&report_type=1&statement_type=1",
 			setupFindataFinancial: func(uc *mocks.MockFindataFinancialUsecase) {
-				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BUVA", 0, 0, 1, 1, 1).Return(&domain.FindataFinancial{DefaultCurrency: "IDR"}, nil)
+				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BUVA", 1, 0, 1, 1, 1).Return(&domain.FindataFinancial{DefaultCurrency: "IDR"}, nil)
 			},
 			wantStatus: http.StatusOK,
 		},

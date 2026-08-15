@@ -67,6 +67,11 @@ func (h *FindataFinancialHandler) Financial(w http.ResponseWriter, r *http.Reque
 		return 0
 	}
 	req.DataType = parse("data_type")
+	// Upstream only returns structured data_tables when data_type=1; 0 is the
+	// zero value and yields an empty report, so default to 1 when omitted.
+	if req.DataType == 0 {
+		req.DataType = 1
+	}
 	req.IsPercentage = parse("is_percentage")
 	req.Page = parse("page")
 	req.ReportType = parse("report_type")

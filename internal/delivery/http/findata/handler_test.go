@@ -52,10 +52,24 @@ func TestFindataFinancialHandlerFinancial(t *testing.T) {
 			wantErrCode: "VALIDATION_ERROR",
 		},
 		{
+			name: "defaults data_type to 1 when omitted",
+			path: "/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
+			setup: func(uc *mocks.MockFindataFinancialUsecase) {
+				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 1, 0, 1, 3, 2).Return(&domain.FindataFinancial{
+					DefaultCurrency: "IDR",
+					DataTables: domain.FindataDataTables{
+						Periods:  []string{"12M 2025"},
+						Accounts: []domain.FindataAccount{{ID: 190, Name: "Arus Kas Dari Aktivitas Operasi"}},
+					},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name: "usecase error returns 500",
 			path: "/v1/company/BRPT/financial?page=1&report_type=3&statement_type=2",
 			setup: func(uc *mocks.MockFindataFinancialUsecase) {
-				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 0, 0, 1, 3, 2).Return(nil, errors.New("boom"))
+				uc.EXPECT().GetFindataFinancial(gomock.Any(), "BRPT", 1, 0, 1, 3, 2).Return(nil, errors.New("boom"))
 			},
 			wantStatus:  http.StatusInternalServerError,
 			wantErrCode: "INTERNAL_ERROR",

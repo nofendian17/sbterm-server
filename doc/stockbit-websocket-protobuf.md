@@ -240,3 +240,56 @@ File test: `internal/infrastructure/stockbit/proto/wire_compat_test.go`.
 | `27251-18bde4bd460a5138.js` | runtime protobuf-es (Reader/Writer, Timestamp) |
 | `56256.ea110c7582406bb9.js` | integrasi Primus (connect, subscribe, ping) |
 | `70906-39403424593c6acc.js` | redux-saga init websocket, convertWSKeyArray |
+
+## 9. Observasi langsung dari situs live (17 Aug 2026)
+
+Diverifikasi dengan menangkap frame WebSocket nyata di stockbit.com (sesi
+login user id `667557`, tanpa lapisan Primus). Halaman `/stream`,
+`/symbol/<CODE>`, dan `/orderbook` membuka **3 koneksi**:
+
+### wss://wss-trading.stockbit.com/ws (protobuf datafeed)
+
+Urutan frame yang dikirim frontend setiap connect:
+
+1. **Frame auth** (tanpa channel): `WebsocketRequest{user_id, key, access_token}`
+   — field 1 = `"667557"`, field 3 = wskey base64url, field 5 = JWT access token.
+2. **Frame subscribe** `WebsocketRequest{user_id, channel, key, access_token}`
+   — `channel` diisi per halaman (lihat tabel); beberapa halaman mengirim
+   frame `channel` kosong dulu untuk men-clear subscribe lama.
+3. **Ping** setiap ±16 detik: `22060a0470696e67` = `WebsocketRequest{ping:{message:"ping"}}`
+   (byte-exact sama dengan `IgYKBHBpbmc=`).
+
+Pemetaan service → field `WebsocketChannel` yang teramati langsung:
+
+| Halaman | `WebsocketChannel` yang dikirim |
+|---|---|
+| `/stream` | `liveprice` (field 6) = seluruh simbol ticker (40 simbol) |
+| `/symbol/BBCA` | `order_book` (2) = [BBCA], `liveprice` (6) = [BBCA], `iepiev` (7) = [BBCA], `best_bid_offer` (9) = [BBCA] |
+| `/orderbook` | `order_book` (2) = [8 simbol], `liveprice` (6), `iepiev` (7), `best_bid_offer` (9)=[simbol aktif] |
+
+> Framework `WSChannelAll` (`internal/infrastructure/stockbit`) mensubscribe
+> semua field array simbol sekaligus dan terbukti diterima server (feed
+> `running_trade_batch` masuk). Subscribe per-service tinggal memilih field
+> `WebsocketChannel` yang sesuai dengan tabel di atas.
+>
+> `running_trade`/`running_trade_batch`, `intraday`, `is_hotlist`,
+> `market_mover`, `order_queue`, dan `tradebook` belum teramati dari halaman
+> yang ditelusuri (prototype skema field 3/5/8/4/10/11/15 tetap valid).
+
+### wss://wssocial.stockbit.com/?wskey=<key> (protobuf sosial)
+
+- Subscribe: `080212040a021001` = `ReceivedMessage{...}` (jenis subscribe feed).
+- Ping tiap ±20 detik: `0801` = `ReceivedMessage{TYPE_PING}`.
+
+### wss://ws3.stockbit.com/primus/<n>/<token>/websocket (JSON Primus)
+
+Subscribe berupa string JSON:
+
+```json
+{"loggedInUser":667557,"chname":{"C":[],"S":["*.IDEAS"],"O":[],"T":[],"H2":false},"wskey":"oPuCEEdpBSWW95ULiNuCoX2SYIbmBZpc_54dYfGMe_g="}
+```
+
+`S` = channel stream komunitas: `*.IDEAS` di halaman `/stream`, `"BBCA"` di
+halaman `/symbol/BBCA`. Ping `"primus::ping::<epoch_ms>"`.
+
+> **Crisp**: koneksi `client.relay.crisp.chat` adalah widget chat, bukan data pasar.

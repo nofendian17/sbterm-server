@@ -54,6 +54,13 @@ func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
 		require.NoError(t, c.SetReadDeadline(time.Now().Add(2*time.Second)))
 		_, payload, err := c.ReadMessage()
 		require.NoError(t, err)
+		auth := &datafeedv1.WebsocketRequest{}
+		require.NoError(t, proto.Unmarshal(payload, auth))
+		assert.Equal(t, "667557", auth.GetUserId())
+		assert.Equal(t, "ws-key", auth.GetKey())
+		assert.Nil(t, auth.GetChannel(), "first frame must be the channel-less auth frame")
+		_, payload, err = c.ReadMessage()
+		require.NoError(t, err)
 		req := &datafeedv1.WebsocketRequest{}
 		require.NoError(t, proto.Unmarshal(payload, req))
 		assert.Equal(t, "667557", req.GetUserId())

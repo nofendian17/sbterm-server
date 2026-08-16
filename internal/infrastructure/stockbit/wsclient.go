@@ -177,7 +177,31 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			backoff = c.nextBackoff(backoff)
 			continue
 		}
-		if err := c.subscribe(ctx, conn, key, sub); err != nil {
+
+		var access string
+		if c.opts.accessToken != nil {
+			if access, err = c.opts.accessToken(ctx); err != nil {
+				conn.Close()
+				c.logWarn("stockbit ws: fetch access token failed", "error", err)
+				if !sleepCtx(ctx, backoff) {
+					return nil
+				}
+				backoff = c.nextBackoff(backoff)
+				continue
+			}
+		}
+		// The frontend authenticates the connection with a channel-less frame,
+		// then subscribes to channels (verified live on stockbit.com).
+		if err := c.authenticate(conn, key, sub, access); err != nil {
+			conn.Close()
+			c.logWarn("stockbit ws: authenticate failed", "error", err)
+			if !sleepCtx(ctx, backoff) {
+				return nil
+			}
+			backoff = c.nextBackoff(backoff)
+			continue
+		}
+		if err := c.subscribe(conn, key, sub, access); err != nil {
 			conn.Close()
 			c.logWarn("stockbit ws: subscribe failed", "error", err)
 			if !sleepCtx(ctx, backoff) {
@@ -249,20 +273,27 @@ func (c *WSClient) dial(ctx context.Context, key string) (*websocket.Conn, error
 	return conn, nil
 }
 
-func (c *WSClient) subscribe(ctx context.Context, conn *websocket.Conn, key string, sub WSSubscription) error {
-	req := &datafeedv1.WebsocketRequest{
-		UserId:  strconv.FormatInt(sub.UserID, 10),
-		Channel: sub.Channel,
-		Key:     key,
+// authenticate sends the channel-less frame that authorizes the connection
+// (user id + wskey + access token), matching the stockbit.com frontend.
+func (c *WSClient) authenticate(conn *websocket.Conn, key string, sub WSSubscription, access string) error {
+	frame, err := proto.Marshal(&datafeedv1.WebsocketRequest{
+		UserId:      strconv.FormatInt(sub.UserID, 10),
+		Key:         key,
+		AccessToken: access,
+	})
+	if err != nil {
+		return fmt.Errorf("stockbit ws: encode auth frame: %w", err)
 	}
-	if c.opts.accessToken != nil {
-		access, err := c.opts.accessToken(ctx)
-		if err != nil {
-			return fmt.Errorf("stockbit ws: fetch access token: %w", err)
-		}
-		req.AccessToken = access
-	}
-	frame, err := proto.Marshal(req)
+	return c.write(conn, frame)
+}
+
+func (c *WSClient) subscribe(conn *websocket.Conn, key string, sub WSSubscription, access string) error {
+	frame, err := proto.Marshal(&datafeedv1.WebsocketRequest{
+		UserId:      strconv.FormatInt(sub.UserID, 10),
+		Channel:     sub.Channel,
+		Key:         key,
+		AccessToken: access,
+	})
 	if err != nil {
 		return fmt.Errorf("stockbit ws: encode subscribe frame: %w", err)
 	}

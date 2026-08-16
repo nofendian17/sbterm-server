@@ -68,6 +68,51 @@ func drain(t *testing.T, c *websocket.Conn) {
 // pingFrame is the byte-exact datafeed ping verified in wire_compat_test.go.
 var pingFrame = []byte{0x22, 0x06, 0x0A, 0x04, 0x70, 0x69, 0x6E, 0x67}
 
+// readAuthThenSubscribe consumes the authentication frame and the subscription
+// frame the client sends on connect, in that order.
+func readAuthThenSubscribe(t *testing.T, c *websocket.Conn) (*datafeedv1.WebsocketRequest, *datafeedv1.WebsocketRequest) {
+	t.Helper()
+	return decodeSubscribe(t, readBinary(t, c)), decodeSubscribe(t, readBinary(t, c))
+}
+
+// TestWSClientSendsAuthFrameBeforeSubscribe asserts the client authenticates
+// with a channel-less frame before the subscription, exactly like the
+// stockbit.com frontend.
+func TestWSClientSendsAuthFrameBeforeSubscribe(t *testing.T) {
+	const wskey = "l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA="
+	serverDone := make(chan struct{})
+	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
+		defer close(serverDone)
+		auth, sub := readAuthThenSubscribe(t, c)
+		assert.Equal(t, "42", auth.GetUserId())
+		assert.Equal(t, wskey, auth.GetKey())
+		assert.Equal(t, "at-123", auth.GetAccessToken())
+		assert.Nil(t, auth.GetChannel(), "auth frame must not carry a channel")
+		assert.NotNil(t, sub.GetChannel())
+		assert.Equal(t, "42", sub.GetUserId())
+		assert.Equal(t, "at-123", sub.GetAccessToken())
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewWSClient(wsURL(srv), func(ctx context.Context) (string, error) { return wskey, nil },
+		WithWSAccessTokenProvider(func(ctx context.Context) (string, error) { return "at-123", nil }),
+		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Run(ctx, WSSubscription{UserID: 42, Channel: WSChannelAll("BBCA")},
+			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
+	}()
+
+	select {
+	case <-serverDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server did not receive the auth and subscribe frames")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestWSClientSubscribeFrame(t *testing.T) {
 	const wskey = "l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA="
 	serverDone := make(chan struct{})
@@ -76,7 +121,7 @@ func TestWSClientSubscribeFrame(t *testing.T) {
 		// The wskey must be attached verbatim, exactly like
 		// wss://.../?wskey=l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA=.
 		assert.Equal(t, "wskey="+wskey, r.URL.RawQuery)
-		req := decodeSubscribe(t, readBinary(t, c))
+		_, req := readAuthThenSubscribe(t, c)
 		assert.Equal(t, "42", req.GetUserId())
 		assert.Equal(t, wskey, req.GetKey())
 		assert.Equal(t, "at-123", req.GetAccessToken())
@@ -114,7 +159,7 @@ func TestWSClientSubscribeFrame(t *testing.T) {
 
 func TestWSClientDispatchesDecodedFrames(t *testing.T) {
 	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
-		readBinary(t, c)
+		_, _ = readAuthThenSubscribe(t, c)
 		frame, err := proto.Marshal(&datafeedv1.WebsocketWrapMessageChannel{
 			MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_RunningTrade{
 				RunningTrade: &datafeedv1.RunningTrade{Stock: "BBCA", Price: 6400, Volume: 100},
@@ -161,7 +206,7 @@ func TestWSClientKeepalivePing(t *testing.T) {
 			return
 		}
 		defer close(serverDone)
-		readBinary(t, c)
+		_, _ = readAuthThenSubscribe(t, c)
 		assert.Equal(t, pingFrame, readBinary(t, c), "periodic ping must be byte-exact")
 
 		// A server-initiated ping must be answered with the same ping frame.
@@ -202,7 +247,7 @@ func TestWSClientReconnectsAndResubscribes(t *testing.T) {
 	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
 		n := dials.Add(1)
 		subscribedKey.Store(r.URL.Query().Get("wskey"))
-		req := decodeSubscribe(t, readBinary(t, c))
+		_, req := readAuthThenSubscribe(t, c)
 		assert.Equal(t, "1", req.GetUserId())
 		if n == 1 {
 			require.NoError(t, c.Close()) // drop the first connection; the client must redial

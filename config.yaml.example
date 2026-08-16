@@ -36,9 +36,9 @@ stockbit:
   username: ""
   password: ""
 
-  # Stockbit datafeed WebSocket client (wss://wssfeed.stockbit.com/).
+  # Stockbit datafeed WebSocket client.
   # ws_enabled: true dials and subscribes to ws_symbols at boot.
-  ws_url: wss://wssfeed.stockbit.com/
+  ws_url: wss://wss-trading.stockbit.com/ws
   ws_enabled: false
   ws_symbols: []
   ws_ping_interval: 30s

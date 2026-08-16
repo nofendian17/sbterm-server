@@ -140,7 +140,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stockbit.player_id", "")
 	v.SetDefault("stockbit.username", "")
 	v.SetDefault("stockbit.password", "")
-	v.SetDefault("stockbit.ws_url", "wss://wssfeed.stockbit.com/")
+	v.SetDefault("stockbit.ws_url", "wss://wss-trading.stockbit.com/ws")
 	v.SetDefault("stockbit.ws_enabled", false)
 	v.SetDefault("stockbit.ws_ping_interval", 30*time.Second)
 	v.SetDefault("stockbit.ws_reconnect_backoff_initial", time.Second)

@@ -104,9 +104,10 @@ func WithWSLogger(l log.Logger) WSOption {
 	return func(o *wsOptions) { o.logger = l }
 }
 
-// WSClient streams the Stockbit datafeed websocket (wss://wssfeed.stockbit.com):
-// it dials with a wskey, subscribes to a set of channels, decodes incoming
-// protobuf frames, and reconnects with backoff when the connection drops.
+// WSClient streams the Stockbit datafeed websocket
+// (wss://wss-trading.stockbit.com/ws): it dials with a wskey, subscribes to a
+// set of channels, decodes incoming protobuf frames, and reconnects with
+// backoff when the connection drops.
 type WSClient struct {
 	url string
 	key KeyProvider
@@ -119,8 +120,8 @@ type WSClient struct {
 }
 
 // NewWSClient builds a datafeed websocket client. url is the websocket
-// endpoint (e.g. "wss://wssfeed.stockbit.com/"); key fetches the wskey used in
-// the handshake and in the subscribe frame.
+// endpoint (e.g. "wss://wss-trading.stockbit.com/ws"); key fetches the wskey
+// used in the handshake and in the subscribe frame.
 func NewWSClient(url string, key KeyProvider, opts ...WSOption) *WSClient {
 	o := wsOptions{
 		dialTimeout:  10 * time.Second,

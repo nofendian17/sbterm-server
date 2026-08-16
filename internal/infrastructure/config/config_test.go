@@ -37,7 +37,7 @@ func defaultConfig() *Config {
 			BaseURL:                   "https://exodus.stockbit.com",
 			Timeout:                   30 * time.Second,
 			RetryCount:                3,
-			WSURL:                     "wss://wssfeed.stockbit.com/",
+			WSURL:                     "wss://wss-trading.stockbit.com/ws",
 			WSEnabled:                 false,
 			WSPingInterval:            30 * time.Second,
 			WSReconnectBackoffInitial: time.Second,

@@ -41,6 +41,25 @@ func wsMessageJSON(m *datafeedv1.WebsocketWrapMessageChannel) string {
 	return string(out)
 }
 
+// subscribeAllSymbols subscribes the given symbols on every symbol-array
+// datafeed service (watchlist, order book, running trade, live price, best bid
+// offer, and their v3 variants) by composing the per-service builders.
+func subscribeAllSymbols(symbols ...string) *datafeedv1.WebsocketChannel {
+	return stockbit.MergeWSChannels(
+		stockbit.WSChannelWatchlist(symbols...),
+		stockbit.WSChannelOrderBook(symbols...),
+		stockbit.WSChannelRunningTrade(symbols...),
+		stockbit.WSChannelRunningTradeBatch(symbols...),
+		stockbit.WSChannelLiveprice(symbols...),
+		stockbit.WSChannelIepiev(symbols...),
+		stockbit.WSChannelIntraday(symbols...),
+		stockbit.WSChannelBestBidOffer(symbols...),
+		stockbit.WSChannelLivepriceV3(symbols...),
+		stockbit.WSChannelOrderBookV3(symbols...),
+		stockbit.WSChannelIntradayV3(symbols...),
+	)
+}
+
 // Start dials the datafeed and subscribes to the configured symbols in the
 // background. It is idempotent.
 func (s *Service) Start() {
@@ -56,7 +75,7 @@ func (s *Service) Start() {
 	}
 	sub := stockbit.WSSubscription{
 		UserID:  userID,
-		Channel: stockbit.WSChannelAll(s.cfg.Stockbit.WSSymbols...),
+		Channel: subscribeAllSymbols(s.cfg.Stockbit.WSSymbols...),
 	}
 
 	go func() {

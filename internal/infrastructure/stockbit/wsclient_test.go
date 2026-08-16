@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	ordertradev1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/order_trade/entity/v1"
 	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
 )
 
@@ -100,7 +101,7 @@ func TestWSClientSendsAuthFrameBeforeSubscribe(t *testing.T) {
 		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Run(ctx, WSSubscription{UserID: 42, Channel: WSChannelAll("BBCA")},
+		done <- c.Run(ctx, WSSubscription{UserID: 42, Channel: WSChannelWatchlist("BBCA")},
 			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
 	}()
 
@@ -143,8 +144,15 @@ func TestWSClientSubscribeFrame(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- c.Run(ctx, WSSubscription{
-			UserID:  42,
-			Channel: WSChannelAll("BBCA", "BBRI"),
+			UserID: 42,
+			Channel: MergeWSChannels(
+				WSChannelWatchlist("BBCA", "BBRI"),
+				WSChannelOrderBook("BBCA", "BBRI"),
+				WSChannelRunningTrade("BBCA", "BBRI"),
+				WSChannelLiveprice("BBCA", "BBRI"),
+				WSChannelBestBidOffer("BBCA", "BBRI"),
+				WSChannelLivepriceV3("BBCA", "BBRI"),
+			),
 		}, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
 	}()
 
@@ -177,7 +185,7 @@ func TestWSClientDispatchesDecodedFrames(t *testing.T) {
 		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelAll("BBCA")}, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
+		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelWatchlist("BBCA")}, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
 			got <- m
 			return nil
 		})
@@ -227,7 +235,7 @@ func TestWSClientKeepalivePing(t *testing.T) {
 		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelAll("BBCA")},
+		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelWatchlist("BBCA")},
 			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
 	}()
 
@@ -277,7 +285,7 @@ func TestWSClientReconnectsAndResubscribes(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelAll("BBCA")},
+		done <- c.Run(ctx, WSSubscription{UserID: 1, Channel: WSChannelWatchlist("BBCA")},
 			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
 				got <- m
 				return nil
@@ -318,21 +326,92 @@ func TestWSZeroOptionsKeepDefaults(t *testing.T) {
 	assert.Equal(t, 30*time.Second, c.opts.backoffMax)
 }
 
-// TestWSChannelAllFillsSymbolChannels asserts symbol-array channel fields are
-// all populated.
-func TestWSChannelAllFillsSymbolChannels(t *testing.T) {
-	ch := WSChannelAll("BBCA")
-	assert.Equal(t, []string{"BBCA"}, ch.GetWatchlist())
-	assert.Equal(t, []string{"BBCA"}, ch.GetOrderBook())
-	assert.Equal(t, []string{"BBCA"}, ch.GetRunningTrade())
-	assert.Equal(t, []string{"BBCA"}, ch.GetRunningTradeBatch())
-	assert.Equal(t, []string{"BBCA"}, ch.GetLiveprice())
-	assert.Equal(t, []string{"BBCA"}, ch.GetIepiev())
-	assert.Equal(t, []string{"BBCA"}, ch.GetIntraday())
-	assert.Equal(t, []string{"BBCA"}, ch.GetBestBidOffer())
-	assert.Equal(t, []string{"BBCA"}, ch.GetLivepriceV3())
-	assert.Equal(t, []string{"BBCA"}, ch.GetOrderBookV3())
-	assert.Equal(t, []string{"BBCA"}, ch.GetIntradayV3())
+// TestMergeWSChannelsCopiesSymbolChannels asserts merging combines each
+// builder's field without touching typed channels.
+func TestMergeWSChannelsCopiesSymbolChannels(t *testing.T) {
+	got := MergeWSChannels(
+		WSChannelWatchlist("BBCA"),
+		WSChannelOrderBook("BBRI"),
+		WSChannelRunningTrade("BBCA", "BBRI"),
+	)
+	assert.Equal(t, []string{"BBCA"}, got.GetWatchlist())
+	assert.Equal(t, []string{"BBRI"}, got.GetOrderBook())
+	assert.Equal(t, []string{"BBCA", "BBRI"}, got.GetRunningTrade())
+	assert.Empty(t, got.GetLiveprice())
+	assert.Empty(t, got.GetMarketMover(), "typed channels must stay unset")
+	assert.Empty(t, got.GetOrderQueue(), "typed channels must stay unset")
+	assert.Empty(t, got.GetTradebook(), "typed channels must stay unset")
+}
+
+// TestWSChannelBuildersSetOnlyTheirField asserts each symbol-array builder
+// populates exactly its own channel and leaves every other one unset.
+func TestWSChannelBuildersSetOnlyTheirField(t *testing.T) {
+	symbols := []string{"BBCA"}
+	builders := map[string]func(...string) *datafeedv1.WebsocketChannel{
+		"watchlist":           WSChannelWatchlist,
+		"order book":          WSChannelOrderBook,
+		"running trade":       WSChannelRunningTrade,
+		"running trade batch": WSChannelRunningTradeBatch,
+		"liveprice":           WSChannelLiveprice,
+		"iepiev":              WSChannelIepiev,
+		"intraday":            WSChannelIntraday,
+		"best bid offer":      WSChannelBestBidOffer,
+		"liveprice v3":        WSChannelLivepriceV3,
+		"order book v3":       WSChannelOrderBookV3,
+		"intraday v3":         WSChannelIntradayV3,
+	}
+	getters := map[string]func(*datafeedv1.WebsocketChannel) []string{
+		"watchlist":           (*datafeedv1.WebsocketChannel).GetWatchlist,
+		"order book":          (*datafeedv1.WebsocketChannel).GetOrderBook,
+		"running trade":       (*datafeedv1.WebsocketChannel).GetRunningTrade,
+		"running trade batch": (*datafeedv1.WebsocketChannel).GetRunningTradeBatch,
+		"liveprice":           (*datafeedv1.WebsocketChannel).GetLiveprice,
+		"iepiev":              (*datafeedv1.WebsocketChannel).GetIepiev,
+		"intraday":            (*datafeedv1.WebsocketChannel).GetIntraday,
+		"best bid offer":      (*datafeedv1.WebsocketChannel).GetBestBidOffer,
+		"liveprice v3":        (*datafeedv1.WebsocketChannel).GetLivepriceV3,
+		"order book v3":       (*datafeedv1.WebsocketChannel).GetOrderBookV3,
+		"intraday v3":         (*datafeedv1.WebsocketChannel).GetIntradayV3,
+	}
+
+	for name, build := range builders {
+		t.Run(name, func(t *testing.T) {
+			ch := build(symbols...)
+			for field, get := range getters {
+				if field == name {
+					assert.Equal(t, symbols, get(ch), "own field %q must carry the symbols", field)
+				} else {
+					assert.Empty(t, get(ch), "field %q must stay unset", field)
+				}
+			}
+		})
+	}
+}
+
+// TestWSChannelTypedBuilders asserts the typed channel builders carry exactly
+// the given requests and never touch symbol-array channels.
+func TestWSChannelTypedBuilders(t *testing.T) {
+	mover := &ordertradev1.MarketMoverWebsocketRequest{CatalogId: 7}
+	queue := &ordertradev1.OrderQueueWebsocketRequest{StockCode: "BBCA", Price: 6425}
+	book := &ordertradev1.TradebookWebsocketRequest{Symbol: "BBCA", Board: "IDX"}
+
+	moverCh := WSChannelMarketMover(mover)
+	assert.Equal(t, []*ordertradev1.MarketMoverWebsocketRequest{mover}, moverCh.GetMarketMover())
+	assert.Empty(t, moverCh.GetOrderQueue())
+	assert.Empty(t, moverCh.GetTradebook())
+	assert.Empty(t, moverCh.GetWatchlist())
+
+	queueCh := WSChannelOrderQueue(queue)
+	assert.Equal(t, []*ordertradev1.OrderQueueWebsocketRequest{queue}, queueCh.GetOrderQueue())
+	assert.Empty(t, queueCh.GetMarketMover())
+	assert.Empty(t, queueCh.GetTradebook())
+	assert.Empty(t, queueCh.GetWatchlist())
+
+	bookCh := WSChannelTradebook(book)
+	assert.Equal(t, []*ordertradev1.TradebookWebsocketRequest{book}, bookCh.GetTradebook())
+	assert.Empty(t, bookCh.GetMarketMover())
+	assert.Empty(t, bookCh.GetOrderQueue())
+	assert.Empty(t, bookCh.GetWatchlist())
 }
 
 // TestWSClientSubscribeFrameRoundTrips asserts that a subscribe frame built by
@@ -342,7 +421,7 @@ func TestWSClientSubscribeFrameRoundTrips(t *testing.T) {
 	syms := []string{"IHSG", "BBRI", "BBCA"}
 	req := &datafeedv1.WebsocketRequest{
 		UserId:  "667557",
-		Channel: WSChannelAll(syms...),
+		Channel: WSChannelWatchlist(syms...),
 		Key:     "wskey-session",
 	}
 	b, err := proto.Marshal(req)

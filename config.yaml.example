@@ -38,6 +38,8 @@ stockbit:
 
   # Stockbit datafeed WebSocket client.
   # ws_enabled: true dials and subscribes to ws_symbols at boot.
+  # ws_symbols accepts explicit symbols (e.g. [BBCA, BBRI]) or "*" to
+  # subscribe to all symbols.
   ws_url: wss://wss-trading.stockbit.com/ws
   ws_enabled: false
   ws_symbols: []

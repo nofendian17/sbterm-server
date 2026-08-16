@@ -30,11 +30,13 @@ func TestRedisTokenStore(t *testing.T) {
 			name: "round trips a token",
 			setup: func(t *testing.T, store *RedisTokenStore) {
 				require.NoError(t, store.Set(ctx, &TokenData{
+					UserID:  667557,
 					Access:  TokenPair{Token: "at1", ExpiredAt: "2026-01-01T00:00:00Z"},
 					Refresh: TokenPair{Token: "rt1", ExpiredAt: "2026-02-01T00:00:00Z"},
 				}))
 			},
 			want: &TokenData{
+				UserID:  667557,
 				Access:  TokenPair{Token: "at1", ExpiredAt: "2026-01-01T00:00:00Z"},
 				Refresh: TokenPair{Token: "rt1", ExpiredAt: "2026-02-01T00:00:00Z"},
 			},

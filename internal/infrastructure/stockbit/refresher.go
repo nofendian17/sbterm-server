@@ -61,6 +61,19 @@ func (r *Refresher) Client() *Client {
 	return r.client
 }
 
+// UserID returns the account id captured at login, used to build websocket
+// subscribe frames.
+func (r *Refresher) UserID(ctx context.Context) (int64, error) {
+	td, err := r.store.Get(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if td == nil {
+		return 0, nil
+	}
+	return td.UserID, nil
+}
+
 // EnsureToken returns a valid access token, refreshing or logging in if needed.
 func (r *Refresher) EnsureToken(ctx context.Context) (string, error) {
 	td, err := r.store.Get(ctx)
@@ -101,7 +114,7 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 	if td != nil && td.Refresh.Token != "" {
 		resp, err := r.client.Refresh(ctx, td.Refresh.Token)
 		if err == nil {
-			fresh := &TokenData{Access: resp.Data.Access, Refresh: resp.Data.Refresh}
+			fresh := &TokenData{Access: resp.Data.Access, Refresh: resp.Data.Refresh, UserID: td.UserID}
 			if err := r.store.Set(ctx, fresh); err != nil {
 				return "", err
 			}
@@ -125,6 +138,7 @@ func (r *Refresher) refresh(ctx context.Context, force bool) (string, error) {
 	td = &TokenData{
 		Access:  resp.Data.Login.TokenData.Access,
 		Refresh: resp.Data.Login.TokenData.Refresh,
+		UserID:  resp.Data.Login.User.ID,
 	}
 	if err := r.store.Set(ctx, td); err != nil {
 		return "", err

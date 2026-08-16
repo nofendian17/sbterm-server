@@ -85,6 +85,72 @@ func waitFor(t *testing.T, cond func() bool) {
 	t.Fatal("condition not met before deadline")
 }
 
+func TestUserID(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, store TokenStore)
+		login      http.HandlerFunc
+		wantID     int64
+		wantLogins int32
+	}{
+		{
+			name: "persists user id captured at login",
+			login: func(w http.ResponseWriter, r *http.Request) {
+				w.Write([]byte(`{"message":"ok","data":{"login":{"user":{"id":667557},"token_data":{"access":{"token":"at-1","expired_at":"` +
+					notAfter + `"},"refresh":{"token":"rt-1","expired_at":"` + notAfter + `"}}}}}`))
+			},
+			wantID:     667557,
+			wantLogins: 1,
+		},
+		{
+			name: "returns stored user id without a network call",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					UserID:  42,
+					Access:  TokenPair{Token: "at-ok", ExpiredAt: notAfter},
+					Refresh: TokenPair{Token: "rt-ok", ExpiredAt: notAfter},
+				}))
+			},
+			login:  func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+			wantID: 42,
+		},
+		{
+			name: "returns zero when no user id is known",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					Access:  TokenPair{Token: "at-ok", ExpiredAt: notAfter},
+					Refresh: TokenPair{Token: "rt-ok", ExpiredAt: notAfter},
+				}))
+			},
+			login:  func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+			wantID: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store, _ := newTestStore(t)
+			if tt.setup != nil {
+				tt.setup(t, store)
+			}
+
+			as := newAuthServer(t, tt.login, func(w http.ResponseWriter, r *http.Request) {
+				t.Error("refresh must not be called")
+			})
+			r := newRefresher(t, as, store)
+			if _, err := r.EnsureToken(ctx); err != nil {
+				t.Fatalf("EnsureToken: %v", err)
+			}
+
+			got, err := r.UserID(ctx)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantID, got)
+			assert.Equal(t, tt.wantLogins, as.logins.Load())
+		})
+	}
+}
+
 func TestEnsureToken(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
@@ -96,6 +162,7 @@ func TestEnsureToken(t *testing.T) {
 		wantLogins      int32
 		wantRefreshes   int32
 		wantStoredToken string
+		wantUserID      int64
 	}{
 		{
 			name: "uses valid stored token",
@@ -122,6 +189,22 @@ func TestEnsureToken(t *testing.T) {
 			wantToken:       "at-2",
 			wantRefreshes:   1,
 			wantStoredToken: "rt-2",
+		},
+		{
+			name: "keeps user id across refresh",
+			setup: func(t *testing.T, store TokenStore) {
+				require.NoError(t, store.Set(ctx, &TokenData{
+					UserID:  99,
+					Access:  TokenPair{Token: "at-old", ExpiredAt: expired},
+					Refresh: TokenPair{Token: "rt-1", ExpiredAt: notAfter},
+				}))
+			},
+			login:           func(w http.ResponseWriter, r *http.Request) { t.Error("login must not be called") },
+			refresh:         func(w http.ResponseWriter, r *http.Request) { writeRefreshResponse(w, "at-2", "rt-2") },
+			wantToken:       "at-2",
+			wantRefreshes:   1,
+			wantStoredToken: "rt-2",
+			wantUserID:      99,
 		},
 		{
 			name:       "logs in when no tokens",
@@ -164,6 +247,11 @@ func TestEnsureToken(t *testing.T) {
 				td, err := store.Get(ctx)
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantStoredToken, td.Refresh.Token)
+			}
+			if tt.wantUserID != 0 {
+				td, err := store.Get(ctx)
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantUserID, td.UserID)
 			}
 		})
 	}

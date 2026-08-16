@@ -27,10 +27,12 @@ type TokenPair struct {
 	ExpiredAt string `json:"expired_at"`
 }
 
-// TokenData is the access+refresh pair returned by the auth endpoints.
+// TokenData is the access+refresh pair returned by the auth endpoints,
+// plus the account id captured at login for websocket subscriptions.
 type TokenData struct {
 	Access  TokenPair `json:"access"`
 	Refresh TokenPair `json:"refresh"`
+	UserID  int64     `json:"user_id,omitempty"`
 }
 
 // LoginUser is the account data returned by the login endpoint.

@@ -23,6 +23,17 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
+func TestWSMessageJSON(t *testing.T) {
+	msg := &datafeedv1.WebsocketWrapMessageChannel{
+		MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_RunningTrade{
+			RunningTrade: &datafeedv1.RunningTrade{Stock: "BBCA", Price: 6400},
+		},
+	}
+	out := wsMessageJSON(msg)
+	assert.Contains(t, out, `"stock":"BBCA"`)
+	assert.Contains(t, out, "6400")
+}
+
 func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
 	// Fake Stockbit REST API: answers the websocket key used in the handshake.
 	keyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

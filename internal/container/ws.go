@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
@@ -27,6 +29,20 @@ func newWSService(client *stockbit.WSClient, refresher *stockbit.Refresher, cfg 
 	return &wsService{client: client, refresher: refresher, cfg: cfg, logger: logger}
 }
 
+// wsMessageJSON renders a decoded datafeed frame as JSON for debug logging,
+// capped so a busy order-book feed does not flood the log.
+func wsMessageJSON(m *datafeedv1.WebsocketWrapMessageChannel) string {
+	out, err := protojson.Marshal(m)
+	if err != nil {
+		return "?"
+	}
+	const max = 4096
+	if len(out) > max {
+		out = append(out[:max], []byte("... (truncated)")...)
+	}
+	return string(out)
+}
+
 // start dials the datafeed and subscribes to the configured symbols in the
 // background. It is idempotent.
 func (s *wsService) start() {
@@ -48,7 +64,7 @@ func (s *wsService) start() {
 	go func() {
 		defer close(s.done)
 		if err := s.client.Run(s.ctx, sub, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
-			s.logger.Debug("stockbit ws frame")
+			s.logger.Debug("stockbit ws frame", "message", wsMessageJSON(m))
 			return nil
 		}); err != nil {
 			s.logger.Warn("stockbit ws client stopped", "error", err)

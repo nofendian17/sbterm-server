@@ -1,0 +1,404 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Chat social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.chat.entity.v2;
+
+import "google/protobuf/timestamp.proto";
+import "social/stream/v1/stream_v1.proto";
+import "social/verified_badge/enum/v1/verified_badge_enum_v1.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/chat/entity/v2;chatv2";
+
+enum RoomType {
+  ROOM_TYPE_UNSPECIFIED = 0;
+  ROOM_TYPE_PERSONAL = 1;
+  ROOM_TYPE_GROUP = 2;
+  ROOM_TYPE_BROADCAST = 3;
+}
+
+enum RoomState {
+  ROOM_STATE_UNSPECIFIED = 0;
+  ROOM_STATE_ACCEPTED = 1;
+  ROOM_STATE_INVITED = 2;
+}
+
+message RoomInfo {
+  string name = 1; // T:9
+  string shortened_name = 2; // T:9
+  string description = 3; // T:9
+  string avatar_url = 4; // T:9
+}
+
+message BaseRoom {
+  int32 id = 1; // T:5
+  RoomType type = 2;
+  RoomInfo info = 3;
+  RoomState state = 4;
+}
+
+message UnreadMessage {
+  int32 total = 1; // T:5
+  int32 last_id = 2; // T:5
+}
+
+message RoomStatus {
+  bool is_muted = 1; // T:8
+  bool is_mentioned = 2; // T:8
+}
+
+message PersonalRoomAttribute {
+  int32 user_id = 1; // T:5
+  bool is_verified = 2; // T:8
+  bool is_admin = 3; // T:8
+  bool is_deactivated = 4; // T:8
+  bool is_blocked = 5; // T:8
+  social.verified_badge.enum.v1.VerifiedStatus verified_status = 6;
+}
+
+message GroupRoomAttribute {
+  string member_description = 1; // T:9
+}
+
+message RoomAttribute {
+  oneof attr {
+    PersonalRoomAttribute personal = 1;
+    GroupRoomAttribute group = 2;
+  }
+}
+
+message RoomShareTrade {
+  bool is_autoshare_active = 1; // T:8
+  bool is_share_value = 2; // T:8
+}
+
+message LastMessage {
+  enum AttachmentType {
+    ATTACHMENT_TYPE_UNSPECIFIED = 0;
+    ATTACHMENT_TYPE_PHOTO = 1;
+    ATTACHMENT_TYPE_GIF = 2;
+    ATTACHMENT_TYPE_POST = 3;
+    ATTACHMENT_TYPE_SHARETRADE = 4;
+    ATTACHMENT_TYPE_PDF = 5;
+    ATTACHMENT_TYPE_STICKER = 6;
+  }
+
+  string text = 1; // T:9
+  string sender_username = 2; // T:9
+  AttachmentType type = 3;
+  google.protobuf.Timestamp created_at = 4;
+  bool is_deleted = 5; // T:8
+  int32 id = 6; // T:5
+  PlaceholderMaskedText placeholder_mask = 7;
+}
+
+message Room {
+  int32 id = 1; // T:5
+  RoomType type = 2;
+  RoomInfo info = 3;
+  RoomAttribute attributes = 4;
+  int32 unread_count = 5; // T:5
+  LastMessage last_message = 6;
+  RoomStatus status = 7;
+  RoomState state = 8;
+  UnreadMessage unread_message = 9;
+  RoomShareTrade sharetrade = 10;
+}
+
+enum MessageBodyType {
+  MESSAGE_BODY_TYPE_UNSPECIFIED = 0;
+  MESSAGE_BODY_TYPE_CONVERSATION = 1;
+  MESSAGE_BODY_TYPE_EVENT = 2;
+}
+
+enum MessageStatus {
+  MESSAGE_STATUS_UNSPECIFIED = 0;
+  MESSAGE_STATUS_SENT = 1;
+  MESSAGE_STATUS_READ = 2;
+}
+
+message MemberUser {
+  int32 user_id = 1; // T:5
+  string username = 2; // T:9
+  string full_name = 3; // T:9
+  string avatar = 4; // T:9
+  bool is_verified = 5; // T:8
+  int32 member_id = 6; // T:5
+  social.verified_badge.enum.v1.VerifiedStatus verified_status = 7;
+}
+
+message MessageFlag {
+  bool is_reply = 1; // T:8
+  bool is_forwarded = 2; // T:8
+  bool is_time_displayed = 3; // T:8
+  bool is_deleted = 4; // T:8
+}
+
+message MessageSender {
+  enum DisplayedAs {
+    DISPLAYED_AS_UNSPECIFIED = 0;
+    DISPLAYED_AS_SENDER = 1;
+    DISPLAYED_AS_RECEIVER = 2;
+  }
+
+  MemberUser user = 1;
+  string color = 2; // T:9
+  DisplayedAs displayed_as = 3;
+  bool is_active_member = 4; // T:8
+}
+
+enum AttachmentType {
+  ATTACHMENT_TYPE_UNSPECIFIED = 0;
+  ATTACHMENT_TYPE_UPLOADED = 1;
+  ATTACHMENT_TYPE_SHARED = 2;
+}
+
+message Attachment {
+  string url = 1; // T:9
+  int32 height = 2; // T:5
+  int32 width = 3; // T:5
+  string filename = 4; // T:9
+  string size = 5; // T:9
+}
+
+message PictureMeta {
+  int32 height = 1; // T:5
+  int32 width = 2; // T:5
+}
+
+message DocumentMeta {
+}
+
+message AttachmentMeta {
+  oneof meta {
+    PictureMeta picture = 1;
+    DocumentMeta document = 2;
+  }
+}
+
+enum UploadType {
+  UPLOAD_TYPE_UNSPECIFIED = 0;
+  UPLOAD_TYPE_PICTURE = 1;
+  UPLOAD_TYPE_DOCUMENT = 2;
+  UPLOAD_TYPE_STICKER = 3;
+}
+
+message UploadAttachment {
+  UploadType type = 1;
+  string url = 2; // T:9
+  string filename = 3; // T:9
+  string size = 4; // T:9
+  AttachmentMeta meta = 5;
+}
+
+enum SharedContentType {
+  SHARED_CONTENT_TYPE_UNSPECIFIED = 0;
+  SHARED_CONTENT_TYPE_STREAM = 1;
+  SHARED_CONTENT_TYPE_GROUP_INVITATION = 2;
+  SHARED_CONTENT_TYPE_SHARETRADE = 3;
+}
+
+message SharedContent {
+  SharedContentType type = 1;
+  int32 id = 2; // T:5
+}
+
+message SharedContentInternal {
+  enum SourceType {
+    SOURCE_TYPE_UNSPECIFIED = 0;
+    SOURCE_TYPE_REFERENCE = 1;
+    SOURCE_TYPE_PAYLOAD = 2;
+  }
+
+  message SourceData {
+    oneof source {
+      SharedContent reference = 1;
+      SharedContentPayload payload = 2;
+    }
+  }
+}
+
+message SharedContentPayload {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_SHARETRADE = 1;
+  }
+
+  message Payload {
+    oneof data {
+      ShareTradeInfo sharetrade = 1;
+    }
+  }
+
+  Payload payload = 1;
+}
+
+message InvitationContentPreview {
+  string invitation_code = 1; // T:9
+  string room_name = 2; // T:9
+}
+
+message ShareTradeInfo {
+  enum OrderType {
+    ORDER_TYPE_UNSPECIFIED = 0;
+    ORDER_TYPE_BUY = 1;
+    ORDER_TYPE_SELL = 2;
+  }
+
+  enum OrderStatus {
+    ORDER_STATUS_UNSPECIFIED = 0;
+    ORDER_STATUS_OPEN = 1;
+    ORDER_STATUS_AMEND = 2;
+    ORDER_STATUS_CANCEL = 3;
+    ORDER_STATUS_MATCH = 4;
+    ORDER_STATUS_PARTIAL_MATCH = 5;
+    ORDER_STATUS_PENDING = 6;
+  }
+
+  enum UpdatedStatus {
+    UPDATED_STATUS_UNSPECIFIED = 0;
+    UPDATED_STATUS_AMENDED = 1;
+    UPDATED_STATUS_CANCELLED = 2;
+  }
+
+  enum Label {
+    LABEL_UNSPECIFIED = 0;
+    LABEL_DAY_TRADE = 1;
+    LABEL_SPLIT_ORDER = 2;
+  }
+
+  string text = 1; // T:9
+  string symbol = 2; // T:9
+  OrderType order_type = 3;
+  OrderStatus status = 4;
+  UpdatedStatus updated_status = 5;
+  string price = 6; // T:9
+  string updated_price = 7; // T:9
+  string parent_order_id = 8; // T:9
+  google.protobuf.Timestamp order_time = 9;
+  Label label = 10;
+  bool is_show_value = 11; // T:8
+  int32 qty = 12; // T:5
+  int32 updated_qty = 13; // T:5
+  string total_investment = 14; // T:9
+  bool is_amend_lot = 15; // T:8
+}
+
+message SharedContentPreview {
+  message Preview {
+    oneof data {
+      social.stream.v1.GetStreamOldResponse stream = 1;
+      InvitationContentPreview invitation = 2;
+      ShareTradeInfo sharetrade = 3;
+    }
+  }
+
+  SharedContentType type = 1;
+  int32 id = 2; // T:5
+  Preview preview = 3;
+}
+
+message AttachmentV2 {
+  oneof attachment {
+    UploadAttachment upload = 1;
+    SharedContentPreview shared = 2;
+  }
+}
+
+message MessageContent {
+  Attachment attachment = 1;
+  SharedContentPreview shared_content = 2;
+  Message replied_message = 3;
+}
+
+message MessageConversation {
+  string text = 1; // T:9
+  MaskedText masked_text = 2;
+  MessageContent content = 3;
+  MessageSender sender = 4;
+  MessageStatus status = 5;
+  MessageFlag flag = 6;
+  Message replied_message = 7;
+  AttachmentType attachment_type = 8;
+  AttachmentV2 attachment = 9;
+}
+
+message MessageEvent {
+  string text = 1; // T:9
+  TextFormat format = 2;
+  PlaceholderMaskedText placeholder_mask = 3;
+}
+
+message MessageBody {
+  oneof body {
+    MessageConversation conversation = 1;
+    MessageEvent event = 2;
+  }
+}
+
+message Message {
+  int32 id = 1; // T:5
+  MessageBodyType body_type = 2;
+  MessageBody body = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+enum TextFormat {
+  TEXT_FORMAT_REGULAR = 0;
+  TEXT_FORMAT_BOLD = 1;
+  TEXT_FORMAT_ITALIC = 2;
+}
+
+message TextMaskValue {
+  TextFormat format = 1;
+  string text = 2; // T:9
+  TextLink link = 3;
+}
+
+message TextLink {
+  enum LinkType {
+    LINK_TYPE_UNSPECIFIED = 0;
+    LINK_TYPE_USER = 1;
+    LINK_TYPE_SYMBOL = 2;
+    LINK_TYPE_KNOWN_URL = 3;
+    LINK_TYPE_URL = 4;
+  }
+
+  message LinkRef {
+    oneof val {
+      string username = 1; // T:9
+      string symbol = 2; // T:9
+      string url = 3; // T:9
+    }
+  }
+
+  LinkType type = 1;
+  LinkRef ref = 2;
+}
+
+message MaskedText {
+  string text = 1; // T:9
+  map<string, TextMaskValue> masks = 2;
+}
+
+message PlaceholderMaskedText {
+  message PlaceholderMask {
+    enum PlaceholderType {
+      PLACEHOLDER_TYPE_UNSPECIFIED = 0;
+      PLACEHOLDER_TYPE_USERNAME = 1;
+      PLACEHOLDER_TYPE_TO_BE = 2;
+    }
+
+    message Reference {
+      int32 user_id = 1; // T:5
+    }
+
+    PlaceholderType type = 1;
+    string placeholder = 2; // T:9
+    Reference reference = 3;
+  }
+
+  string masked_text = 1; // T:9
+  map<string, PlaceholderMaskedText.PlaceholderMask> masks = 2;
+}

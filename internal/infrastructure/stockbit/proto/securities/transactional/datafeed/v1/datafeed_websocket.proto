@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package securities.transactional.datafeed.v1;
+
+import "google/protobuf/timestamp.proto";
+import "financial/company_price_feed/entity/v1/company_price_feed_entity_v1.proto";
+import "financial/company_price_feed/entity/v2/company_price_feed_entity_v2.proto";
+import "financial/emitten/entity/v2/emitten_entity_v2.proto";
+import "financial/order_trade/entity/v1/order_trade_entity_v1.proto";
+import "securities/transactional/datafeed/consumer/entity/v1/consumer_entity_v1.proto";
+import "securities/transactional/datafeed/consumer/entity/v3/consumer_entity_v3.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1;datav1";
+
+message PingRequest {
+  string message = 1; // T:9
+}
+message PingResponse {
+  string message = 1; // T:9
+}
+enum Top20Type {
+  TOP20_TYPE_UNSPECIFIED = 0;
+  TOP20_TYPE_FREQUENCY_RG = 2;
+  TOP20_TYPE_PERCENTAGE_GAINER_RG = 5;
+  TOP20_TYPE_PERCENTAGE_LOSER_RG = 6;
+}
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_BAD_REQUEST = 400;
+  ERROR_CODE_UNAUTHORIZED = 401;
+}
+enum TradeType {
+  TRADE_TYPE_UNSPECIFIED = 0;
+  TRADE_TYPE_BUY = 1;
+  TRADE_TYPE_SELL = 2;
+}
+message Bid {
+  double price = 1; // T:1
+  double lot = 2; // T:1
+}
+message Offer {
+  double price = 1; // T:1
+  double lot = 2; // T:1
+}
+message Change {
+  double value = 1; // T:1
+  double percentage = 2; // T:1
+}
+message Error {
+  ErrorCode code = 1;
+  string message = 2; // T:9
+}
+message RunningTrade {
+  google.protobuf.Timestamp websocket_time = 1;
+  string stock = 2; // T:9
+  double price = 3; // T:1
+  double volume = 4; // T:1
+  TradeType action = 5;
+  bool is_global = 6; // T:8
+  google.protobuf.Timestamp time = 7;
+  Change change = 8;
+  int32 trade_number = 9; // T:5
+  securities.transactional.datafeed.consumer.entity.v1.BoardType market_board = 10;
+  double value = 11; // T:1
+}
+message RunningTradeBatch {
+  repeated RunningTrade batch = 1;
+}
+message Hotlist {
+  string stock_symbol = 1; // T:9
+  double last_price = 2; // T:1
+  Change change = 3;
+  bool uma = 4; // T:8
+  financial.emitten.entity.v2.CorpAction corp_action = 5;
+  repeated financial.emitten.entity.v2.Notation notations = 6;
+  string stock_name = 7; // T:9
+  string icon_url = 8; // T:9
+}
+message Top20 {
+  repeated Hotlist hotlist = 1;
+  google.protobuf.Timestamp time = 2;
+  Top20Type type = 3;
+}
+message Watchlist {
+  string stock_symbol = 1; // T:9
+  double last_price = 2; // T:1
+  Change change = 3;
+}
+message OrderBookHeader {
+  string stock_symbol = 1; // T:9
+  Change change = 2;
+  Price price = 3;
+  google.protobuf.Timestamp time = 4;
+}
+message OrderBookBody {
+  string stock_symbol = 1; // T:9
+  repeated Bid bid = 2;
+  repeated Offer offer = 3;
+  google.protobuf.Timestamp time = 4;
+}
+message Price {
+  double open = 1; // T:1
+  double high = 2; // T:1
+  double low = 3; // T:1
+  double avg = 4; // T:1
+  double last = 5; // T:1
+  double prev = 6; // T:1
+  double frequency = 7; // T:1
+  double fbuy = 8; // T:1
+  double fsell = 9; // T:1
+  double lot = 10; // T:1
+  double val = 11; // T:1
+}
+message WebsocketRequest {
+  string user_id = 1; // T:9
+  WebsocketChannel channel = 2;
+  string key = 3; // T:9
+  PingRequest ping = 4;
+  string access_token = 5; // T:9
+}
+message WebsocketChannel {
+  repeated string watchlist = 1; // T:9
+  repeated string order_book = 2; // T:9
+  repeated string running_trade = 3; // T:9
+  bool is_hotlist = 4; // T:8
+  repeated string running_trade_batch = 5; // T:9
+  repeated string liveprice = 6; // T:9
+  repeated string iepiev = 7; // T:9
+  repeated string intraday = 8; // T:9
+  repeated string best_bid_offer = 9; // T:9
+  repeated financial.order_trade.entity.v1.MarketMoverWebsocketRequest market_mover = 10;
+  repeated financial.order_trade.entity.v1.OrderQueueWebsocketRequest order_queue = 11;
+  repeated string liveprice_v3 = 12; // T:9
+  repeated string order_book_v3 = 13; // T:9
+  repeated string intraday_v3 = 14; // T:9
+  repeated financial.order_trade.entity.v1.TradebookWebsocketRequest tradebook = 15;
+}
+message WebsocketWrapMessageChannel {
+  oneof message_channel {
+    RunningTrade running_trade = 1;
+    PingResponse ping = 2;
+    Top20 top20 = 3;
+    Watchlist watchlist = 4;
+    OrderBookHeader orderbook_header = 5;
+    OrderBookBody orderbook_body = 6;
+    Error error = 7;
+    RunningTradeBatch running_trade_batch = 8;
+    securities.transactional.datafeed.consumer.entity.v1.LivePrice liveprice = 9;
+    securities.transactional.datafeed.consumer.entity.v1.Orderbook orderbook = 10;
+    financial.company_price_feed.entity.v2.IEPIEV iepiev = 11;
+    securities.transactional.datafeed.consumer.entity.v1.Intraday intraday = 12;
+    financial.company_price_feed.entity.v1.BestBidOfferWS best_bid_offer = 13;
+    financial.order_trade.entity.v1.MarketMoverBatch market_mover_batch = 14;
+    financial.order_trade.entity.v1.OrderQueueWebsocket order_queue = 15;
+    securities.transactional.datafeed.consumer.entity.v3.LivePrice liveprice_v3 = 16;
+    securities.transactional.datafeed.consumer.entity.v3.Orderbook orderbook_v3 = 17;
+    securities.transactional.datafeed.consumer.entity.v3.Intraday intraday_v3 = 18;
+    financial.order_trade.entity.v1.TradebookWSMessage tradebook = 19;
+  }
+}

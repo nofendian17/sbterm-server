@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Badge verifikasi pengguna social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.verified_badge.enum.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/verified_badge/enum/v1;verifiedbadgev1";
+
+enum VerifiedStatus {
+  VERIFIED_STATUS_UNVERIFIED = 0;
+  VERIFIED_STATUS_IDENTITY = 1;
+  VERIFIED_STATUS_COMMUNITY = 2;
+}

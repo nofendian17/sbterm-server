@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package financial.company_price_feed.entity.v2;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/company_price_feed/entity/v2;datapricefeedv2";
+
+message IEPIEV {
+  string stock_code = 1; // T:9
+  double iep = 2; // T:1
+  double iev = 3; // T:1
+  int64 sequence_number = 4; // T:3
+  string datetime = 5; // T:9
+  double iep_change = 6; // T:1
+  double iep_change_percentage = 7; // T:1
+}

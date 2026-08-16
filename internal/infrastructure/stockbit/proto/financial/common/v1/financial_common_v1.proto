@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package financial.common.v1;
+
+import "google/type/decimal.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/common/v1;datacommonv1";
+
+message DecimalValue {
+  google.type.Decimal raw = 1;
+  string formatted = 2; // T:9
+}

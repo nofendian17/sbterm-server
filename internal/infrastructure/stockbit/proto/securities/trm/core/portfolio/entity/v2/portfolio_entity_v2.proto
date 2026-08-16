@@ -1,0 +1,500 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 84882.8ffce90ef15dd07c.js,
+// module 22117) — protobuf-es message definitions. NOT an official schema.
+// Entity order/portfolio v2 — payload untuk securities.trm.core.portfolio.wsevent.v1.WebsocketResponse.
+package securities.trm.core.portfolio.entity.v2;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+import "google/type/money.proto";
+import "securities/trm/core/smart_order/entity/v1/smart_order.proto";
+import "securities/trm/core/smart_order/trailing_stop/order/entity/v1/trailing_stop.proto";
+import "securities/transactional/negoengine/order/entity/v1/nego_engine_order.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/trm/core/portfolio/entity/v2;entityv2";
+
+enum Side {
+  SIDE_UNSPECIFIED = 0;
+  SIDE_BUY = 1;
+  SIDE_SELL = 2;
+}
+
+enum PlatformOrderType {
+  PLATFORM_ORDER_TYPE_UNSPECIFIED = 0;
+  PLATFORM_ORDER_TYPE_LIMIT_DAY = 1;
+  PLATFORM_ORDER_TYPE_MARKET_FAK = 2;
+  PLATFORM_ORDER_TYPE_FAST_ORDER = 3;
+}
+
+enum SmartOrderLabelType {
+  SMART_ORDER_LABEL_TYPE_UNSPECIFIED = 0;
+  SMART_ORDER_LABEL_TYPE_AUTO_BUY = 1;
+  SMART_ORDER_LABEL_TYPE_STOP_LOSS = 2;
+  SMART_ORDER_LABEL_TYPE_TAKE_PROFIT = 3;
+  SMART_ORDER_LABEL_TYPE_TRAILING_STOP = 5;
+  SMART_ORDER_LABEL_TYPE_LIMIT_IF_TOUCHED = 6;
+  SMART_ORDER_LABEL_TYPE_BRACKET_ORDER = 7;
+  SMART_ORDER_LABEL_TYPE_VOLUME_TRIGGER_ORDER = 8;
+}
+
+enum ActionTarget {
+  ACTION_TARGET_UNSPECIFIED = 0;
+  ACTION_TARGET_REGULAR = 1;
+  ACTION_TARGET_DAY_TRADE = 2;
+  ACTION_TARGET_LEGACY_SMARTORDER = 3;
+  ACTION_TARGET_TRAILING_STOP = 4;
+  ACTION_TARGET_STOP_ORDER = 5;
+  ACTION_TARGET_BRACKET_ORDER = 6;
+  ACTION_TARGET_VOLUME_TRIGGER_ORDER = 7;
+  ACTION_TARGET_NEGO_ENGINE = 8;
+}
+
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  ORDER_TYPE_LIMIT = 1;
+  ORDER_TYPE_MARKET = 2;
+}
+
+enum LeverageType {
+  LEVERAGE_TYPE_TRADING_UNSPECIFIED = 0;
+  LEVERAGE_TYPE_TRADING_BALANCE = 1;
+  LEVERAGE_TYPE_TRADING_LIMIT = 2;
+  LEVERAGE_TYPE_BASIC_LIMIT = 3;
+  LEVERAGE_TYPE_TEMP_LIMIT = 4;
+  LEVERAGE_TYPE_DAY_TRADE = 5;
+  LEVERAGE_TYPE_MARGIN_TRADING = 6;
+}
+
+enum SecuritiesKind {
+  SECURITIES_KIND_UNSPECIFIED = 0;
+  SECURITIES_KIND_STOCK = 1;
+  SECURITIES_KIND_BOND = 2;
+}
+
+enum OrderBookSide {
+  ORDER_BOOK_SIDE_UNSPECIFIED = 0;
+  ORDER_BOOK_SIDE_BID = 1;
+  ORDER_BOOK_SIDE_ASK = 2;
+}
+
+message PortfolioSummary {
+  PortfolioSummary.Trading trading = 1;
+  PortfolioSummary.Amount amount = 2;
+  PortfolioSummary.ProfitLoss profit_loss = 3;
+  double gain = 4;
+  double equity = 5;
+  PortfolioSummary.Debt debt = 6;
+  message Trading {
+    double balance = 1;
+  }
+
+  message Amount {
+    double invested = 1;
+    double allocated = 2;
+    double credit_limit = 3;
+  }
+
+  message ProfitLoss {
+    double net = 1;
+    double unrealised = 2;
+    double realised = 3;
+  }
+
+  message Debt {
+    double ratio = 1;
+    double total = 2;
+    double market_value = 3;
+    PortfolioSummary.Debt.Buffer buffer = 4;
+    message Buffer {
+      double value = 1;
+      double percentage = 2;
+    }
+
+  }
+
+}
+
+message PortfolioPrice {
+  double latest = 1;
+  PortfolioPrice.Average average = 2;
+  message Average {
+    double price = 1;
+    double fee = 2;
+  }
+
+}
+
+message PortfolioQty {
+  double stock_on_hand = 1;
+  PortfolioQty.Qty available = 2;
+  PortfolioQty.Qty balance = 3;
+  PortfolioQty.Qty unsettled = 4;
+  google.type.Date unsettled_until_at = 5;
+  message Qty {
+    double lot = 1;
+    double share = 2;
+  }
+
+}
+
+message PortfolioAsset {
+  PortfolioAsset.Unrealised unrealised = 1;
+  double amount_invested = 2;
+  message Unrealised {
+    double market_value = 1;
+    double profit_loss = 2;
+    double gain = 3;
+  }
+
+}
+
+message PortfolioFlags {
+  bool allow_order = 1;
+  bool have_smart_order = 2;
+  bool can_buy = 3;
+  bool can_sell = 4;
+  bool allow_market_order = 5;
+}
+
+message ForceSell {
+  bool is_force_sell = 1;
+  oneof event {
+    ForceSell.DayTradeForceSell day_trade = 2;
+    ForceSell.MarginForceSell margin = 3;
+  }
+  enum DayTradeForceSell {
+    DAY_TRADE_FORCE_SELL_UNSPECIFIED = 0;
+    DAY_TRADE_FORCE_SELL_DEBT_RATIO = 1;
+    DAY_TRADE_FORCE_SELL_TIME_LIMIT = 2;
+  }
+
+  enum MarginForceSell {
+    MARGIN_FORCE_SELL_UNSPECIFIED = 0;
+    MARGIN_FORCE_SELL_DEBT_RATIO = 1;
+    MARGIN_FORCE_SELL_CALL_COUNTER = 2;
+  }
+
+}
+
+message Order {
+  string order_id = 1;
+  string market_order_id = 2;
+  string symbol = 3;
+  string status_text = 4;
+  string message = 5;
+  Side side = 6;
+  Order.Time time = 7;
+  Order.Qty qty = 8;
+  Order.Price price = 9;
+  Order.Amount amount = 10;
+  Order.Action action = 11;
+  Order.SmartOrder smart_order = 12;
+  Order.GTC gtc = 13;
+  Order.DayTrade day_trade = 14;
+  LeverageType leverage_type = 15;
+  bool is_sharia = 16;
+  SecuritiesKind securities_kind = 17;
+  PlatformOrderType platform_order_type = 18;
+  Order.TimeUTC time_utc = 19;
+  ForceSell force_sell = 20;
+  NegoInApp nego_in_app = 21;
+  string prev_order_id = 22;
+  string group_id = 23;
+  CorpActionInfo corpaction_info = 24;
+  Order.OrderSource order_source = 25;
+  enum OrderSource {
+    ORDER_SOURCE_UNSPECIFIED = 0;
+    ORDER_SOURCE_TRANSACTION = 1;
+    ORDER_SOURCE_CORPACTION = 2;
+    ORDER_SOURCE_NEGO = 3;
+    ORDER_SOURCE_BOND = 4;
+    ORDER_SOURCE_DAY_TRADE = 5;
+    ORDER_SOURCE_SMART_ORDER = 6;
+  }
+
+  message Amount {
+    double invested = 1;
+    double matched = 2;
+    double matched_total = 3;
+    double open = 4;
+    double amount = 5;
+    Order.Amount.Fee fee = 6;
+    message Fee {
+      double amount = 1;
+      double open = 2;
+      double invested = 3;
+      Order.Amount.Fee.Matched matched = 4;
+      message Matched {
+        double amount = 1;
+        double broker = 2;
+        double exchange = 3;
+      }
+
+    }
+
+  }
+
+  message Price {
+    double order = 1;
+    Order.Price.Average average = 2;
+    message Average {
+      double price = 1;
+      double fee = 2;
+    }
+
+  }
+
+  message Time {
+    google.protobuf.Timestamp order = 1;
+    google.protobuf.Timestamp open = 2;
+    google.protobuf.Timestamp match = 3;
+  }
+
+  message TimeUTC {
+    google.protobuf.Timestamp order = 1;
+    google.protobuf.Timestamp open = 2;
+    google.protobuf.Timestamp match = 3;
+    google.protobuf.Timestamp gtc_expired = 4;
+  }
+
+  message Action {
+    bool can_amend = 1;
+    bool can_cancel = 2;
+    ActionTarget amend_target = 3;
+    ActionTarget cancel_target = 4;
+  }
+
+  message SmartOrder {
+    string order_id = 1;
+    string label = 2;
+    double trigger_price = 3;
+    int64 config_type = 4;
+    Order.SmartOrder.TrailingStop trailing_stop = 5;
+    repeated BracketOrderChild bracket_order_children = 6;
+    string parent_id = 7;
+    double parent_price = 8;
+    OrderType order_type = 9;
+    double amount_with_fee = 10;
+    securities.trm.core.smart_order.entity.v1.AssetType status = 11;
+    securities.trm.core.smart_order.entity.v1.OrderExpiryType expiry_type = 12;
+    message TrailingStop {
+      uint64 id = 1;
+      securities.trm.core.smart_order.trailing_stop.order.entity.v1.PriceAlgorithm price_algorithm = 2;
+      google.type.Money stop_price = 3;
+    }
+
+  }
+
+  message GTC {
+    bool is_gtc = 1;
+    Order.GTC.GTCStatus status = 2;
+    enum GTCStatus {
+      GTC_STATUS_UNSPECIFIED = 0;
+      GTC_STATUS_OPEN = 1;
+      GTC_STATUS_MATCH = 2;
+      GTC_STATUS_WITHDRAWN = 3;
+    }
+
+  }
+
+  message Qty {
+    double lot_done = 1;
+    double lot_open = 2;
+    double lot_total = 3;
+  }
+
+  message DayTrade {
+    bool is_day_trade = 1;
+    ForceSell.DayTradeForceSell force_sell_event = 2;
+  }
+
+}
+
+message CorpActionInfo {
+  string corpact_id = 1;
+  CorpActionInfo.ActionType action_type = 2;
+  enum ActionType {
+    ACTION_TYPE_UNSPECIFIED = 0;
+    ACTION_TYPE_DIVIDEND_CASH = 1;
+    ACTION_TYPE_DIVIDEND_STOCK = 2;
+    ACTION_TYPE_BONUS_STOCK = 3;
+  }
+
+}
+
+message BracketOrderChild {
+  string order_id = 1;
+  string symbol = 2;
+  Side side = 3;
+  BracketOrderChild.PriceChild price = 4;
+  double amount = 5;
+  BracketOrderChild.GTC gtc = 6;
+  string status_text = 7;
+  SmartOrderLabelType label = 9;
+  BracketOrderChild.ProfitLoss profit_loss = 10;
+  BracketOrderChild.Action action = 11;
+  double lot_ordered = 12;
+  double lot_done = 13;
+  double amount_ordered = 14;
+  double amount_done = 15;
+  PlatformOrderType platform_order_type = 16;
+  message PriceChild {
+    double order = 1;
+    double price_difference_percentage = 2;
+    double trigger = 3;
+  }
+
+  message GTC {
+    bool is_gtc = 1;
+    BracketOrderChild.GTC.GTCStatus status = 2;
+    enum GTCStatus {
+      GTC_STATUS_UNSPECIFIED = 0;
+      GTC_STATUS_OPEN = 1;
+      GTC_STATUS_MATCH = 2;
+      GTC_STATUS_WITHDRAWN = 3;
+    }
+
+  }
+
+  message ProfitLoss {
+    double amount = 1;
+    double percentage = 2;
+  }
+
+  message Action {
+    ActionTarget amend_target = 1;
+    ActionTarget cancel_target = 2;
+  }
+
+}
+
+message Company {
+  string name = 1;
+  string icon_url = 2;
+}
+
+message ExerciseData {
+  bool active = 1;
+  string type = 2;
+  double price = 3;
+  ExerciseData.Date date = 4;
+  string info = 9;
+  message Date {
+    google.type.Date listing = 1;
+    google.type.Date expired = 2;
+    google.type.Date mature = 3;
+    google.type.Date start = 4;
+    google.type.Date end = 5;
+  }
+
+}
+
+message Haircut {
+  double trading_limit = 1;
+  double margin_trading = 2;
+}
+
+message MarginInfo {
+  bool to_be_delisted = 1;
+  google.protobuf.Timestamp delisted_date = 2;
+}
+
+message PortfolioItem {
+  string symbol = 1;
+  Company company = 2;
+  PortfolioQty qty = 3;
+  PortfolioPrice price = 4;
+  PortfolioAsset asset = 5;
+  PortfolioFlags flags = 6;
+  ExerciseData exercise = 7;
+  string type = 8;
+  bool is_sharia = 9;
+  Haircut haircut = 10;
+  MarginInfo margin_info = 11;
+  google.protobuf.Timestamp trading_end = 12;
+}
+
+message PortfolioDetail {
+  string symbol = 1;
+  Company company = 2;
+  PortfolioQty qty = 3;
+  PortfolioPrice price = 4;
+  PortfolioAsset asset = 5;
+  PortfolioFlags flags = 6;
+  ExerciseData exercise = 7;
+  PortfolioDetail.Bond bond = 8;
+  bool can_create_smart_order = 9;
+  repeated string info = 10;
+  bool is_sharia = 11;
+  MarginInfo margin_info = 12;
+  google.protobuf.Timestamp trading_end = 13;
+  message Bond {
+    PortfolioDetail.Bond.Coupon coupon = 1;
+    string maturity = 2;
+    message Coupon {
+      string year_rate = 1;
+      string payment_date = 2;
+      string distribution = 3;
+    }
+
+  }
+
+}
+
+message PortfolioList {
+  PortfolioList.SmartOrderInfo smart_order_info = 1;
+  PortfolioSummary summary = 2;
+  repeated PortfolioItem results = 3;
+  repeated PortfolioItem day_trade = 4;
+  PortfolioList.TransferInfo transfer_info = 5;
+  message SmartOrderInfo {
+    bool can_create = 1;
+    string info = 2;
+    bool day_trade_can_create = 3;
+  }
+
+  message TransferInfo {
+    google.protobuf.Timestamp est_settle_date = 1;
+  }
+
+}
+
+message NegoInApp {
+  uint64 id = 1;
+  string reference_id = 2;
+  string counterparty_broker_code = 3;
+  NegoInApp.SettlementMethod settlement_method = 4;
+  NegoInApp.SettlementSchedule settlement_schedule = 5;
+  NegoInApp.Date date = 6;
+  NegoInApp.OrderFee fee = 7;
+  string reason = 8;
+  string purpose = 9;
+  securities.transactional.negoengine.order.entity.v1.CancelationState cancelation_state = 10;
+  securities.transactional.negoengine.order.entity.v1.OrderVisibility visibility = 11;
+  securities.transactional.negoengine.order.entity.v1.MatchingState matching_state = 12;
+  string counterparty_username = 13;
+  bool is_under_riskmgmt_review = 14;
+  uint64 counterparty_user_id = 15;
+  enum SettlementMethod {
+    SETTLEMENT_METHOD_UNSPECIFIED = 0;
+    SETTLEMENT_METHOD_VERSUS_PAYMENT = 1;
+  }
+
+  enum SettlementSchedule {
+    SETTLEMENT_SCHEDULE_UNSPECIFIED = 0;
+    SETTLEMENT_SCHEDULE_T_PLUS_2 = 3;
+  }
+
+  message Date {
+    google.protobuf.Timestamp transaction = 1;
+    google.protobuf.Timestamp settlement = 2;
+  }
+
+  message OrderFee {
+    double over_the_counter = 1;
+    double broker = 2;
+    double exchange = 3;
+  }
+
+}

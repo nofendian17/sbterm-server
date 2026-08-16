@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package financial.emitten.entity.v2;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/emitten/entity/v2;emittenv2";
+
+message CorpAction {
+  bool active = 1; // T:8
+  string icon = 2; // T:9
+  string text = 3; // T:9
+  CorpactionDetail detail = 4;
+}
+message CorpactionDetail {
+  double price = 1; // T:1
+  DateValue trading_start_date = 2;
+  DateValue trading_end_date = 3;
+  DateValue exercise_start_date = 4;
+  DateValue exercise_end_date = 5;
+}
+message DateValue {
+  string raw = 1; // T:9
+  string formatted = 2; // T:9
+}
+message Notation {
+  string notation_code = 1; // T:9
+  string notation_desc = 2; // T:9
+  IconURL icon_url = 3;
+}
+message IconURL {
+  string light_mode = 1; // T:9
+  string dark_mode = 2; // T:9
+}

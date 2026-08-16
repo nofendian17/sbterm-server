@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Event research social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.wssocial.entity.wsevent.research.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/wssocial/entity/wsevent/research/v1;researchws1";
+
+message ReceivedPost {
+  ReceivedPostV1 v1 = 1;
+}
+
+message ReceivedPostV1 {
+  int64 research_id = 1; // T:3
+}

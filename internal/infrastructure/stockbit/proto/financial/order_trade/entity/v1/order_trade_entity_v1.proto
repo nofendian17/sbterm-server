@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package financial.order_trade.entity.v1;
+
+import "financial/emitten/entity/v1/emitten_entity_v1.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/order_trade/entity/v1;ordertradev1";
+
+enum MoverType {
+  MOVER_TYPE_UNSPECIFIED = 0;
+  MOVER_TYPE_TOP_VALUE = 1;
+  MOVER_TYPE_TOP_VOLUME = 2;
+  MOVER_TYPE_TOP_FREQUENCY = 3;
+  MOVER_TYPE_TOP_GAINER = 4;
+  MOVER_TYPE_TOP_LOSER = 5;
+  MOVER_TYPE_NET_FOREIGN_BUY = 6;
+  MOVER_TYPE_NET_FOREIGN_SELL = 7;
+  MOVER_TYPE_IEP_CURRENT_TOP_GAINER = 8;
+  MOVER_TYPE_IEP_CURRENT_TOP_LOSER = 9;
+  MOVER_TYPE_IEV_TOP_GAINER = 10;
+  MOVER_TYPE_IEV_TOP_LOSER = 11;
+  MOVER_TYPE_IEVAL_TOP_GAINER = 12;
+  MOVER_TYPE_IEVAL_TOP_LOSER = 13;
+  MOVER_TYPE_IEP_PREV_TOP_GAINER = 14;
+  MOVER_TYPE_IEP_PREV_TOP_LOSER = 15;
+  MOVER_TYPE_BIG_MONEY_NET_VALUE = 16;
+  MOVER_TYPE_CATALOG = 17;
+  MOVER_TYPE_BIG_MONEY_NET_SELL = 18;
+  MOVER_TYPE_CATALOG_KONGLO_MCAP_CHANGE = 19;
+}
+enum FilterStocksType {
+  FILTER_STOCKS_TYPE_UNSPECIFIED = 0;
+  FILTER_STOCKS_TYPE_MAIN_BOARD = 1;
+  FILTER_STOCKS_TYPE_DEVELOPMENT_BOARD = 2;
+  FILTER_STOCKS_TYPE_ACCELERATION_BOARD = 3;
+  FILTER_STOCKS_TYPE_NEW_ECONOMY_BOARD = 4;
+  FILTER_STOCKS_TYPE_SPECIAL_MONITORING_BOARD = 5;
+  FILTER_STOCKS_TYPE_WARRANT_AND_RIGHT = 6;
+  FILTER_STOCKS_TYPE_SHARIA = 7;
+}
+message MarketMover {
+  MarketMover.StockDetail stock_detail = 1;
+  double price = 2; // T:1
+  Change change = 3;
+  MoverValue value = 4;
+  MoverValue volume = 5;
+  MoverValue frequency = 6;
+  MoverValue net_foreign_buy = 7;
+  MoverValue net_foreign_sell = 8;
+  MoverValue net_buy = 9;
+  MoverValue net_sell = 10;
+  MarketMover.IEPIEVDetail iepiev_detail = 11;
+  MoverValue big_money_net_value = 12;
+  double buy_value_percentage = 13; // T:1
+  double sell_value_percentage = 14; // T:1
+  double big_money_buy_value_percentage = 15; // T:1
+  double big_money_sell_value_percentage = 16; // T:1
+  double bid_percent = 17; // T:1
+  MarketMover.CatalogDetail catalog_detail = 18;
+  MarketCapInfo market_cap = 19;
+  message NotationDetail {
+    string code = 1; // T:9
+    string description = 2; // T:9
+  }
+  message CorpactionDetail {
+    bool active = 1; // T:8
+    string icon_url = 2; // T:9
+    string text = 3; // T:9
+  }
+  message StockDetail {
+    string code = 1; // T:9
+    string name = 2; // T:9
+    string icon_url = 3; // T:9
+    bool has_uma = 4; // T:8
+    repeated MarketMover.NotationDetail notations = 5;
+    MarketMover.CorpactionDetail corpaction = 6;
+  }
+  message IEPIEVDetail {
+    MoverValue iep = 1;
+    MoverValue iev = 2;
+    MoverValue ieval = 3;
+    MoverValue iep_change = 4;
+    MoverValue iep_change_prev = 5;
+    MoverValue iep_price_diff = 6;
+    MoverValue iep_prev_price_diff = 7;
+  }
+  message CatalogDetail {
+    string code = 1; // T:9
+    string name = 2; // T:9
+    string icon_url = 3; // T:9
+    int32 up_count = 4; // T:5
+    int32 down_count = 5; // T:5
+    int32 unchanged_count = 6; // T:5
+    int32 stock_count = 7; // T:5
+    int64 catalog_id = 8; // T:3
+  }
+}
+message MarketMoverBatch {
+  repeated MarketMover batch = 1;
+  MoverType mover_type = 2;
+  repeated FilterStocksType filter_stocks = 3;
+  financial.emitten.entity.v1.CatalogType catalog_type = 4;
+  int64 catalog_id = 5; // T:3
+}
+message Change {
+  double value = 1; // T:1
+  double percentage = 2; // T:1
+}
+message MoverValue {
+  double raw = 1; // T:1
+  string formatted = 2; // T:9
+}
+message MarketMoverWebsocketRequest {
+  MoverType mover_type = 1;
+  repeated FilterStocksType filter_stocks = 2;
+  financial.emitten.entity.v1.CatalogType catalog_type = 3;
+  int64 catalog_id = 4; // T:3
+}
+message MarketCapInfo {
+  MoverValue current = 1;
+  MoverValue previous = 2;
+  MoverValue change = 3;
+  double percentage = 4; // T:1
+}
+message TradebookWSMessage {
+  string symbol = 1; // T:9
+  string timestamp = 2; // T:9
+  MarketMover big_money = 3;
+  string board = 4; // T:9
+  double bid_percent = 5; // T:1
+}
+message TradebookWebsocketRequest {
+  string symbol = 1; // T:9 // jsonName: stock_code
+  string board = 2; // T:9
+}
+enum ActionType {
+  ACTION_TYPE_UNSPECIFIED = 0;
+  ACTION_TYPE_BUY = 1;
+  ACTION_TYPE_SELL = 2;
+  ACTION_TYPE_ALL = 3;
+}
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_OPEN = 1;
+  ORDER_STATUS_FULL_MATCH = 2;
+  ORDER_STATUS_WITHDRAWN = 3;
+  ORDER_STATUS_PARTIAL_MATCH = 4;
+  ORDER_STATUS_AMEND = 5;
+  ORDER_STATUS_ALL = 6;
+}
+enum BoardType {
+  BOARD_TYPE_UNSPECIFIED = 0;
+  BOARD_TYPE_REGULAR = 1;
+  BOARD_TYPE_NEGOTIATION = 2;
+  BOARD_TYPE_CASH = 3;
+  BOARD_TYPE_ALL = 4;
+}
+message Order {
+  int64 full = 1; // T:3
+  string formatted = 2; // T:9
+  message ExchangeOrderNumber {
+    int64 full = 1; // T:3
+    string formatted = 2; // T:9
+  }
+}
+message OrderQueueWebsocketRequest {
+  string stock_code = 1; // T:9
+  float price = 2; // T:2
+  BoardType board_type = 3;
+  ActionType action_type = 4;
+}
+message OrderQueueWebsocket {
+  repeated OrderQueueWebsocketData data = 1;
+}
+message OrderQueueWebsocketData {
+  string stock_code = 1; // T:9
+  string time = 2; // T:9
+  ActionType action_type = 3;
+  float price = 4; // T:2
+  OrderStatus status = 5;
+  float open = 6; // T:2
+  float lot = 7; // T:2
+  BoardType board_type = 8;
+  Order.ExchangeOrderNumber exchange_order_number = 9;
+  int64 order_number = 10; // T:3
+  float open_change_quantity = 11; // T:2
+}

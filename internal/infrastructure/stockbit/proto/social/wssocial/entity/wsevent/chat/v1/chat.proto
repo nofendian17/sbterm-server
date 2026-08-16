@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 1835) — protobuf-es message definitions. NOT an official schema.
+// Pesan chat social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.wssocial.entity.wsevent.chat.v1;
+
+import "social/chat/entity/v2/chat_entity_v2.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/wssocial/entity/wsevent/chat/v1;chatv1";
+
+message SendTypingIndicator {
+  uint32 room_id = 1; // T:5 (INT32)
+  bool is_typing = 2; // T:8 (BOOL)
+}
+
+message ReceivedTypingIndicator {
+  ReceivedTypingIndicatorV1 v1 = 2; // field 1 tidak dipakai (mulai dari no:2)
+}
+
+message ReceivedTypingIndicatorV1 {
+  uint32 room_id = 1; // T:5 (INT32)
+  UserTypingInfo user = 2;
+  bool is_typing = 3; // T:8 (BOOL)
+
+  message UserTypingInfo {
+    uint32 user_id = 1;   // T:5 (INT32)
+    string username = 2;  // T:9 (string)
+    string full_name = 3; // T:9 (string)
+  }
+}
+
+message ReceivedMessage {
+  ReceivedMessageV1 v1 = 1;
+}
+
+message ReceivedMessageV1 {
+  string reference_id = 1; // T:9
+  social.chat.entity.v2.BaseRoom room = 2;
+  RoomStatus room_status = 3;
+  social.chat.entity.v2.Message message = 4;
+
+  message RoomStatus {
+    bool is_muted = 1; // T:8
+    bool is_mentioned = 2; // T:8
+  }
+}
+
+message ReceivedRoomInfo {
+  ReceivedRoomInfoV1 v1 = 1;
+}
+
+message ReceivedRoomInfoV1 {
+  social.chat.entity.v2.Room room = 1;
+}

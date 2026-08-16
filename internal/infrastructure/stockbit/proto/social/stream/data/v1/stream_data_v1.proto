@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Data bersama stream social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.stream.data.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/stream/data/v1;streamdatav1";
+
+enum FrameType {
+  FRAME_TYPE_UNSPECIFIED = 0;
+  FRAME_TYPE_SQUARE = 1;
+  FRAME_TYPE_PORTRAIT = 2;
+  FRAME_TYPE_LANDSCAPE = 3;
+}
+
+// protobuf-es di bundle tidak wajib punya nilai 0; protoc mewajibkannya —
+// COMMENTER_TYPE_EVERYONE = 0 memenuhi syarat sekaligus tetap sesuai bundle.
+enum CommenterType {
+  COMMENTER_TYPE_EVERYONE = 0;
+  COMMENTER_TYPE_FOLLOWING = 1;
+  COMMENTER_TYPE_MENTION = 2;
+  COMMENTER_TYPE_ONLY_YOU = 3;
+}
+
+enum SpamStatus {
+  SPAM_STATUS_UNSPECIFIED = 0;
+  SPAM_STATUS_DETECTED = 1;
+  SPAM_STATUS_DELETED = 2;
+  SPAM_STATUS_NOT_SPAM = 3;
+}

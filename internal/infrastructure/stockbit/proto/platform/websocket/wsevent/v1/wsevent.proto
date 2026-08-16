@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 99408.42434b7db9a1134e.js,
+// module 32665) — protobuf-es message definitions. NOT an official schema.
+// Envelope untuk koneksi wss://wss-trading.stockbit.com/ws dan wss://ws-gen.stockbit.com/v1.
+package platform.websocket.wsevent.v1;
+
+import "google/protobuf/timestamp.proto";
+import "securities/trm/core/portfolio/wsevent/v1/portfolio.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/platform/websocket/wsevent/v1;wseventv1";
+
+message PingResponse {
+  string message = 1; // T:9 (string)
+}
+
+// Kosong — hanya penanda auth berhasil.
+message AuthResponse {
+}
+
+// Client -> server. Kirim sebagai binary frame:
+//   new WebsocketRequest({requests:[...]}).toBinary()
+message WebsocketRequest {
+  // T:12 (bytes) — session id / nilai channel, mis. "667557".
+  // Pada frame subscribe 941-byte: field 1 = session id.
+  message Request {
+    bytes value = 1;
+    oneof action {
+      Command command = 2;
+      Channel subscribe = 3;
+      Channel unsubscribe = 4;
+    }
+
+    enum Command {
+      COMMAND_UNSPECIFIED = 0;
+      COMMAND_PING = 1;
+      COMMAND_AUTH = 2;
+    }
+
+    enum Channel {
+      CHANNEL_UNSPECIFIED = 0;
+      CHANNEL_SECURITIES_LIVE_PORTO = 1;
+      CHANNEL_NEGO_ENGINE_ORDER_BOOK = 2;
+    }
+  }
+
+  repeated Request requests = 1;
+}
+
+// Server -> client. Decode: XC.fromBinary(new Uint8Array(frame.data)).
+message WebsocketResponse {
+  google.protobuf.Timestamp timestamp = 1;
+  oneof response {
+    PingResponse ping = 2;
+    AuthResponse auth = 3;
+    securities.trm.core.portfolio.wsevent.v1.WebsocketResponse securities = 4;
+  }
+}

@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 84882.8ffce90ef15dd07c.js,
+// module 28035) — protobuf-es message definitions. NOT an official schema.
+// Enum nego engine order — dipakai oleh securities.trm.core.portfolio.entity.v2.NegoInApp.
+package securities.transactional.negoengine.order.entity.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/negoengine/order/entity/v1;negoengineorderv1";
+
+enum AssetType {
+  ASSET_TYPE_UNSPECIFIED = 0;
+  ASSET_TYPE_STOCK_REGULAR = 1;
+  ASSET_TYPE_STOCK_WATCHLIST = 2;
+  ASSET_TYPE_STOCK_ACCELERATION = 3;
+  ASSET_TYPE_STOCK_RIGHT = 4;
+  ASSET_TYPE_STOCK_WARRANT = 5;
+  ASSET_TYPE_STOCK_STRUCTURED_WARRANT = 6;
+  ASSET_TYPE_MUTUAL_FUND = 7;
+}
+
+enum OrderVisibility {
+  ORDER_VISIBILITY_UNSPECIFIED = 0;
+  ORDER_VISIBILITY_PRIVATE = 1;
+  ORDER_VISIBILITY_PUBLIC = 2;
+}
+
+enum CancelationDecision {
+  CANCELATION_DECISION_UNSPECIFIED = 0;
+  CANCELATION_DECISION_ACCEPT = 1;
+  CANCELATION_DECISION_REJECT = 2;
+}
+
+enum SettlementSchedule {
+  SETTLEMENT_SCHEDULE_UNSPECIFIED = 0;
+  SETTLEMENT_SCHEDULE_T_PLUS_2 = 3;
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_WAITING_LOCK = 1;
+  STATUS_WAITING_APPROVAL = 2;
+  STATUS_ACTIVE = 3;
+  STATUS_MATCHING = 4;
+  STATUS_MATCHED = 5;
+  STATUS_REJECTED = 6;
+  STATUS_WITHDRAWN = 7;
+  STATUS_EXPIRED = 8;
+}
+
+enum OrderSide {
+  ORDER_SIDE_UNSPECIFIED = 0;
+  ORDER_SIDE_BUY = 1;
+  ORDER_SIDE_SELL = 2;
+}
+
+enum MatchingMethodSource {
+  MATCHING_METHOD_SOURCE_UNSPECIFIED = 0;
+  MATCHING_METHOD_SOURCE_SYSTEM = 1;
+  MATCHING_METHOD_SOURCE_USER = 2;
+}
+
+enum CancelationState {
+  CANCELATION_STATE_UNSPECIFIED = 0;
+  CANCELATION_STATE_REQUESTED = 1;
+  CANCELATION_STATE_WAITING_CONFIRMATION = 2;
+  CANCELATION_STATE_ACCEPTED = 3;
+}
+
+enum MatchingState {
+  MATCHING_STATE_UNSPECIFIED = 0;
+  MATCHING_STATE_OFFERED = 1;
+  MATCHING_STATE_WAITING_CONFIRMATION = 2;
+  MATCHING_STATE_APPROVED = 3;
+  MATCHING_STATE_REJECTED = 4;
+}
+
+enum SettlementMethod {
+  SETTLEMENT_METHOD_UNSPECIFIED = 0;
+  SETTLEMENT_METHOD_VERSUS_PAYMENT = 1;
+}
+
+enum BulkConfirmDecision {
+  BULK_CONFIRM_DECISION_UNSPECIFIED = 0;
+  BULK_CONFIRM_DECISION_APPROVE = 1;
+  BULK_CONFIRM_DECISION_REJECT = 2;
+}
+
+enum BulkConfirmRejectReason {
+  BULK_CONFIRM_REJECT_REASON_UNSPECIFIED = 0;
+  BULK_CONFIRM_REJECT_REASON_INVALID_REASON = 1;
+  BULK_CONFIRM_REJECT_REASON_INVALID_PURPOSE = 2;
+  BULK_CONFIRM_REJECT_REASON_INVALID_REASON_AND_PURPOSE = 3;
+  BULK_CONFIRM_REJECT_REASON_OTHERS = 4;
+}
+
+enum ConfirmMatchingDecision {
+  CONFIRM_MATCHING_DECISION_UNSPECIFIED = 0;
+  CONFIRM_MATCHING_DECISION_APPROVE = 1;
+  CONFIRM_MATCHING_DECISION_REJECT = 2;
+}

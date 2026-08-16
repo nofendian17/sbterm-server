@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package financial.company_price_feed.entity.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/company_price_feed/entity/v1;datapricefeedv1";
+
+message BestOrder {
+  Value price = 1;
+  Value quantity = 2;
+  string change_percentage = 3; // T:9
+}
+message Value {
+  float raw = 1; // T:2
+  string formatted = 2; // T:9
+}
+message BestBidOfferWS {
+  string stock_code = 1; // T:9
+  int64 sequence_number = 2; // T:3
+  BestOrder best_bid = 3;
+  BestOrder best_offer = 4;
+  string datetime = 5; // T:9
+}

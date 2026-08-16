@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+// Stub lokal — rekonstruksi dari stockbit.com webpack bundle (module 24127).
+// Wire format identik dengan google.type.Date.
+package google.type;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/google/type;types";
+
+message Date {
+  int32 year = 1;
+  int32 month = 2;
+  int32 day = 3;
+}

@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package securities.transactional.datafeed.consumer.entity.v3;
+
+import "google/protobuf/timestamp.proto";
+import "financial/common/v1/financial_common_v1.proto";
+import "securities/transactional/datafeed/consumer/entity/v1/consumer_entity_v1.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/consumer/entity/v3;dataconsumerv3";
+
+message LivePrice {
+  string symbol = 1; // T:9
+  financial.common.v1.DecimalValue lastprice = 2;
+  financial.common.v1.DecimalValue volume = 3;
+  financial.common.v1.DecimalValue high = 4;
+  financial.common.v1.DecimalValue low = 5;
+  financial.common.v1.DecimalValue open = 6;
+  financial.common.v1.DecimalValue average = 7;
+  string date = 8; // T:9
+  financial.common.v1.DecimalValue close = 9;
+  financial.common.v1.DecimalValue previous = 10;
+  financial.common.v1.DecimalValue value = 11;
+  financial.common.v1.DecimalValue change = 12;
+  financial.common.v1.DecimalValue change_percentage = 13;
+  securities.transactional.datafeed.consumer.entity.v1.BoardType board = 14;
+  securities.transactional.datafeed.consumer.entity.v1.Source source = 15;
+  google.protobuf.Timestamp timestamp = 16;
+  financial.common.v1.DecimalValue frequency = 17;
+  financial.common.v1.DecimalValue quantity = 18;
+}
+message Orderbook {
+  string symbol = 1; // T:9
+  repeated OrderBookData bid = 2;
+  repeated OrderBookData offer = 3;
+  OrderBookData total_bid = 4;
+  OrderBookData total_offer = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+message OrderBookData {
+  financial.common.v1.DecimalValue volume = 1;
+  financial.common.v1.DecimalValue price = 2;
+  financial.common.v1.DecimalValue frequency = 3;
+}
+message Intraday {
+  string symbol = 1; // T:9
+  google.protobuf.Timestamp timestamp = 2;
+  financial.common.v1.DecimalValue open = 3;
+  financial.common.v1.DecimalValue high = 4;
+  financial.common.v1.DecimalValue low = 5;
+  financial.common.v1.DecimalValue close = 6;
+  financial.common.v1.DecimalValue volume = 7;
+  financial.common.v1.DecimalValue change = 8;
+  financial.common.v1.DecimalValue change_percentage = 9;
+}

@@ -1,0 +1,164 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Message sosial (stream/channel) — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.wssocial.entity.message.v1;
+
+import "social/wssocial/entity/wsevent/chat/v1/chat.proto";
+import "social/wssocial/entity/wsevent/research/v1/research.proto";
+import "social/wssocial/entity/wsevent/stream/v1/stream.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/wssocial/entity/message/v1;messagev1";
+
+message StreamChannel {
+  Scope scope = 1;
+  Category category = 2;
+  string identifier = 3; // T:9 (string)
+
+  enum Scope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_USER = 1;
+    SCOPE_COMPANY = 2;
+  }
+
+  enum Category {
+    CATEGORY_UNSPECIFIED = 0;
+    CATEGORY_IDEAS = 1;
+    CATEGORY_REPORTS = 2;
+    CATEGORY_PREDICTIONS = 3;
+    CATEGORY_POLLINGS = 4;
+    CATEGORY_CHARTS = 5;
+    CATEGORY_NOTES = 6;
+    CATEGORY_NEWS = 7;
+    CATEGORY_REPLIES = 8;
+    CATEGORY_LIKED = 9;
+    CATEGORY_SAVED = 10;
+  }
+}
+
+message ResearchChannel {
+  Scope scope = 1;
+  string identifier = 2; // T:9 (string)
+
+  enum Scope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_COMPANY = 1;
+  }
+}
+
+message Channel {
+  repeated uint32 chatroom = 1; // T:5 (INT32)
+  bool roomlist = 2;            // T:8 (BOOL) — nama "uint64" di field table
+                                // protobuf-es adalah kesalahan; tipe sebenarnya bool
+  repeated StreamChannel streams = 3;
+  repeated ResearchChannel researches = 4;
+}
+
+message SendMessage {
+  Type type = 1;
+  Payload payload = 2;
+
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_PING = 1;
+    TYPE_SUBSCRIBE = 2;
+    TYPE_UNSUBSCRIBE = 3;
+    TYPE_BROADCAST = 4;
+  }
+}
+
+message Payload {
+  oneof payload {
+    Channel channel = 1; // social.wssocial.entity.message.v1.Channel (module 88244)
+    SendEvent event = 2;
+  }
+}
+
+message SendEvent {
+  Type type = 1;
+  Data data = 2;
+
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_CHAT_TYPING_INDICATOR = 1;
+  }
+
+  message Data {
+    oneof data {
+      social.wssocial.entity.wsevent.chat.v1.SendTypingIndicator chat_typing_indicator = 1;
+    }
+  }
+}
+
+// Pesan masuk (diterima dari server).
+message ReceivedMessage {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_PING = 1;
+    TYPE_SUBSCRIBE = 2;
+    TYPE_UNSUBSCRIBE = 3;
+    TYPE_BROADCAST = 4;
+    TYPE_ERROR = 5;
+  }
+
+  Type type = 1;
+  Body body = 2;
+}
+
+message Body {
+  oneof body {
+    Ping ping = 1;
+    Subscription subscription = 2;
+    ReceivedEvent event = 3;
+    Error error = 4;
+  }
+}
+
+message Ping {
+  enum PingStatus {
+    PING_STATUS_UNSPECIFIED = 0;
+    PING_STATUS_OK = 1;
+  }
+
+  PingStatus status = 1;
+}
+
+message Subscription {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_SUBSCRIBED = 1;
+    STATUS_UNSUBSCRIBED = 2;
+  }
+
+  Channel channel = 1;
+  Status status = 2;
+}
+
+message ReceivedEvent {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_CHAT_MESSAGE = 1;
+    TYPE_CHAT_TYPING_INDICATOR = 2;
+    TYPE_CHAT_ROOM_INFO = 3;
+    TYPE_STREAM = 4;
+    TYPE_RESEARCH = 5;
+  }
+
+  Type type = 1;
+  Data data = 2;
+
+  message Data {
+    oneof data {
+      social.wssocial.entity.wsevent.chat.v1.ReceivedMessage chat_message = 1;
+      social.wssocial.entity.wsevent.chat.v1.ReceivedTypingIndicator chat_typing_indicator = 2;
+      social.wssocial.entity.wsevent.chat.v1.ReceivedRoomInfo chat_room_info = 3;
+      social.wssocial.entity.wsevent.stream.v1.ReceivedPost stream = 4;
+      social.wssocial.entity.wsevent.research.v1.ReceivedPost research = 5;
+    }
+  }
+}
+
+message Error {
+  string message = 1; // T:9
+}

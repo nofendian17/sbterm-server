@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+// Stub lokal — rekonstruksi dari stockbit.com webpack bundle (module 76557).
+// Wire format identik dengan google.type.Money.
+package google.type;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/google/type;types";
+
+message Money {
+  string currency_code = 1;
+  int64 units = 2;
+  int32 nanos = 3;
+}

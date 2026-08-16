@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 56256....js,
+// module 45621) — protobuf-es message definitions. NOT an official schema.
+// Stream social — koneksi wss://wssocial.stockbit.com/?wskey=<key>.
+package social.stream.v1;
+
+import "social/stream/data/v1/stream_data_v1.proto";
+import "social/stream/entity/v1/stream_entity_v1.proto";
+import "social/verified_badge/enum/v1/verified_badge_enum_v1.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/social/stream/v1;streamv1";
+
+message GetStreamOldResponse {
+  int32 postid = 1; // T:5
+  string titleurl = 2; // T:9
+  string title = 3; // T:9
+  string content = 4; // T:9
+  string content_original = 5; // T:9
+  string created = 6; // T:9
+  string created_display = 7; // T:9
+  string updated = 8; // T:9
+  int32 userid = 9; // T:5
+  int32 is_author = 10; // T:5
+  string username = 11; // T:9
+  string fullname = 12; // T:9
+  string avatar = 13; // T:9
+  int32 official = 14; // T:5
+  int32 ispro = 15; // T:5
+  int32 user_priv = 16; // T:5
+  string country = 17; // T:9
+  int32 ispinned = 18; // T:5
+  int32 trending = 19; // T:5
+  string replies = 20; // T:9
+  int32 noreply = 21; // T:5
+  int32 likes = 22; // T:5
+  int32 dislikes = 23; // T:5
+  int32 reposted = 24; // T:5
+  GetStreamOldResponse repostedfrom = 25;
+  int32 liked = 26; // T:5
+  int32 saved = 27; // T:5
+  repeated string images = 28; // T:9
+  repeated Polling polling = 29;
+  repeated string attachment = 30; // T:9
+  int32 parent_postid = 31; // T:5
+  int32 disliked = 32; // T:5
+  int32 follow = 33; // T:5
+  repeated Reports reports = 34;
+  string newsfeed_source = 35; // T:9
+  string newsfeed_label = 36; // T:9
+  string newsfeed_img = 37; // T:9
+  string linkpreview = 38; // T:9
+  int32 total_view = 39; // T:5
+  string tradeshare = 40; // T:9
+  string replyto = 41; // T:9
+  ReplyContent reply_content = 42;
+  string likers = 43; // T:9
+  string total_share = 44; // T:9
+  repeated TargetPrice target_price = 45;
+  Analytics analytics = 46;
+  int32 isnews = 47; // T:5
+  int32 isreport = 48; // T:5
+  repeated string topics = 49; // T:9
+  int32 ischart = 50; // T:5
+  repeated MaskHtml mask_html = 51;
+  bool is_verified = 52; // T:8
+  repeated ImagesData images_data = 53;
+  social.stream.data.v1.FrameType image_frame_type = 54;
+  social.stream.entity.v1.ReplyInfo replying_to = 55;
+  social.stream.data.v1.CommenterType commenter_type = 56;
+  bool is_unavailable = 57; // T:8
+  social.stream.entity.v1.FollowingActivity following_activity = 58;
+  social.stream.entity.v1.ShareTradeInfo sharetrade_info = 59;
+  social.verified_badge.enum.v1.VerifiedStatus verified_status = 60;
+}
+
+message Polling {
+  int32 id = 1; // T:5
+  int32 status = 2; // T:5
+  string created_date = 3; // T:9
+  string start_date = 4; // T:9
+  string end_date = 5; // T:9
+  string question = 6; // T:9
+  repeated PollingOptions options = 7;
+  bool expired = 8; // T:8
+  string message_expired = 9; // T:9
+  int32 total_voters = 10; // T:5
+  int32 my_vote = 11; // T:5
+  int32 ispinned = 12; // T:5
+}
+
+message PollingOptions {
+  int32 id = 1; // T:5
+  string value = 2; // T:9
+  int32 count_voters = 3; // T:5
+}
+
+message TargetPrice {
+  int32 id = 1; // T:5
+  string voted = 2; // T:9
+  string symbol = 3; // T:9
+  string symbol2 = 4; // T:9
+  string name = 5; // T:9
+  int32 tradeable = 6; // T:5
+  double last_price = 7; // T:1
+  double current_price = 8; // T:1
+  double target_price = 9; // T:1
+  int32 duration = 10; // T:5
+  int32 day_left = 11; // T:5
+  int32 agree = 12; // T:5
+  int32 disagree = 13; // T:5
+  int32 hit = 14; // T:5
+}
+
+message MaskHtml {
+  string mask = 1; // T:9
+  string tag = 2; // T:9
+  string text = 3; // T:9
+  MaskAttr attr = 4;
+}
+
+message MaskAttr {
+  string class = 1; // T:9
+  string data_company = 2; // T:9
+  string data_user = 3; // T:9
+  string data_insider = 4; // T:9
+  string href = 5; // T:9
+  string target = 6; // T:9
+}
+
+message ReplyContent {
+  string titleurl = 1; // T:9
+  string title = 2; // T:9
+  string content = 3; // T:9
+  string content_original = 4; // T:9
+  string created = 5; // T:9
+  string created_display = 6; // T:9
+  int32 userid = 7; // T:5
+  string username = 8; // T:9
+  string fullname = 9; // T:9
+  string avatar = 10; // T:9
+  repeated string images = 11; // T:9
+  repeated string topics = 12; // T:9
+  repeated MaskHtml mask_html = 13;
+  repeated ImagesData images_data = 14;
+  social.stream.data.v1.FrameType image_frame_type = 15;
+}
+
+message Analytics {
+  int32 impression = 1; // T:5
+  AnalyticsEngagement engagement = 2;
+}
+
+message AnalyticsEngagement {
+  int32 like = 1; // T:5
+  int32 reply = 2; // T:5
+  int32 share = 3; // T:5
+  int32 profile_view = 4; // T:5
+  int32 sign_click = 5; // T:5
+  int32 media_click = 6; // T:5
+}
+
+message ImagesData {
+  string image = 1; // T:9
+  int32 width = 2; // T:5
+  int32 height = 3; // T:5
+  double ratio = 4; // T:1
+  string frame = 5; // T:9
+  social.stream.data.v1.FrameType frame_type = 6;
+}
+
+message Reports {
+  string type = 1; // T:9
+}

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 84882.8ffce90ef15dd07c.js,
+// module 91594) — protobuf-es message definitions. NOT an official schema.
+package securities.trm.core.smart_order.trailing_stop.order.entity.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/trm/core/smart_order/trailing_stop/order/entity/v1;trailingstopv1";
+
+enum PriceAlgorithmType {
+  PRICE_ALGORITHM_TYPE_UNSPECIFIED = 0;
+  PRICE_ALGORITHM_TYPE_TRAILING_STOP_PERCENTAGE = 1;
+}
+
+message PriceAlgorithm {
+  PriceAlgorithmType type = 1;
+  double value = 2;
+}

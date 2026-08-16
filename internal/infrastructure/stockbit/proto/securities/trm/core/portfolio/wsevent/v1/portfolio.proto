@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 99408.42434b7db9a1134e.js,
+// module 32665) — protobuf-es message definitions. NOT an official schema.
+// Payload pesan realtime portfolio/order — diterima di field `securities`
+// dari platform.websocket.wsevent.v1.WebsocketResponse.
+package securities.trm.core.portfolio.wsevent.v1;
+
+import "securities/transactional/negoengine/order_book/entity/v1/order_book.proto";
+import "securities/trm/core/portfolio/entity/v2/portfolio_entity_v2.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/trm/core/portfolio/wsevent/v1;portfoliov1";
+
+message WebsocketResponse {
+  Action action = 1;
+
+  oneof message {
+    securities.trm.core.portfolio.entity.v2.PortfolioSummary portfolio_summary = 2;
+    securities.trm.core.portfolio.entity.v2.PortfolioDetail portfolio_detail = 3;
+    securities.trm.core.portfolio.entity.v2.PortfolioList portfolio_list = 4;
+    securities.trm.core.portfolio.entity.v2.Order order_detail = 5; // entity v2 Order (T:h.KM)
+    OrderList order_list = 6;
+    securities.trm.core.portfolio.entity.v2.PortfolioDetail portfolio_detail_day_trade = 7; // tipe sama dengan portfolio_detail (T:h.$2)
+    securities.transactional.negoengine.order_book.entity.v1.OrderBook nego_engine_order_book = 8;
+  }
+
+  Event event = 16;
+
+  message OrderList {
+    repeated securities.trm.core.portfolio.entity.v2.Order orders = 1;
+    repeated securities.trm.core.portfolio.entity.v2.Order orders_v2 = 2;
+  }
+
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_UPSERT = 1;
+    ACTION_DELETE = 2;
+  }
+
+  enum Event {
+    EVENT_UNSPECIFIED = 0;
+    EVENT_NEW_CONNECTION = 1;
+    EVENT_NEW_TRANSACTION_UPDATE = 2;
+  }
+}

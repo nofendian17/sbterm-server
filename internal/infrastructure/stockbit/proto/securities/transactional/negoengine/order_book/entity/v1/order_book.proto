@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 99408.42434b7db9a1134e.js,
+// module 32665) — protobuf-es message definitions. NOT an official schema.
+// Order book realtime — dikirim sebagai `nego_engine_order_book`
+// (field 8) pada securities.trm.core.portfolio.wsevent.v1.WebsocketResponse.
+package securities.transactional.negoengine.order_book.entity.v1;
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/negoengine/order_book/entity/v1;order_bookv1";
+
+message Entry {
+  uint64 frequency = 1; // T:4 (UINT64)
+  uint64 shares = 2;    // T:4 (UINT64)
+  int32 price = 3;      // T:5 (INT32)
+}
+
+message OrderBookSide {
+  repeated Entry entries = 1;
+  uint64 total_frequency = 2; // T:4 (UINT64)
+  uint64 total_shares = 3;    // T:4 (UINT64)
+}
+
+message OrderBook {
+  string asset_code = 1; // T:9 (string)
+  OrderBookSide bid = 2;
+  OrderBookSide ask = 3;
+}

@@ -13,3 +13,4 @@ Recommended documentation to add next:
 ## API
 
 - [REST API Reference](api.md)
+- [Stockbit Websocket Protobuf — Reverse Engineering Notes](stockbit-websocket-protobuf.md)

@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+// Reconstructed from stockbit.com webpack bundle (chunk 51232-5d0c93927d38e370.js,
+// module 228) — protobuf-es message definitions. NOT an official schema.
+// Datafeed websocket — koneksi wss://wssfeed.stockbit.com/?wskey=<key>.
+package securities.transactional.datafeed.consumer.entity.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/consumer/entity/v1;dataconsumerv1";
+
+enum BoardType {
+  BOARD_TYPE_UNSPECIFIED = 0;
+  BOARD_TYPE_RG = 1;
+  BOARD_TYPE_TN = 2;
+  BOARD_TYPE_NG = 3;
+}
+enum Source {
+  SOURCE_UNSPECIFIED = 0;
+  SOURCE_ITCH = 1;
+  SOURCE_IMQ = 2;
+  SOURCE_CRYPTO = 3;
+}
+message Change {
+  double value = 1; // T:1
+  double percentage = 2; // T:1
+}
+message Intraday {
+  string stock_code = 1; // T:9
+  string datetime = 2; // T:9
+  double open = 3; // T:1
+  double high = 4; // T:1
+  double low = 5; // T:1
+  double close = 6; // T:1
+  double volume = 7; // T:1
+  Change change = 8;
+  int64 lot = 9; // T:3
+}
+message LivePrice {
+  string stock_code = 1; // T:9
+  double lastprice = 2; // T:1
+  double volume = 3; // T:1
+  double high = 4; // T:1
+  double low = 5; // T:1
+  double open = 6; // T:1
+  double frequency = 7; // T:1
+  double frg_buy = 8; // T:1
+  double frg_sell = 9; // T:1
+  double average = 10; // T:1
+  string date = 11; // T:9
+  double close = 12; // T:1
+  double prev = 13; // T:1
+  double value = 14; // T:1
+  Change change = 15;
+  string order_verb = 16; // T:9
+  int64 quantity = 17; // T:3
+  bool is_index = 18; // T:8
+  int64 sequence_number = 19; // T:3
+  int64 order_book_id = 20; // T:3
+  int64 order_number = 21; // T:3
+  int64 match_number = 22; // T:3
+  BoardType board = 23;
+  Source source = 24;
+  SwitchReset switch_reset = 25;
+  string itch_incoming_time = 26; // T:9
+  TradeTrigger trade_trigger = 27;
+  double lot = 28; // T:1
+}
+message TradeTrigger {
+  string stock_code = 1; // T:9
+  int64 quantity = 2; // T:3
+  double execution_price = 3; // T:1
+  double value = 4; // T:1
+  double volume = 5; // T:1
+  string timestamp = 6; // T:9
+}
+message Orderbook {
+  string stock_code = 1; // T:9
+  string body = 2; // T:9
+  int64 sequence_number = 3; // T:3
+  int64 order_book_id = 4; // T:3
+  string datetime = 5; // T:9
+  Source source = 6;
+  SwitchReset switch_reset = 7;
+  BoardType board = 8;
+  string itch_incoming_time = 9; // T:9
+}
+message SwitchReset {
+  Source from = 1;
+  Source to = 2;
+  string reason = 3; // T:9
+  google.protobuf.Timestamp datetime = 4; // jsonName: date_time
+}

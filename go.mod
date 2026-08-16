@@ -6,6 +6,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/gojek/heimdall/v8 v8.0.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pashagolub/pgxmock/v5 v5.1.0
 	github.com/redis/go-redis/v9 v9.17.2
@@ -21,7 +22,6 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 )
 

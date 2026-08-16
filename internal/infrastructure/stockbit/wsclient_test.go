@@ -69,13 +69,17 @@ func drain(t *testing.T, c *websocket.Conn) {
 var pingFrame = []byte{0x22, 0x06, 0x0A, 0x04, 0x70, 0x69, 0x6E, 0x67}
 
 func TestWSClientSubscribeFrame(t *testing.T) {
+	const wskey = "l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA="
 	serverDone := make(chan struct{})
 	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
 		defer close(serverDone)
-		assert.Equal(t, "ws-key-1", r.URL.Query().Get("wskey"))
+		// The wskey must be attached verbatim, exactly like
+		// wss://.../?wskey=l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA=.
+		assert.Equal(t, "wskey="+wskey, r.URL.RawQuery)
 		req := decodeSubscribe(t, readBinary(t, c))
 		assert.Equal(t, "42", req.GetUserId())
-		assert.Equal(t, "ws-key-1", req.GetKey())
+		assert.Equal(t, wskey, req.GetKey())
+		assert.Equal(t, "at-123", req.GetAccessToken())
 		assert.Equal(t, []string{"BBCA", "BBRI"}, req.GetChannel().GetWatchlist())
 		assert.Equal(t, []string{"BBCA", "BBRI"}, req.GetChannel().GetOrderBook())
 		assert.Equal(t, []string{"BBCA", "BBRI"}, req.GetChannel().GetRunningTrade())
@@ -87,8 +91,10 @@ func TestWSClientSubscribeFrame(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	c := NewWSClient(wsURL(srv), func(ctx context.Context) (string, error) {
-		return "ws-key-1", nil
-	}, WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
+		return wskey, nil
+	}, WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
+		return "at-123", nil
+	}), WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
 	done := make(chan error, 1)
 	go func() {
 		done <- c.Run(ctx, WSSubscription{

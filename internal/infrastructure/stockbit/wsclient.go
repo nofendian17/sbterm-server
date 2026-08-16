@@ -3,7 +3,6 @@ package stockbit
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -18,6 +17,10 @@ import (
 // KeyProvider supplies the websocket key used to authenticate a datafeed
 // connection. The key can rotate, so it is fetched again before every dial.
 type KeyProvider func(ctx context.Context) (string, error)
+
+// AccessTokenProvider supplies the bearer token embedded in the subscribe
+// frame. Optional; some datafeed endpoints authorize on it.
+type AccessTokenProvider func(ctx context.Context) (string, error)
 
 // WSSubscription describes one datafeed subscription: the account user id and
 // the channels to subscribe the connection to.
@@ -38,6 +41,7 @@ type wsOptions struct {
 	writeTimeout time.Duration
 	backoffInit  time.Duration
 	backoffMax   time.Duration
+	accessToken  AccessTokenProvider
 	logger       log.Logger
 }
 
@@ -97,6 +101,12 @@ func WithWSReconnectBackoff(initial, max time.Duration) WSOption {
 			o.backoffMax = max
 		}
 	}
+}
+
+// WithWSAccessTokenProvider attaches a provider for the bearer token embedded
+// in the subscribe frame (WebsocketRequest.access_token, field 5).
+func WithWSAccessTokenProvider(p AccessTokenProvider) WSOption {
+	return func(o *wsOptions) { o.accessToken = p }
 }
 
 // WithWSLogger enables debug logging of connection events.
@@ -167,7 +177,7 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			backoff = c.nextBackoff(backoff)
 			continue
 		}
-		if err := c.subscribe(conn, key, sub); err != nil {
+		if err := c.subscribe(ctx, conn, key, sub); err != nil {
 			conn.Close()
 			c.logWarn("stockbit ws: subscribe failed", "error", err)
 			if !sleepCtx(ctx, backoff) {
@@ -227,7 +237,7 @@ func (c *WSClient) Close() error {
 }
 
 func (c *WSClient) dial(ctx context.Context, key string) (*websocket.Conn, error) {
-	endpoint := c.url + "?wskey=" + url.QueryEscape(key)
+	endpoint := c.url + "?wskey=" + key
 	d := websocket.Dialer{HandshakeTimeout: c.opts.dialTimeout}
 	conn, resp, err := d.DialContext(ctx, endpoint, nil)
 	if resp != nil && resp.Body != nil {
@@ -239,12 +249,20 @@ func (c *WSClient) dial(ctx context.Context, key string) (*websocket.Conn, error
 	return conn, nil
 }
 
-func (c *WSClient) subscribe(conn *websocket.Conn, key string, sub WSSubscription) error {
-	frame, err := proto.Marshal(&datafeedv1.WebsocketRequest{
+func (c *WSClient) subscribe(ctx context.Context, conn *websocket.Conn, key string, sub WSSubscription) error {
+	req := &datafeedv1.WebsocketRequest{
 		UserId:  strconv.FormatInt(sub.UserID, 10),
 		Channel: sub.Channel,
 		Key:     key,
-	})
+	}
+	if c.opts.accessToken != nil {
+		access, err := c.opts.accessToken(ctx)
+		if err != nil {
+			return fmt.Errorf("stockbit ws: fetch access token: %w", err)
+		}
+		req.AccessToken = access
+	}
+	frame, err := proto.Marshal(req)
 	if err != nil {
 		return fmt.Errorf("stockbit ws: encode subscribe frame: %w", err)
 	}

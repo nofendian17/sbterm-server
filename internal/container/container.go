@@ -442,6 +442,9 @@ func provideStockbit(injector *do.RootScope) {
 			}
 			return key.Data.Key, nil
 		},
+			stockbit.WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
+				return refresher.EnsureToken(ctx)
+			}),
 			stockbit.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
 			stockbit.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
 			stockbit.WithWSLogger(logger),

@@ -1,4 +1,6 @@
-package container
+// Package ws runs the Stockbit datafeed websocket client for the lifetime of
+// the server and stops it on container shutdown.
+package ws
 
 import (
 	"context"
@@ -12,9 +14,9 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-// wsService runs the Stockbit datafeed websocket client for the lifetime of
-// the server and stops it on injector shutdown.
-type wsService struct {
+// Service runs the Stockbit datafeed websocket client for the lifetime of the
+// server and stops it on container shutdown.
+type Service struct {
 	client    *stockbit.WSClient
 	refresher *stockbit.Refresher
 	cfg       *config.Config
@@ -25,8 +27,9 @@ type wsService struct {
 	done   chan struct{}
 }
 
-func newWSService(client *stockbit.WSClient, refresher *stockbit.Refresher, cfg *config.Config, logger log.Logger) *wsService {
-	return &wsService{client: client, refresher: refresher, cfg: cfg, logger: logger}
+// New builds a Service around an already-configured datafeed client.
+func New(client *stockbit.WSClient, refresher *stockbit.Refresher, cfg *config.Config, logger log.Logger) *Service {
+	return &Service{client: client, refresher: refresher, cfg: cfg, logger: logger}
 }
 
 // wsMessageJSON renders a decoded datafeed frame as JSON for debug logging.
@@ -38,9 +41,9 @@ func wsMessageJSON(m *datafeedv1.WebsocketWrapMessageChannel) string {
 	return string(out)
 }
 
-// start dials the datafeed and subscribes to the configured symbols in the
+// Start dials the datafeed and subscribes to the configured symbols in the
 // background. It is idempotent.
-func (s *wsService) start() {
+func (s *Service) Start() {
 	if s.cancel != nil {
 		return
 	}
@@ -49,7 +52,7 @@ func (s *wsService) start() {
 
 	userID, err := s.refresher.UserID(context.Background())
 	if err != nil {
-		s.logger.Warn("container: resolve stockbit user id failed", "error", err)
+		s.logger.Warn("ws: resolve stockbit user id failed", "error", err)
 	}
 	sub := stockbit.WSSubscription{
 		UserID:  userID,
@@ -68,7 +71,7 @@ func (s *wsService) start() {
 }
 
 // Shutdown cancels the run context and waits for the client to stop.
-func (s *wsService) Shutdown() error {
+func (s *Service) Shutdown() error {
 	if s.cancel != nil {
 		s.cancel()
 	}

@@ -249,7 +249,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		if c.logger != nil {
 			reqBody := ""
 			respBody := ""
-			if path != loginPath && path != refreshPath && path != websocketKeyPath {
+			if path != loginPath && path != refreshPath && path != webSocketKeyPath {
 				reqBody = truncate(string(bodyBytes))
 				respBody = truncate(string(respBytes))
 			}

@@ -38,7 +38,6 @@ func defaultConfig() *Config {
 			Timeout:                   30 * time.Second,
 			RetryCount:                3,
 			WSURL:                     "wss://wss-trading.stockbit.com/ws",
-			WSEnabled:                 false,
 			WSPingInterval:            30 * time.Second,
 			WSReconnectBackoffInitial: time.Second,
 			WSReconnectBackoffMax:     30 * time.Second,
@@ -95,7 +94,6 @@ func TestLoad(t *testing.T) {
 				"APP_STOCKBIT_USERNAME":                     "budi",
 				"APP_STOCKBIT_PASSWORD":                     "secret",
 				"APP_STOCKBIT_WS_URL":                       "wss://wssfeed.example.com/",
-				"APP_STOCKBIT_WS_ENABLED":                   "true",
 				"APP_STOCKBIT_WS_PING_INTERVAL":             "60s",
 				"APP_STOCKBIT_WS_RECONNECT_BACKOFF_INITIAL": "2s",
 				"APP_STOCKBIT_WS_RECONNECT_BACKOFF_MAX":     "60s",
@@ -138,7 +136,6 @@ func TestLoad(t *testing.T) {
 					Username:                  "budi",
 					Password:                  "secret",
 					WSURL:                     "wss://wssfeed.example.com/",
-					WSEnabled:                 true,
 					WSPingInterval:            60 * time.Second,
 					WSReconnectBackoffInitial: 2 * time.Second,
 					WSReconnectBackoffMax:     60 * time.Second,
@@ -183,7 +180,7 @@ func TestLoadFromConfigFile(t *testing.T) {
 	}{
 		{
 			name: "config file overrides defaults",
-			yaml: "app:\n  name: custom-app\n  version: 2.0.0\nport: \":9090\"\ndatabase:\n  max_conns: 42\nredis:\n  pool_size: 25\nlog:\n  format: json\nstockbit:\n  ws_enabled: true\n  ws_symbols:\n    - BBCA\n    - BBRI\n",
+			yaml: "app:\n  name: custom-app\n  version: 2.0.0\nport: \":9090\"\ndatabase:\n  max_conns: 42\nredis:\n  pool_size: 25\nlog:\n  format: json\nstockbit:\n  ws_symbols:\n    - BBCA\n    - BBRI\n",
 			mutate: func(c *Config) {
 				c.App.Name = "custom-app"
 				c.App.Version = "2.0.0"
@@ -191,7 +188,6 @@ func TestLoadFromConfigFile(t *testing.T) {
 				c.Database.MaxConns = 42
 				c.Redis.PoolSize = 25
 				c.Log.Format = "json"
-				c.Stockbit.WSEnabled = true
 				c.Stockbit.WSSymbols = []string{"BBCA", "BBRI"}
 			},
 		},

@@ -1,4 +1,4 @@
-package container
+package ws_test
 
 import (
 	"context"
@@ -18,39 +18,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/nofendian17/sbterm-server/internal/container"
+	"github.com/nofendian17/sbterm-server/internal/delivery/ws"
+	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-func TestWSMessageJSON(t *testing.T) {
-	msg := &datafeedv1.WebsocketWrapMessageChannel{
-		MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_RunningTrade{
-			RunningTrade: &datafeedv1.RunningTrade{Stock: "BBCA", Price: 6400},
-		},
-	}
-	out := wsMessageJSON(msg)
-	assert.Contains(t, out, `"stock":"BBCA"`)
-	assert.Contains(t, out, "6400")
-}
-
-func TestWSMessageJSONNotTruncated(t *testing.T) {
-	batch := make([]*datafeedv1.RunningTrade, 0, 500)
-	for i := 0; i < 500; i++ {
-		batch = append(batch, &datafeedv1.RunningTrade{Stock: "BBCA", Price: 6350, Volume: 100})
-	}
-	msg := &datafeedv1.WebsocketWrapMessageChannel{
-		MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_RunningTradeBatch{
-			RunningTradeBatch: &datafeedv1.RunningTradeBatch{Batch: batch},
-		},
-	}
-	out := wsMessageJSON(msg)
-	assert.Greater(t, len(out), 4096)
-	assert.NotContains(t, out, "truncated")
-	assert.Contains(t, out, `"batch"`)
-}
-
-func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
+func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
 	// Fake Stockbit REST API: answers the websocket key used in the handshake.
 	keyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/auth/websocket/key", r.URL.Path)
@@ -96,18 +72,18 @@ func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
 		UserID:  667557,
 	}))
 
-	cfg := testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", redisURL)
+	cfg := newTestConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", redisURL)
 	cfg.Stockbit.BaseURL = keyServer.URL
 	cfg.Stockbit.WSURL = "ws" + strings.TrimPrefix(srv.URL, "http")
 	cfg.Stockbit.WSSymbols = []string{"BBCA", "BBRI"}
 
 	logger := log.New(log.WithWriter(io.Discard))
-	injector := New(cfg, logger)
+	injector := container.New(cfg, logger)
 
-	svc, err := do.Invoke[*wsService](injector)
+	svc, err := do.Invoke[*ws.Service](injector)
 	require.NoError(t, err)
 
-	svc.start()
+	svc.Start()
 	defer func() { injector.ShutdownWithContext(context.Background()) }()
 
 	select {
@@ -117,4 +93,44 @@ func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
 	}
 
 	require.NoError(t, svc.Shutdown())
+}
+
+func newTestConfig(databaseURL, redisURL string) *config.Config {
+	return &config.Config{
+		App: config.AppConfig{
+			Name:    "test-app",
+			Version: "1.0.0",
+		},
+		Port: ":9999",
+		Database: config.DatabaseConfig{
+			URL:             databaseURL,
+			MaxConns:        10,
+			MinConns:        0,
+			MaxConnLifetime: 30 * time.Minute,
+			MaxConnIdleTime: 5 * time.Minute,
+		},
+		Redis: config.RedisConfig{
+			URL:          redisURL,
+			MaxRetries:   1,
+			PoolSize:     1,
+			MinIdleConns: 0,
+			DialTimeout:  time.Second,
+			ReadTimeout:  time.Second,
+			WriteTimeout: time.Second,
+		},
+		Log: config.LogConfig{
+			Level:     "info",
+			Format:    "text",
+			AddSource: false,
+		},
+		RateLimit: config.RateLimitConfig{
+			Rate:  100,
+			Burst: 200,
+		},
+		HTTP: config.HTTPConfig{
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  60 * time.Second,
+		},
+	}
 }

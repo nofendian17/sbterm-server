@@ -43,6 +43,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/subsidiary"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/topstock"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/trending"
+	deliveryws "github.com/nofendian17/sbterm-server/internal/delivery/ws"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/database"
@@ -428,7 +429,7 @@ func provideStockbit(injector *do.RootScope) {
 		return refresher.Client(), nil
 	})
 
-	do.Provide(injector, func(i do.Injector) (*wsService, error) {
+	do.Provide(injector, func(i do.Injector) (*deliveryws.Service, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 		refresher, err := do.Invoke[*stockbit.Refresher](i)
@@ -436,7 +437,7 @@ func provideStockbit(injector *do.RootScope) {
 			return nil, err
 		}
 		ws := stockbit.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
-			key, err := refresher.Client().GetWebsocketKey(ctx)
+			key, err := refresher.Client().GetWebSocketKey(ctx)
 			if err != nil {
 				return "", fmt.Errorf("container: fetch websocket key: %w", err)
 			}
@@ -449,7 +450,7 @@ func provideStockbit(injector *do.RootScope) {
 			stockbit.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
 			stockbit.WithWSLogger(logger),
 		)
-		return newWSService(ws, refresher, cfg, logger), nil
+		return deliveryws.New(ws, refresher, cfg, logger), nil
 	})
 }
 
@@ -848,19 +849,17 @@ func Run() error {
 	}
 	refresher.Start()
 
-	if cfg.Stockbit.WSEnabled {
-		if len(cfg.Stockbit.WSSymbols) == 0 {
-			logger.Warn("stockbit ws enabled but ws_symbols is empty; skipping")
-		} else {
-			wsSvc, err := do.Invoke[*wsService](injector)
-			if err != nil {
-				return fmt.Errorf("container: construct stockbit ws client: %w", err)
-			}
-			wsSvc.start()
-			logger.Info("stockbit ws client started",
-				"url", cfg.Stockbit.WSURL,
-				"symbols", cfg.Stockbit.WSSymbols)
+	if len(cfg.Stockbit.WSSymbols) == 0 {
+		logger.Warn("stockbit ws_symbols is empty; skipping datafeed subscription")
+	} else {
+		wsSvc, err := do.Invoke[*deliveryws.Service](injector)
+		if err != nil {
+			return fmt.Errorf("container: construct stockbit ws client: %w", err)
 		}
+		wsSvc.Start()
+		logger.Info("stockbit ws client started",
+			"url", cfg.Stockbit.WSURL,
+			"symbols", cfg.Stockbit.WSSymbols)
 	}
 
 	server, err := do.Invoke[*deliveryhttp.Server](injector)

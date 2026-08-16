@@ -63,7 +63,6 @@ type StockbitConfig struct {
 	Username                  string        `mapstructure:"username"`
 	Password                  string        `mapstructure:"password"`
 	WSURL                     string        `mapstructure:"ws_url"`
-	WSEnabled                 bool          `mapstructure:"ws_enabled"`
 	WSSymbols                 []string      `mapstructure:"ws_symbols"`
 	WSPingInterval            time.Duration `mapstructure:"ws_ping_interval"`
 	WSReconnectBackoffInitial time.Duration `mapstructure:"ws_reconnect_backoff_initial"`
@@ -141,7 +140,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stockbit.username", "")
 	v.SetDefault("stockbit.password", "")
 	v.SetDefault("stockbit.ws_url", "wss://wss-trading.stockbit.com/ws")
-	v.SetDefault("stockbit.ws_enabled", false)
 	v.SetDefault("stockbit.ws_ping_interval", 30*time.Second)
 	v.SetDefault("stockbit.ws_reconnect_backoff_initial", time.Second)
 	v.SetDefault("stockbit.ws_reconnect_backoff_max", 30*time.Second)

@@ -13,24 +13,24 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-const websocketKeyBody = `{"message":"Success get websocket key","data":{"key":"test-websocket-key"}}`
+const webSocketKeyBody = `{"message":"Success get websocket key","data":{"key":"test-websocket-key"}}`
 
-func TestGetWebsocketKey(t *testing.T) {
+func TestGetWebSocketKey(t *testing.T) {
 	tests := []struct {
 		name    string
 		opts    []Option
 		handler func(t *testing.T, w http.ResponseWriter, r *http.Request)
-		check   func(t *testing.T, resp *WebsocketKeyResponse, logs string)
+		check   func(t *testing.T, resp *WebSocketKeyResponse, logs string)
 	}{
 		{
 			name: "returns the websocket key",
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
-				assert.Equal(t, websocketKeyPath, r.URL.Path)
+				assert.Equal(t, webSocketKeyPath, r.URL.Path)
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(websocketKeyBody))
+				w.Write([]byte(webSocketKeyBody))
 			},
-			check: func(t *testing.T, resp *WebsocketKeyResponse, logs string) {
+			check: func(t *testing.T, resp *WebSocketKeyResponse, logs string) {
 				require.NotNil(t, resp)
 				assert.Equal(t, "Success get websocket key", resp.Message)
 				assert.Equal(t, "test-websocket-key", resp.Data.Key)
@@ -42,16 +42,16 @@ func TestGetWebsocketKey(t *testing.T) {
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "Bearer at-ok", r.Header.Get("Authorization"))
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(websocketKeyBody))
+				w.Write([]byte(webSocketKeyBody))
 			},
 		},
 		{
 			name: "is not logged",
 			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(websocketKeyBody))
+				w.Write([]byte(webSocketKeyBody))
 			},
-			check: func(t *testing.T, resp *WebsocketKeyResponse, logs string) {
+			check: func(t *testing.T, resp *WebSocketKeyResponse, logs string) {
 				assert.Contains(t, logs, "stockbit request")
 				assert.NotContains(t, logs, "test-websocket-key")
 			},
@@ -68,7 +68,7 @@ func TestGetWebsocketKey(t *testing.T) {
 			var buf strings.Builder
 			logger := log.New(log.WithWriter(&buf), log.WithLevel(log.LevelDebug))
 			opts := append([]Option{WithBaseURL(srv.URL), WithLogger(logger)}, tt.opts...)
-			resp, err := New(opts...).GetWebsocketKey(context.Background())
+			resp, err := New(opts...).GetWebSocketKey(context.Background())
 			require.NoError(t, err)
 			if tt.check != nil {
 				tt.check(t, resp, buf.String())

@@ -25,6 +25,7 @@ Dokumen ini mencatat hasil riset implementasi protobuf di **https://stockbit.com
 |---|---|---|
 | Social | `wss://wssocial.stockbit.com/?wskey=<key>` | chat (typing indicator, message) |
 | Trading | `wss://wss-trading.stockbit.com/ws` | portfolio live, order, **nego engine order book** |
+| Datafeed | `wss://wssfeed.stockbit.com/?wskey=<key>` | liveprice, entitas datafeed/financial, frame subscribe — tercatat di header semua proto datafeed & financial |
 | Generic | `wss://ws-gen.stockbit.com/v1` | frame envelope umum (ping/auth/securities) |
 
 Semua dijalankan lewat framework **Primus**:
@@ -36,6 +37,10 @@ window.Primus("https://ws3.stockbit.com/", { strategy: false });
 Handshake info: `https://ws3.stockbit.com/primus/info` →
 `{"websocket":true,"origins":["*:*"],"cookie_needed":false,"entropy":736912565}`
 
+> **Catatan**: info Primus berasal dari fase riset awal bundle; frame yang
+> ter-capture adalah protobuf polos tanpa lapisan framing Primus. Koneksi
+> final (tabel §2) memakai WebSocket langsung, bukan Primus.
+
 ## 3. Flow autentikasi (wskey)
 
 1. `GET https://exodus.stockbit.com/auth/websocket/key`
@@ -43,7 +48,8 @@ Handshake info: `https://ws3.stockbit.com/primus/info` →
    → `{"message":"...","data":{"key":"..."}}` (sudah ada `GetWebsocketKey` di
    `internal/infrastructure/stockbit/websocket.go`)
 2. wskey dipakai sebagai query param `?wskey=<key>` saat connect WS.
-3. wskey juga dikirim dalam frame subscribe (field 3 request; fungsi
+3. wskey juga dikirim dalam frame subscribe (datafeed `WebsocketRequest`
+   field 3 = `key`; fungsi
    `convertWSKeyArray` di bundle mengubah array key menjadi byte array).
 4. Cek otorisasi: `fetch(wsUrl.replace("wss://","https://"), {headers:{Authorization:"Bearer "+token}})`
    → 401 memicu re-login.
@@ -55,10 +61,10 @@ Semua frame adalah **binary protobuf** standar (varint wire format).
 ### Client → Server
 
 ```js
-// envelope
+// envelope — platform.websocket.wsevent.v1.WebsocketRequest (wsevent.proto)
 new cA.vC({ requests: [request] }).toBinary()
-// cA.vC = platform.websocket.wsevent.v1.WebsocketRequest
-// request  = { value, command | subscribe | unsubscribe }
+// requests[] → Request{ value = 1 (bytes: session id / nilai channel),
+//                       oneof { command = 2, subscribe = 3, unsubscribe = 4 } }
 ```
 
 Frame subscribe nyata (941 byte, ter-capture):
@@ -71,6 +77,13 @@ field 3: wskey
 
 Frame ini terbentuk dari **`securities.transactional.datafeed.v1.WebsocketRequest`**
 (lihat §5): field 1 = `user_id`, field 2 = `channel.watchlist`, field 3 = `key`.
+
+> **Dua level berbeda**: frame 941-byte di atas adalah level **datafeed**
+> (`securities.transactional.datafeed.v1.WebsocketRequest` — field 1/2/3 =
+> user_id/channel/key), sedangkan `cA.vC` adalah envelope level **platform**
+> (`platform.websocket.wsevent.v1.WebsocketRequest` — field 1 = `requests[]`,
+> tiap `Request` berisi `value`/`command`/`subscribe`/`unsubscribe`).
+> Jangan tertukar saat implementasi.
 Byte verbatim frame asli tidak direkam; wire-compat test
 (`internal/infrastructure/stockbit/proto/wire_compat_test.go`) merekonstruksi
 strukturnya (session + 108 channel + wskey placeholder = 744 byte; selisih
@@ -79,7 +92,8 @@ Hasil rekonstruksi round-trip deterministik: session dan channel ter-decode
 kembali tanpa kehilangan data.
 
 Ping: `IgYKBHBpbmc=` = `22 06 0A 04 70 69 6E 67`
-= field 4 (length-delimited) → nested field 1 string `"ping"`.
+= field 4 `ping` (length-delimited) → nested field 1 string `"ping"`
+(datafeed `WebsocketRequest.ping`).
 Subscribe di-debounce 100 ms (`cz()(_,100)`).
 
 Kedua frame ping (`IgYKBHBpbmc=`, `CAE=`) telah diverifikasi **byte-exact**
@@ -181,12 +195,18 @@ saat meragukan.
   ReceivedPost untuk stream & research yang dikenali).
 - Field table beberapa payload `datafeed` consumer (v1/v3) yang masih berupa
   placeholder/referensi module.
+- Enum `platform.websocket.wsevent.v1.WebsocketRequest.Request.Channel` masih
+  **stub**: hanya `CHANNEL_SECURITIES_LIVE_PORTO` dan
+  `CHANNEL_NEGO_ENGINE_ORDER_BOOK`; doc §5 menyebut "ds-live/ds-live-order,
+  etc." — member tsb belum ada di skema. Hati-hati kalau dipakai untuk
+  subscribe channel lain.
 
 ## 6. Jalur implementasi Go (WS client)
 
 ```
 1. GET exodus.stockbit.com/auth/websocket/key   (sudah ada)
-2. connect wss://wss-trading.stockbit.com/ws?wskey=<key>   (atau tanpa query; lihat bundle)
+2. connect wss://wss-trading.stockbit.com/ws?wskey=<key> (atau tanpa query; lihat bundle)
+   — datafeed: `wss://wssfeed.stockbit.com/?wskey=<key>` (header datafeed_websocket.proto; lihat §2)
 3. kirim frame: WebsocketRequest{requests:[{value:session, subscribe:...}]}.toBinary()
 4. terima frame → decode platform.websocket.wsevent.v1.WebsocketResponse
 5. baca .response.securities
@@ -210,6 +230,7 @@ via generated stubs), WebSocket: `gorilla/websocket` / `nhooyr.io/websocket`.
 
 Semua perilaku di tabel diverifikasi `go test ./internal/infrastructure/stockbit/proto/ -run WireCompat`
 (frame ping byte-exact terhadap capture; rekonstruksi subscribe round-trip).
+File test: `internal/infrastructure/stockbit/proto/wire_compat_test.go`.
 
 ## 8. Referensi bundle (untuk riset lanjutan)
 

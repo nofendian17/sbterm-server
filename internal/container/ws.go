@@ -29,16 +29,11 @@ func newWSService(client *stockbit.WSClient, refresher *stockbit.Refresher, cfg 
 	return &wsService{client: client, refresher: refresher, cfg: cfg, logger: logger}
 }
 
-// wsMessageJSON renders a decoded datafeed frame as JSON for debug logging,
-// capped so a busy order-book feed does not flood the log.
+// wsMessageJSON renders a decoded datafeed frame as JSON for debug logging.
 func wsMessageJSON(m *datafeedv1.WebsocketWrapMessageChannel) string {
 	out, err := protojson.Marshal(m)
 	if err != nil {
 		return "?"
-	}
-	const max = 4096
-	if len(out) > max {
-		out = append(out[:max], []byte("... (truncated)")...)
 	}
 	return string(out)
 }

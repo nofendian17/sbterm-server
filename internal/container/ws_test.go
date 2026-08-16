@@ -34,6 +34,22 @@ func TestWSMessageJSON(t *testing.T) {
 	assert.Contains(t, out, "6400")
 }
 
+func TestWSMessageJSONNotTruncated(t *testing.T) {
+	batch := make([]*datafeedv1.RunningTrade, 0, 500)
+	for i := 0; i < 500; i++ {
+		batch = append(batch, &datafeedv1.RunningTrade{Stock: "BBCA", Price: 6350, Volume: 100})
+	}
+	msg := &datafeedv1.WebsocketWrapMessageChannel{
+		MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_RunningTradeBatch{
+			RunningTradeBatch: &datafeedv1.RunningTradeBatch{Batch: batch},
+		},
+	}
+	out := wsMessageJSON(msg)
+	assert.Greater(t, len(out), 4096)
+	assert.NotContains(t, out, "truncated")
+	assert.Contains(t, out, `"batch"`)
+}
+
 func TestWSEnabledStartsWithSubscriptionAndStops(t *testing.T) {
 	// Fake Stockbit REST API: answers the websocket key used in the handshake.
 	keyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

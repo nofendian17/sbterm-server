@@ -44,31 +44,59 @@ type wsOptions struct {
 // WSOption configures a WSClient.
 type WSOption func(*wsOptions)
 
-// WithWSDialTimeout sets the websocket handshake timeout.
+// WithWSDialTimeout sets the websocket handshake timeout. Non-positive values
+// keep the default.
 func WithWSDialTimeout(d time.Duration) WSOption {
-	return func(o *wsOptions) { o.dialTimeout = d }
+	return func(o *wsOptions) {
+		if d > 0 {
+			o.dialTimeout = d
+		}
+	}
 }
 
 // WithWSPingInterval sets how often the client sends a keepalive ping frame.
+// Non-positive values keep the default.
 func WithWSPingInterval(d time.Duration) WSOption {
-	return func(o *wsOptions) { o.pingInterval = d }
+	return func(o *wsOptions) {
+		if d > 0 {
+			o.pingInterval = d
+		}
+	}
 }
 
 // WithWSReadTimeout sets how long the client waits on a read before treating
-// the connection as dead and reconnecting.
+// the connection as dead and reconnecting. Non-positive values keep the
+// default.
 func WithWSReadTimeout(d time.Duration) WSOption {
-	return func(o *wsOptions) { o.readTimeout = d }
+	return func(o *wsOptions) {
+		if d > 0 {
+			o.readTimeout = d
+		}
+	}
 }
 
-// WithWSWriteTimeout sets the write deadline for outgoing frames.
+// WithWSWriteTimeout sets the write deadline for outgoing frames. Non-positive
+// values keep the default.
 func WithWSWriteTimeout(d time.Duration) WSOption {
-	return func(o *wsOptions) { o.writeTimeout = d }
+	return func(o *wsOptions) {
+		if d > 0 {
+			o.writeTimeout = d
+		}
+	}
 }
 
 // WithWSReconnectBackoff sets the initial and maximum delays between reconnect
-// attempts; the delay doubles on every consecutive failure.
+// attempts; the delay doubles on every consecutive failure. Non-positive
+// values keep the corresponding default.
 func WithWSReconnectBackoff(initial, max time.Duration) WSOption {
-	return func(o *wsOptions) { o.backoffInit, o.backoffMax = initial, max }
+	return func(o *wsOptions) {
+		if initial > 0 {
+			o.backoffInit = initial
+		}
+		if max > 0 {
+			o.backoffMax = max
+		}
+	}
 }
 
 // WithWSLogger enables debug logging of connection events.

@@ -248,6 +248,27 @@ func TestWSClientReconnectsAndResubscribes(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+// TestWSZeroOptionsKeepDefaults asserts that zero-valued durations passed via
+// options (e.g. from unset config) keep the built-in defaults instead of
+// producing a zero/panicking ticker.
+func TestWSZeroOptionsKeepDefaults(t *testing.T) {
+	c := NewWSClient("wss://example.com/", func(ctx context.Context) (string, error) { return "k", nil },
+		WithWSDialTimeout(0),
+		WithWSPingInterval(0),
+		WithWSReadTimeout(0),
+		WithWSWriteTimeout(0),
+		WithWSReconnectBackoff(0, 0),
+	)
+	assert.Equal(t, 10*time.Second, c.opts.dialTimeout)
+	assert.Equal(t, 30*time.Second, c.opts.pingInterval)
+	assert.Equal(t, 90*time.Second, c.opts.readTimeout)
+	assert.Equal(t, 10*time.Second, c.opts.writeTimeout)
+	assert.Equal(t, time.Second, c.opts.backoffInit)
+	assert.Equal(t, 30*time.Second, c.opts.backoffMax)
+}
+
+// TestWSChannelAllFillsSymbolChannels asserts symbol-array channel fields are
+// all populated.
 func TestWSChannelAllFillsSymbolChannels(t *testing.T) {
 	ch := WSChannelAll("BBCA")
 	assert.Equal(t, []string{"BBCA"}, ch.GetWatchlist())

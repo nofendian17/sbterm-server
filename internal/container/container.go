@@ -427,6 +427,27 @@ func provideStockbit(injector *do.RootScope) {
 		}
 		return refresher.Client(), nil
 	})
+
+	do.Provide(injector, func(i do.Injector) (*wsService, error) {
+		cfg := do.MustInvoke[*config.Config](i)
+		logger := do.MustInvoke[log.Logger](i)
+		refresher, err := do.Invoke[*stockbit.Refresher](i)
+		if err != nil {
+			return nil, err
+		}
+		ws := stockbit.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
+			key, err := refresher.Client().GetWebsocketKey(ctx)
+			if err != nil {
+				return "", fmt.Errorf("container: fetch websocket key: %w", err)
+			}
+			return key.Data.Key, nil
+		},
+			stockbit.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
+			stockbit.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
+			stockbit.WithWSLogger(logger),
+		)
+		return newWSService(ws, refresher, cfg, logger), nil
+	})
 }
 
 func provideUsecases(injector *do.RootScope) {
@@ -823,6 +844,21 @@ func Run() error {
 		return fmt.Errorf("container: construct stockbit refresher: %w", err)
 	}
 	refresher.Start()
+
+	if cfg.Stockbit.WSEnabled {
+		if len(cfg.Stockbit.WSSymbols) == 0 {
+			logger.Warn("stockbit ws enabled but ws_symbols is empty; skipping")
+		} else {
+			wsSvc, err := do.Invoke[*wsService](injector)
+			if err != nil {
+				return fmt.Errorf("container: construct stockbit ws client: %w", err)
+			}
+			wsSvc.start()
+			logger.Info("stockbit ws client started",
+				"url", cfg.Stockbit.WSURL,
+				"symbols", cfg.Stockbit.WSSymbols)
+		}
+	}
 
 	server, err := do.Invoke[*deliveryhttp.Server](injector)
 	if err != nil {

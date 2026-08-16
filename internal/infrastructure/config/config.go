@@ -56,12 +56,18 @@ type RedisConfig struct {
 }
 
 type StockbitConfig struct {
-	BaseURL    string        `mapstructure:"base_url"`
-	Timeout    time.Duration `mapstructure:"timeout"`
-	RetryCount int           `mapstructure:"retry_count"`
-	PlayerID   string        `mapstructure:"player_id"`
-	Username   string        `mapstructure:"username"`
-	Password   string        `mapstructure:"password"`
+	BaseURL                   string        `mapstructure:"base_url"`
+	Timeout                   time.Duration `mapstructure:"timeout"`
+	RetryCount                int           `mapstructure:"retry_count"`
+	PlayerID                  string        `mapstructure:"player_id"`
+	Username                  string        `mapstructure:"username"`
+	Password                  string        `mapstructure:"password"`
+	WSURL                     string        `mapstructure:"ws_url"`
+	WSEnabled                 bool          `mapstructure:"ws_enabled"`
+	WSSymbols                 []string      `mapstructure:"ws_symbols"`
+	WSPingInterval            time.Duration `mapstructure:"ws_ping_interval"`
+	WSReconnectBackoffInitial time.Duration `mapstructure:"ws_reconnect_backoff_initial"`
+	WSReconnectBackoffMax     time.Duration `mapstructure:"ws_reconnect_backoff_max"`
 }
 
 type LogConfig struct {
@@ -134,6 +140,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stockbit.player_id", "")
 	v.SetDefault("stockbit.username", "")
 	v.SetDefault("stockbit.password", "")
+	v.SetDefault("stockbit.ws_url", "wss://wssfeed.stockbit.com/")
+	v.SetDefault("stockbit.ws_enabled", false)
+	v.SetDefault("stockbit.ws_ping_interval", 30*time.Second)
+	v.SetDefault("stockbit.ws_reconnect_backoff_initial", time.Second)
+	v.SetDefault("stockbit.ws_reconnect_backoff_max", 30*time.Second)
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

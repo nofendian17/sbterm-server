@@ -9,6 +9,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pashagolub/pgxmock/v5 v5.1.0
+	github.com/questdb/go-questdb-client/v4 v4.2.1-0.20260730155217-4f2723e2d5cb
 	github.com/redis/go-redis/v9 v9.17.2
 	github.com/samber/do/v2 v2.1.0
 	github.com/samber/slog-chi v1.19.1
@@ -21,7 +22,9 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/klauspost/compress v1.18.4 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 )
 

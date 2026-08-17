@@ -32,6 +32,10 @@ func defaultConfig() *Config {
 			ReadTimeout:  3 * time.Second,
 			WriteTimeout: 3 * time.Second,
 		},
+		QuestDB: QuestDBConfig{
+			URL:   "ws::addr=localhost:9000;",
+			Table: "running_trades",
+		},
 		Stockbit: StockbitConfig{
 			BaseURL:                   "https://exodus.stockbit.com",
 			Timeout:                   30 * time.Second,
@@ -137,6 +141,9 @@ redis:
   dial_timeout: 2s
   read_timeout: 1s
   write_timeout: 1500ms
+questdb:
+  url: ws::addr=db.example.com:9000;
+  table: trade_ticks
 stockbit:
   base_url: https://exodus.example.com
   timeout: 15s
@@ -179,6 +186,10 @@ http:
 					DialTimeout:  2 * time.Second,
 					ReadTimeout:  1 * time.Second,
 					WriteTimeout: 1500 * time.Millisecond,
+				}
+				c.QuestDB = QuestDBConfig{
+					URL:   "ws::addr=db.example.com:9000;",
+					Table: "trade_ticks",
 				}
 				c.Stockbit = StockbitConfig{
 					BaseURL:                   "https://exodus.example.com",

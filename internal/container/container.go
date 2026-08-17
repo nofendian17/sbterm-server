@@ -48,6 +48,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/database"
+	"github.com/nofendian17/sbterm-server/internal/infrastructure/questdb"
 	infraRepo "github.com/nofendian17/sbterm-server/internal/infrastructure/repository"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	"github.com/nofendian17/sbterm-server/internal/repository"
@@ -105,6 +106,14 @@ func provideInfrastructure(injector *do.RootScope) {
 			cache.WithReadTimeout(cfg.Redis.ReadTimeout),
 			cache.WithWriteTimeout(cfg.Redis.WriteTimeout),
 		)
+	})
+
+	do.Provide(injector, func(i do.Injector) (*questdb.Client, error) {
+		cfg := do.MustInvoke[*config.Config](i)
+		logger := do.MustInvoke[log.Logger](i)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.Table, logger)
 	})
 }
 
@@ -446,6 +455,10 @@ func provideStockbit(injector *do.RootScope) {
 		if err != nil {
 			return nil, err
 		}
+		store, err := do.Invoke[*questdb.Client](i)
+		if err != nil {
+			return nil, err
+		}
 
 		subs := make([]*deliveryws.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
 		for _, sub := range cfg.Stockbit.WSSubscriptions {
@@ -469,7 +482,7 @@ func provideStockbit(injector *do.RootScope) {
 				Channel: deliveryws.BuildChannel(sub.Channels),
 			})
 		}
-		return deliveryws.New(subs, refresher, logger), nil
+		return deliveryws.New(subs, refresher, store, logger), nil
 	})
 }
 

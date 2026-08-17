@@ -24,6 +24,7 @@ type Config struct {
 	Port      string          `mapstructure:"port"`
 	Database  DatabaseConfig  `mapstructure:"database"`
 	Redis     RedisConfig     `mapstructure:"redis"`
+	QuestDB   QuestDBConfig   `mapstructure:"questdb"`
 	Stockbit  StockbitConfig  `mapstructure:"stockbit"`
 	Log       LogConfig       `mapstructure:"log"`
 	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
@@ -51,6 +52,13 @@ type RedisConfig struct {
 	DialTimeout  time.Duration `mapstructure:"dial_timeout"`
 	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout time.Duration `mapstructure:"write_timeout"`
+}
+
+// QuestDBConfig describes the QuestDB time-series database connection. The URL
+// is a QWP WebSocket connect string (e.g. "ws::addr=questdb:9000;").
+type QuestDBConfig struct {
+	URL   string `mapstructure:"url"`
+	Table string `mapstructure:"table"`
 }
 
 type StockbitConfig struct {
@@ -149,6 +157,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.dial_timeout", 5*time.Second)
 	v.SetDefault("redis.read_timeout", 3*time.Second)
 	v.SetDefault("redis.write_timeout", 3*time.Second)
+	v.SetDefault("questdb.url", "ws::addr=localhost:9000;")
+	v.SetDefault("questdb.table", "running_trades")
 	v.SetDefault("stockbit.base_url", "https://exodus.stockbit.com")
 	v.SetDefault("stockbit.timeout", 30*time.Second)
 	v.SetDefault("stockbit.retry_count", 3)

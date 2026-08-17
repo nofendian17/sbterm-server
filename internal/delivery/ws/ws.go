@@ -11,6 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/config"
+	"github.com/nofendian17/sbterm-server/internal/infrastructure/questdb"
 	"github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit"
 	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
 	"github.com/nofendian17/sbterm-server/pkg/log"
@@ -29,6 +30,7 @@ type Subscription struct {
 type Service struct {
 	subs      []*Subscription
 	refresher *stockbit.Refresher
+	store     questdb.RunningTradeBatchStore
 	logger    log.Logger
 
 	ctx    context.Context
@@ -37,8 +39,8 @@ type Service struct {
 }
 
 // New builds a Service around the configured subscriptions.
-func New(subs []*Subscription, refresher *stockbit.Refresher, logger log.Logger) *Service {
-	return &Service{subs: subs, refresher: refresher, logger: logger}
+func New(subs []*Subscription, refresher *stockbit.Refresher, store questdb.RunningTradeBatchStore, logger log.Logger) *Service {
+	return &Service{subs: subs, refresher: refresher, store: store, logger: logger}
 }
 
 // BuildChannel maps a channel config onto the corresponding datafeed channel
@@ -99,10 +101,30 @@ func (s *Service) Start() {
 // cancelled.
 func (s *Service) run(sub *Subscription, userID int64) {
 	request := stockbit.WSSubscription{UserID: userID, Channel: sub.Channel}
-	if err := sub.Client.Run(s.ctx, request, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
+
+	sink, err := s.store.NewRunningTradeBatchSink(s.ctx)
+	if err != nil {
+		s.logger.Warn("questdb sink: borrow running trade sink failed", "subscription", sub.Name, "error", err)
+		return
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := sink.Close(closeCtx); err != nil {
+			s.logger.Warn("questdb sink: close running trade sink failed", "subscription", sub.Name, "error", err)
+		}
+	}()
+
+	err = sub.Client.Run(s.ctx, request, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
 		s.logger.Debug("stockbit ws frame", "subscription", sub.Name, "message", wsMessageJSON(m))
+		if batch := m.GetRunningTradeBatch(); batch != nil {
+			if err := sink.Store(ctx, batch); err != nil {
+				s.logger.Warn("questdb sink: store running trade batch failed", "subscription", sub.Name, "error", err)
+			}
+		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		s.logger.Warn("stockbit ws client stopped", "subscription", sub.Name, "error", err)
 	}
 }

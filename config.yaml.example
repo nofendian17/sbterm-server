@@ -26,6 +26,13 @@ redis:
   read_timeout: 3s
   write_timeout: 3s
 
+# QuestDB time-series database connection. The URL is a QWP (WebSocket)
+# connect string; the client connects lazily, so QuestDB may start late.
+# In Docker Compose, use host "questdb". When running locally, use "localhost".
+questdb:
+  url: ws::addr=localhost:9000;
+  table: running_trades
+
 # Exodus Stockbit REST API client settings.
 # player_id, username, and password are used to obtain and refresh the token.
 stockbit:

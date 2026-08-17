@@ -17,6 +17,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      questdb:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
       interval: 30s
@@ -58,6 +60,22 @@ services:
       retries: 5
       start_period: 5s
 
+  questdb:
+    image: questdb/questdb:10.0.0
+    container_name: sbterm-questdb
+    restart: unless-stopped
+    ports:
+      - "${QUESTDB_HOST_PORT:-9000}:9000"
+    volumes:
+      - questdb-data:/var/lib/questdb
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/exec?query=select%201"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   postgres-data:
   redis-data:
+  questdb-data:

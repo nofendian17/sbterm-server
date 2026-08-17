@@ -45,6 +45,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 33 | `GET /api/v1/company/{symbol}/orderbook` | [Order book](#get-apiv1companysymbolorderbook) |
 | 34 | `GET /api/v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-apiv1order-tradeforeign-domestichistorical) |
 | 35 | `GET /api/v1/search` | [Search](#get-apiv1search) |
+| 36 | `GET /api/v1/order-trade/order-queue` | [Order queue](#get-apiv1order-tradeorder-queue) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -1381,12 +1382,93 @@ curl 'http://localhost:8080/api/v1/order-trade/running-trade?symbol=BBCA&date=20
 }
 ```
 
+### `GET /api/v1/order-trade/order-queue`
+Order queue for one symbol at one price: the pending buy/sell orders queued at
+a price level, proxied straight from `/order-trade/order-queue`. Each row is a
+single order waiting in the queue.
+
+| param | required | values |
+|---|---|---|
+| `stock_code` | yes | one symbol, e.g. `SLIS` |
+| `action_type` | no | `ACTION_TYPE_BUY`, `ACTION_TYPE_SELL`, `ACTION_TYPE_ALL` (default) |
+| `board_type` | no | `BOARD_TYPE_REGULAR` (default), `BOARD_TYPE_NEGOTIATION`, `BOARD_TYPE_CASH`, `BOARD_TYPE_ALL` |
+| `order_status` | no | `ORDER_STATUS_OPEN` (default), `ORDER_STATUS_FULL_MATCH`, `ORDER_STATUS_WITHDRAWN`, `ORDER_STATUS_PARTIAL_MATCH`, `ORDER_STATUS_AMEND`, `ORDER_STATUS_ALL` |
+| `sort_by` | no | `SORT_BY_QUEUE` (default; the only value upstream accepts) |
+| `sort_direction` | no | `SORT_DIRECTION_ASC` (default), `SORT_DIRECTION_DESC` |
+| `price` | no | int — the price level queried (omitted → the whole queue) |
+| `limit` | no | int ≥ 1 (default 100) |
+
+- **One symbol per call** — `stock_code` is required; empty → `422
+  VALIDATION_ERROR` (`{"stock_code":"is required"}`).
+- **Enums are validated `oneof`**; unknown values (e.g. `action_type=BOGUS`) →
+  `422 VALIDATION_ERROR` with a per-field message. `sort_by` only accepts
+  `SORT_BY_QUEUE`.
+- **Non-numeric `price`/`limit`** (e.g. `price=abc`, `limit=abc`) → `422`
+  (`must be a valid integer`).
+- **`pagination.has_next_page`** signals rows remain after `limit`; raise
+  `limit` to fetch more in a single call.
+- `price`/`open`/`lot`/`queue_lot` are **JSON numbers**; `queue_number` and
+  `order_number` are **strings** (upstream serializes them as strings).
+  `exchange_order_number.full` is the complete order number, `.formatted` its
+  display form.
+- `broker_code` is empty for orders without a public broker; `broker_group` is
+  `BROKER_GROUP_{LOCAL,FOREIGN,UNSPECIFIED}`.
+
+`data: { is_open_market, orders: [{ id, queue_number, stock_code, time,
+action_type, price, status, open, lot, board_type, broker_code,
+exchange_order_number: {full, formatted}, queue_lot, broker_group,
+order_number }], pagination: { has_next_page } }`
+
+- `is_open_market` = `false` outside exchange hours (live capture).
+- `time` is the upstream ISO-8601 timestamp (e.g. `2026-08-14T14:09:19.282073Z`).
+
+#### Example: request / response
+
+```bash
+# All parameters (matches the reference upstream curl)
+curl 'http://localhost:8080/api/v1/order-trade/order-queue?action_type=ACTION_TYPE_ALL&board_type=BOARD_TYPE_REGULAR&limit=100&order_status=ORDER_STATUS_OPEN&price=101&sort_by=SORT_BY_QUEUE&sort_direction=SORT_DIRECTION_ASC&stock_code=SLIS'
+
+# stock_code only -> enums/limit fall back to defaults (whole queue, any price)
+curl 'http://localhost:8080/api/v1/order-trade/order-queue?stock_code=SLIS'
+
+# Descending order + fewer rows
+curl 'http://localhost:8080/api/v1/order-trade/order-queue?stock_code=SLIS&price=101&limit=5&sort_direction=SORT_DIRECTION_DESC'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "is_open_market": false,
+    "orders": [
+      {
+        "id": "3495619555",
+        "queue_number": "1",
+        "stock_code": "SLIS",
+        "time": "2026-08-14T14:09:19.282073Z",
+        "action_type": "ACTION_TYPE_BUY",
+        "price": 101,
+        "status": "ORDER_STATUS_PARTIAL_MATCH",
+        "open": 39,
+        "lot": 50,
+        "board_type": "BOARD_TYPE_REGULAR",
+        "broker_code": "YP",
+        "exchange_order_number": { "full": "202608140003318022", "formatted": "3318022" },
+        "queue_lot": 0,
+        "broker_group": "BROKER_GROUP_FOREIGN",
+        "order_number": "202608140003318022"
+      }
+    ],
+    "pagination": { "has_next_page": true }
+  }
+}
+```
+
 ### `GET /api/v1/order-trade/foreign-domestic/historical`
 Historical foreign/domestic buy-sell aggregates for a symbol, over a period or
 a date range (proxies `/order-trade/foreign-domestic/historical`).
 
 | param | required | values |
-|---|---|---|
 | `symbol` | yes | one symbol (see note below) |
 | `market_type` | no | `MARKET_TYPE_ALL` (default; the only value upstream accepts) |
 | `period` | no | `TB_PERIOD_LAST_1_DAY` (default), `TB_PERIOD_LAST_7_DAYS`, `TB_PERIOD_LAST_1_MONTH`, `TB_PERIOD_YEAR_TO_DATE`, `TB_PERIOD_LAST_1_YEAR` |

@@ -32,6 +32,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderbook"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderqueue"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/runningtrade"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/search"
@@ -373,6 +374,15 @@ func provideRepositories(injector *do.RootScope) {
 	})
 	do.MustAs[*infraRepo.BrokerTopRepository, repository.BrokerTopRepository](injector)
 
+	do.Provide(injector, func(i do.Injector) (*infraRepo.OrderQueueRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewOrderQueueRepository(client), nil
+	})
+	do.MustAs[*infraRepo.OrderQueueRepository, repository.OrderQueueRepository](injector)
+
 	do.Provide(injector, func(i do.Injector) (*infraRepo.StreamRepository, error) {
 		client, err := do.Invoke[*stockbit.Client](i)
 		if err != nil {
@@ -567,6 +577,10 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewBrokerTopUsecase(do.MustInvoke[repository.BrokerTopRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.OrderQueueUsecase, error) {
+		return usecase.NewOrderQueueUsecase(do.MustInvoke[repository.OrderQueueRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.StreamUsecase, error) {
 		return usecase.NewStreamUsecase(do.MustInvoke[repository.StreamRepository](i)), nil
 	})
@@ -689,6 +703,10 @@ func provideHandlers(injector *do.RootScope) {
 		return brokertop.NewBrokerTopHandler(do.MustInvoke[usecase.BrokerTopUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*orderqueue.OrderQueueHandler, error) {
+		return orderqueue.NewOrderQueueHandler(do.MustInvoke[usecase.OrderQueueUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*stream.StreamHandler, error) {
 		return stream.NewStreamHandler(do.MustInvoke[usecase.StreamUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
@@ -730,8 +748,9 @@ func provideHandlers(injector *do.RootScope) {
 		brokerTopHandler := do.MustInvoke[*brokertop.BrokerTopHandler](i)
 		streamHandler := do.MustInvoke[*stream.StreamHandler](i)
 		searchHandler := do.MustInvoke[*search.SearchHandler](i)
+		orderQueueHandler := do.MustInvoke[*orderqueue.OrderQueueHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, searchHandler, logger,
+		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, searchHandler, orderQueueHandler, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

@@ -27,6 +27,7 @@ import (
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/network"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderbook"
+	"github.com/nofendian17/sbterm-server/internal/delivery/http/orderqueue"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/priceperformance"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/runningtrade"
 	"github.com/nofendian17/sbterm-server/internal/delivery/http/search"
@@ -55,7 +56,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, marketDetectorHandler *marketdetector.MarketDetectorHandler, topStockHandler *topstock.TopStockHandler, corpActionHandler *corpaction.CorpActionHandler, keystatsHandler *keystats.KeystatsHandler, pricePerformanceHandler *priceperformance.PricePerformanceHandler, chartHandler *chart.ChartbitHandler, fundaChartHandler *fundachart.FundaChartHandler, fundaChartMetricsHandler *fundachart.FundaChartMetricsHandler, findataFinancialHandler *findata.FindataFinancialHandler, indexSummaryHandler *indexsummary.IndexSummaryHandler, runningTradeHandler *runningtrade.RunningTradeHandler, orderBookHandler *orderbook.OrderBookHandler, foreignDomesticHandler *foreigndomestic.ForeignDomesticHandler, historicalSummaryHandler *historicalsummary.HistoricalSummaryHandler, activityHandler *activity.ActivityHandler, brokerTopHandler *brokertop.BrokerTopHandler, streamHandler *stream.StreamHandler, searchHandler *search.SearchHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, marketDetectorHandler *marketdetector.MarketDetectorHandler, topStockHandler *topstock.TopStockHandler, corpActionHandler *corpaction.CorpActionHandler, keystatsHandler *keystats.KeystatsHandler, pricePerformanceHandler *priceperformance.PricePerformanceHandler, chartHandler *chart.ChartbitHandler, fundaChartHandler *fundachart.FundaChartHandler, fundaChartMetricsHandler *fundachart.FundaChartMetricsHandler, findataFinancialHandler *findata.FindataFinancialHandler, indexSummaryHandler *indexsummary.IndexSummaryHandler, runningTradeHandler *runningtrade.RunningTradeHandler, orderBookHandler *orderbook.OrderBookHandler, foreignDomesticHandler *foreigndomestic.ForeignDomesticHandler, historicalSummaryHandler *historicalsummary.HistoricalSummaryHandler, activityHandler *activity.ActivityHandler, brokerTopHandler *brokertop.BrokerTopHandler, streamHandler *stream.StreamHandler, searchHandler *search.SearchHandler, orderQueueHandler *orderqueue.OrderQueueHandler, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -116,6 +117,7 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 			r.Get("/order-trade/broker/activity", activityHandler.Activity)
 			r.Get("/order-trade/broker/activity/historical", activityHandler.ActivityHistorical)
 			r.Get("/order-trade/broker/top", brokerTopHandler.BrokerTop)
+			r.Get("/order-trade/order-queue", orderQueueHandler.OrderQueue)
 			r.Get("/user/{username}/stream", streamHandler.UserStream)
 			r.Get("/search", searchHandler.Search)
 			r.Get("/stream/announcement/{stream_id}", streamHandler.StreamAnnouncement)

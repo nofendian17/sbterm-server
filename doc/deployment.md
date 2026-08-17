@@ -108,6 +108,23 @@ The remaining variables below only affect Docker Compose infrastructure (image t
 | --- | --- | --- |
 | `REDIS_HOST_PORT` | `6379` | Redis host port |
 
+### QuestDB
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `QUESTDB_HOST_PORT` | `9000` | QuestDB host port |
+| `QDB_HTTP_USER` | `questdb` | HTTP basic auth user for REST, Web Console, and QWP |
+| `QDB_HTTP_PASSWORD` | `questdb` | HTTP basic auth password |
+
+QuestDB runs with HTTP basic auth enabled (`QDB_HTTP_USER`/`QDB_HTTP_PASSWORD`). The app authenticates through the QWP connect string in `config.yaml`:
+
+```yaml
+questdb:
+  url: ws::addr=questdb:9000;username=questdb;password=questdb;
+```
+
+Keep the credentials in `config.yaml` in sync with the compose variables; changing them in `.env` requires the same update in `config.yaml`.
+
 Example override:
 
 ```bash
@@ -165,7 +182,13 @@ Redis uses:
 redis-cli ping
 ```
 
-`app` only starts after `postgres` and `redis` are healthy.
+QuestDB uses a curl healthcheck against its authenticated REST endpoint:
+
+```bash
+curl -u "$QDB_HTTP_USER:$QDB_HTTP_PASSWORD" 'http://127.0.0.1:9000/exec?query=select%201'
+```
+
+`app` only starts after `postgres`, `redis`, and `questdb` are healthy.
 
 ## Build Notes
 

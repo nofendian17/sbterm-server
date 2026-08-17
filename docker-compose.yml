@@ -64,12 +64,15 @@ services:
     image: questdb/questdb:10.0.0
     container_name: sbterm-questdb
     restart: unless-stopped
+    environment:
+      QDB_HTTP_USER: ${QDB_HTTP_USER:-questdb}
+      QDB_HTTP_PASSWORD: ${QDB_HTTP_PASSWORD:-questdb}
     ports:
       - "${QUESTDB_HOST_PORT:-9000}:9000"
     volumes:
       - questdb-data:/var/lib/questdb
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/exec?query=select%201"]
+      test: ["CMD", "curl", "-fsS", "-u", "${QDB_HTTP_USER:-questdb}:${QDB_HTTP_PASSWORD:-questdb}", "http://127.0.0.1:9000/exec?query=select%201"]
       interval: 10s
       timeout: 5s
       retries: 5

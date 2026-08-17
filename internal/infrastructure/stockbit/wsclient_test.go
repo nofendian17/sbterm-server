@@ -58,7 +58,7 @@ func decodeSubscribe(t *testing.T, payload []byte) *datafeedv1.WebsocketRequest 
 }
 
 // drain discards frames on extra connections created by reconnects.
-func drain(t *testing.T, c *websocket.Conn) {
+func drain(c *websocket.Conn) {
 	for {
 		if _, _, err := c.ReadMessage(); err != nil {
 			return
@@ -175,7 +175,7 @@ func TestWSClientDispatchesDecodedFrames(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, c.WriteMessage(websocket.BinaryMessage, frame))
-		drain(t, c)
+		drain(c)
 	})
 
 	got := make(chan *datafeedv1.WebsocketWrapMessageChannel, 1)
@@ -210,7 +210,7 @@ func TestWSClientKeepalivePing(t *testing.T) {
 	serverDone := make(chan struct{})
 	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
 		if dials.Add(1) != 1 {
-			drain(t, c)
+			drain(c)
 			return
 		}
 		defer close(serverDone)
@@ -269,7 +269,7 @@ func TestWSClientReconnectsAndResubscribes(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, c.WriteMessage(websocket.BinaryMessage, frame))
-		drain(t, c)
+		drain(c)
 	})
 
 	var calls atomic.Int32

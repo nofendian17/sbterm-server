@@ -37,11 +37,18 @@ stockbit:
   password: ""
 
   # Stockbit datafeed WebSocket client. The client always dials and subscribes
-  # to ws_symbols at boot; leave ws_symbols empty to skip the subscription.
-  # ws_symbols accepts explicit symbols (e.g. [BBCA, BBRI]) or "*" to
-  # subscribe to all symbols.
+  # to each ws_subscriptions entry at boot; leave ws_subscriptions empty to
+  # skip the subscription. Each entry opens its own connection. Symbol arrays
+  # accept explicit symbols (e.g. [BBCA, BBRI]) or "*" to subscribe to all
+  # symbols on that channel.
   ws_url: wss://wss-trading.stockbit.com/ws
-  ws_symbols: []
+  ws_subscriptions:
+    - name: running_trade_batch_all
+      channels:
+        running_trade_batch: ["*"]
+    - name: order_book_v3_selected
+      channels:
+        order_book_v3: ["BBCA", "BBRI"]
   ws_ping_interval: 30s
   ws_reconnect_backoff_initial: 1s
   ws_reconnect_backoff_max: 30s

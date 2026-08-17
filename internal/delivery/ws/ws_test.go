@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/nofendian17/sbterm-server/pkg/log"
 )
 
-func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
+func TestWSStartsWithSubscriptionsAndStops(t *testing.T) {
 	// Fake Stockbit REST API: answers the websocket key used in the handshake.
 	keyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/auth/websocket/key", r.URL.Path)
@@ -35,12 +36,19 @@ func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
 	}))
 	defer keyServer.Close()
 
-	serverDone := make(chan struct{})
+	expected := []*datafeedv1.WebsocketChannel{
+		stockbit.WSChannelRunningTradeBatch("*"),
+		stockbit.WSChannelOrderBookV3("BBCA", "BBRI"),
+	}
+
+	var connections sync.WaitGroup
 	upgrader := websocket.Upgrader{}
+	subscribeFrames := make(chan *datafeedv1.WebsocketRequest, len(expected))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
-		defer close(serverDone)
+		connections.Add(1)
+		defer connections.Done()
 		defer c.Close()
 		assert.Equal(t, "ws-key", r.URL.Query().Get("wskey"))
 		require.NoError(t, c.SetReadDeadline(time.Now().Add(2*time.Second)))
@@ -57,7 +65,13 @@ func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
 		require.NoError(t, proto.Unmarshal(payload, req))
 		assert.Equal(t, "667557", req.GetUserId())
 		assert.Equal(t, "ws-key", req.GetKey())
-		assert.Equal(t, []string{"BBCA", "BBRI"}, req.GetChannel().GetWatchlist())
+		subscribeFrames <- req
+		// Hold the connection open until the client shuts it down.
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
 	}))
 	defer srv.Close()
 
@@ -75,7 +89,16 @@ func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
 	cfg := newTestConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", redisURL)
 	cfg.Stockbit.BaseURL = keyServer.URL
 	cfg.Stockbit.WSURL = "ws" + strings.TrimPrefix(srv.URL, "http")
-	cfg.Stockbit.WSSymbols = []string{"BBCA", "BBRI"}
+	cfg.Stockbit.WSSubscriptions = []config.WSSubscriptionConfig{
+		{
+			Name:     "running_trade_batch_all",
+			Channels: config.WSChannelConfig{RunningTradeBatch: []string{"*"}},
+		},
+		{
+			Name:     "order_book_v3_selected",
+			Channels: config.WSChannelConfig{OrderBookV3: []string{"BBCA", "BBRI"}},
+		},
+	}
 
 	logger := log.New(log.WithWriter(io.Discard))
 	injector := container.New(cfg, logger)
@@ -86,13 +109,81 @@ func TestWSStartsWithSubscriptionAndStops(t *testing.T) {
 	svc.Start()
 	defer func() { injector.ShutdownWithContext(context.Background()) }()
 
-	select {
-	case <-serverDone:
-	case <-time.After(2 * time.Second):
-		t.Fatal("ws server did not receive the boot subscription")
+	received := make([]*datafeedv1.WebsocketChannel, 0, len(expected))
+	for range expected {
+		select {
+		case req := <-subscribeFrames:
+			received = append(received, req.GetChannel())
+		case <-time.After(2 * time.Second):
+			t.Fatal("ws server did not receive all boot subscriptions")
+		}
+	}
+	for _, want := range expected {
+		found := false
+		for _, got := range received {
+			if proto.Equal(want, got) {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected subscription %v was not received", want)
 	}
 
 	require.NoError(t, svc.Shutdown())
+
+	closed := make(chan struct{})
+	go func() {
+		connections.Wait()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ws clients did not close their connections on shutdown")
+	}
+}
+
+func TestBuildChannel(t *testing.T) {
+	tests := []struct {
+		name string
+		ch   config.WSChannelConfig
+		want *datafeedv1.WebsocketChannel
+	}{
+		{
+			name: "empty config subscribes nothing",
+			ch:   config.WSChannelConfig{},
+			want: &datafeedv1.WebsocketChannel{},
+		},
+		{
+			name: "wildcard running trade batch",
+			ch:   config.WSChannelConfig{RunningTradeBatch: []string{"*"}},
+			want: stockbit.WSChannelRunningTradeBatch("*"),
+		},
+		{
+			name: "selected order book v3",
+			ch:   config.WSChannelConfig{OrderBookV3: []string{"BBCA", "BBRI"}},
+			want: stockbit.WSChannelOrderBookV3("BBCA", "BBRI"),
+		},
+		{
+			name: "multiple channels in one subscription",
+			ch: config.WSChannelConfig{
+				RunningTradeBatch: []string{"*"},
+				OrderBookV3:       []string{"BBCA"},
+				LivepriceV3:       []string{"BBCA"},
+			},
+			want: stockbit.MergeWSChannels(
+				stockbit.WSChannelRunningTradeBatch("*"),
+				stockbit.WSChannelOrderBookV3("BBCA"),
+				stockbit.WSChannelLivepriceV3("BBCA"),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.True(t, proto.Equal(tt.want, ws.BuildChannel(tt.ch)))
+		})
+	}
 }
 
 func newTestConfig(databaseURL, redisURL string) *config.Config {

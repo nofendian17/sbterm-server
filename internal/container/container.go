@@ -446,21 +446,30 @@ func provideStockbit(injector *do.RootScope) {
 		if err != nil {
 			return nil, err
 		}
-		ws := stockbit.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
-			key, err := refresher.Client().GetWebSocketKey(ctx)
-			if err != nil {
-				return "", fmt.Errorf("container: fetch websocket key: %w", err)
-			}
-			return key.Data.Key, nil
-		},
-			stockbit.WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
-				return refresher.EnsureToken(ctx)
-			}),
-			stockbit.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
-			stockbit.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
-			stockbit.WithWSLogger(logger),
-		)
-		return deliveryws.New(ws, refresher, cfg, logger), nil
+
+		subs := make([]*deliveryws.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
+		for _, sub := range cfg.Stockbit.WSSubscriptions {
+			ws := stockbit.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
+				key, err := refresher.Client().GetWebSocketKey(ctx)
+				if err != nil {
+					return "", fmt.Errorf("container: fetch websocket key: %w", err)
+				}
+				return key.Data.Key, nil
+			},
+				stockbit.WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
+					return refresher.EnsureToken(ctx)
+				}),
+				stockbit.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
+				stockbit.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
+				stockbit.WithWSLogger(logger),
+			)
+			subs = append(subs, &deliveryws.Subscription{
+				Name:    sub.Name,
+				Client:  ws,
+				Channel: deliveryws.BuildChannel(sub.Channels),
+			})
+		}
+		return deliveryws.New(subs, refresher, logger), nil
 	})
 }
 
@@ -868,17 +877,21 @@ func Run() error {
 	}
 	refresher.Start()
 
-	if len(cfg.Stockbit.WSSymbols) == 0 {
-		logger.Warn("stockbit ws_symbols is empty; skipping datafeed subscription")
+	if len(cfg.Stockbit.WSSubscriptions) == 0 {
+		logger.Warn("stockbit ws_subscriptions is empty; skipping datafeed subscription")
 	} else {
 		wsSvc, err := do.Invoke[*deliveryws.Service](injector)
 		if err != nil {
 			return fmt.Errorf("container: construct stockbit ws client: %w", err)
 		}
 		wsSvc.Start()
+		names := make([]string, 0, len(cfg.Stockbit.WSSubscriptions))
+		for _, sub := range cfg.Stockbit.WSSubscriptions {
+			names = append(names, sub.Name)
+		}
 		logger.Info("stockbit ws client started",
 			"url", cfg.Stockbit.WSURL,
-			"symbols", cfg.Stockbit.WSSymbols)
+			"subscriptions", names)
 	}
 
 	server, err := do.Invoke[*deliveryhttp.Server](injector)

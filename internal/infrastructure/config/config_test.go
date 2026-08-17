@@ -180,7 +180,7 @@ func TestLoadFromConfigFile(t *testing.T) {
 	}{
 		{
 			name: "config file overrides defaults",
-			yaml: "app:\n  name: custom-app\n  version: 2.0.0\nport: \":9090\"\ndatabase:\n  max_conns: 42\nredis:\n  pool_size: 25\nlog:\n  format: json\nstockbit:\n  ws_symbols:\n    - BBCA\n    - BBRI\n",
+			yaml: "app:\n  name: custom-app\n  version: 2.0.0\nport: \":9090\"\ndatabase:\n  max_conns: 42\nredis:\n  pool_size: 25\nlog:\n  format: json\nstockbit:\n  ws_subscriptions:\n    - name: running_trade_batch_all\n      channels:\n        running_trade_batch:\n          - \"*\"\n    - name: order_book_v3_selected\n      channels:\n        order_book_v3:\n          - BBCA\n          - BBRI\n",
 			mutate: func(c *Config) {
 				c.App.Name = "custom-app"
 				c.App.Version = "2.0.0"
@@ -188,7 +188,20 @@ func TestLoadFromConfigFile(t *testing.T) {
 				c.Database.MaxConns = 42
 				c.Redis.PoolSize = 25
 				c.Log.Format = "json"
-				c.Stockbit.WSSymbols = []string{"BBCA", "BBRI"}
+				c.Stockbit.WSSubscriptions = []WSSubscriptionConfig{
+					{
+						Name: "running_trade_batch_all",
+						Channels: WSChannelConfig{
+							RunningTradeBatch: []string{"*"},
+						},
+					},
+					{
+						Name: "order_book_v3_selected",
+						Channels: WSChannelConfig{
+							OrderBookV3: []string{"BBCA", "BBRI"},
+						},
+					},
+				}
 			},
 		},
 		{

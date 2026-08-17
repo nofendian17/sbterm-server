@@ -56,17 +56,41 @@ type RedisConfig struct {
 }
 
 type StockbitConfig struct {
-	BaseURL                   string        `mapstructure:"base_url"`
-	Timeout                   time.Duration `mapstructure:"timeout"`
-	RetryCount                int           `mapstructure:"retry_count"`
-	PlayerID                  string        `mapstructure:"player_id"`
-	Username                  string        `mapstructure:"username"`
-	Password                  string        `mapstructure:"password"`
-	WSURL                     string        `mapstructure:"ws_url"`
-	WSSymbols                 []string      `mapstructure:"ws_symbols"`
-	WSPingInterval            time.Duration `mapstructure:"ws_ping_interval"`
-	WSReconnectBackoffInitial time.Duration `mapstructure:"ws_reconnect_backoff_initial"`
-	WSReconnectBackoffMax     time.Duration `mapstructure:"ws_reconnect_backoff_max"`
+	BaseURL                   string                 `mapstructure:"base_url"`
+	Timeout                   time.Duration          `mapstructure:"timeout"`
+	RetryCount                int                    `mapstructure:"retry_count"`
+	PlayerID                  string                 `mapstructure:"player_id"`
+	Username                  string                 `mapstructure:"username"`
+	Password                  string                 `mapstructure:"password"`
+	WSURL                     string                 `mapstructure:"ws_url"`
+	WSSubscriptions           []WSSubscriptionConfig `mapstructure:"ws_subscriptions"`
+	WSPingInterval            time.Duration          `mapstructure:"ws_ping_interval"`
+	WSReconnectBackoffInitial time.Duration          `mapstructure:"ws_reconnect_backoff_initial"`
+	WSReconnectBackoffMax     time.Duration          `mapstructure:"ws_reconnect_backoff_max"`
+}
+
+// WSSubscriptionConfig describes one datafeed websocket connection: a named
+// subscription over the channels listed in Channels. Each entry opens its own
+// connection at startup.
+type WSSubscriptionConfig struct {
+	Name     string          `mapstructure:"name"`
+	Channels WSChannelConfig `mapstructure:"channels"`
+}
+
+// WSChannelConfig holds the symbol arrays per datafeed channel. A "*" entry
+// subscribes to all symbols on that channel.
+type WSChannelConfig struct {
+	Watchlist         []string `mapstructure:"watchlist"`
+	OrderBook         []string `mapstructure:"order_book"`
+	RunningTrade      []string `mapstructure:"running_trade"`
+	RunningTradeBatch []string `mapstructure:"running_trade_batch"`
+	Liveprice         []string `mapstructure:"liveprice"`
+	Iepiev            []string `mapstructure:"iepiev"`
+	Intraday          []string `mapstructure:"intraday"`
+	BestBidOffer      []string `mapstructure:"best_bid_offer"`
+	LivepriceV3       []string `mapstructure:"liveprice_v3"`
+	OrderBookV3       []string `mapstructure:"order_book_v3"`
+	IntradayV3        []string `mapstructure:"intraday_v3"`
 }
 
 type LogConfig struct {

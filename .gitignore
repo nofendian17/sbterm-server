@@ -11,10 +11,7 @@ coverage.html
 *.coverprofile
 *.prof
 
-# Environment / local config
-.env
-.env.*
-!.env.example
+# Local config
 config.yaml
 
 # Logs

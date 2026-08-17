@@ -188,8 +188,8 @@ Contains technical details that can be replaced without changing usecases.
 
 Responsibilities:
 
-- Load configuration from defaults, config file, and environment variables.
-- Precedence: environment variables > `config.yaml` > defaults.
+- Load configuration from defaults and the `config.yaml` config file.
+- Precedence: `config.yaml` > defaults.
 
 Configuration includes:
 
@@ -513,22 +513,13 @@ The current coverage target is practical rather than absolute. Generated mocks a
 
 ## Configuration
 
-Configuration is loaded by `internal/infrastructure/config` with this precedence:
+Configuration is loaded from `config.yaml` by `internal/infrastructure/config` with this precedence:
 
 ```text
-environment variables > config.yaml > defaults
+config.yaml > defaults
 ```
 
-Environment variables use the `APP_` prefix, for example:
-
-```text
-APP_PORT=:8080
-APP_DATABASE_URL=postgres://postgres:postgres@localhost:5432/sbterm?sslmode=disable
-APP_REDIS_URL=redis://localhost:6379/0
-APP_LOG_LEVEL=info
-APP_RATE_LIMIT_RATE=10
-APP_RATE_LIMIT_BURST=20
-```
+The file is looked up in the working directory. Copy `config.yaml.example` to `config.yaml` and edit it; see `config.yaml.example` for the full schema.
 
 Example YAML:
 

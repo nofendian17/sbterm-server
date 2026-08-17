@@ -3,14 +3,12 @@ package config
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
 
 const (
-	EnvPrefix      = "APP"
 	ConfigFileName = "config"
 	ConfigFileType = "yaml"
 	ConfigFilePath = "."
@@ -111,16 +109,10 @@ type HTTPConfig struct {
 }
 
 // Load reads configuration using viper with the precedence:
-// environment variables (APP_ prefix) > config file > defaults.
+// config file > defaults.
 func Load() (*Config, error) {
 	v := viper.New()
 	setDefaults(v)
-
-	v.SetEnvPrefix(EnvPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-	v.BindEnv("app.name", "APP_NAME")
-	v.BindEnv("app.version", "APP_VERSION")
 
 	v.SetConfigName(ConfigFileName)
 	v.SetConfigType(ConfigFileType)

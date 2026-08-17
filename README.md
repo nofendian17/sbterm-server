@@ -27,7 +27,7 @@ internal/
   repository/                   # repository contracts used by usecases
   infrastructure/
     cache/                      # Redis wrapper (*Redis, HealthCheck/Shutdown)
-    config/                     # config loading from env/config.yaml/defaults
+    config/                     # config loading from config.yaml/defaults
     database/                   # pgxpool wrapper (*Postgres, HealthCheck/Shutdown)
     repository/                 # concrete repository implementations
   mocks/                        # mockgen output (uber-go/mock)
@@ -37,7 +37,7 @@ pkg/
   response/                     # REST response envelope + validation errors
   validator/                    # go-playground/validator wrapper (field → message map)
 Makefile
-.env.example
+config.yaml.example
 ```
 
 ## Commands
@@ -54,21 +54,19 @@ make tidy         # go mod tidy
 
 ## Config
 
-Configuration is loaded through [viper](https://github.com/spf13/viper) with this precedence: **env > `config.yaml` > defaults**.
+Configuration is loaded from `config.yaml` through [viper](https://github.com/spf13/viper). The file resolves dotted/nested keys such as `app.name`, `port`, `database.url`, `redis.url`, `stockbit.ws_url`, `log.level`, `rate_limit.rate`, and `http.read_timeout`. Copy `config.yaml.example` to `config.yaml` and edit it; see `config.yaml.example` for the full schema and defaults.
 
-- App metadata: `app.name`, `app.version` (default `dev`, overridable through `APP_NAME`/`APP_VERSION` or `config.yaml`).
+- App metadata: `app.name`, `app.version` (default `dev`).
 - Build-time version can be set through ldflags:
   ```text
   go build -ldflags "-X github.com/nofendian17/sbterm-server/internal/infrastructure/config.version=<tag>" ./cmd/server
   ```
-- Environment variables use the `APP_` prefix, for example `APP_PORT`, `APP_DATABASE_URL`, `APP_REDIS_URL`, `APP_RATE_LIMIT_RATE`, and `APP_RATE_LIMIT_BURST`. See `.env.example` for the full list.
-- Optional `config.yaml` can be placed at the repository root. It uses dotted/nested keys such as `port`, `database.url`, `redis.url`, `db.max_conns`, `log.level`, `rate_limit.rate`, and `http.read_timeout`. See `config.yaml.example`.
 
 The server can still run when a dependency is unreachable — the health endpoint reports `database: down` / `redis: down` with status `degraded` and HTTP 503.
 
 ## Middleware
 
-The global stack in `internal/delivery/http/router.go` is: `RequestID` → `slog-chi` (structured logging) → `Recoverer` → `Timeout(30s)` → **RateLimit** → routes. Rate limiting is per-client (token bucket via `golang.org/x/time/rate`) and configurable through `rate_limit.rate`/`APP_RATE_LIMIT_RATE` and `rate_limit.burst`/`APP_RATE_LIMIT_BURST`. Exceeding the limit returns `429`, a `Retry-After` header, and a `TOO_MANY_REQUESTS` response envelope.
+The global stack in `internal/delivery/http/router.go` is: `RequestID` → `slog-chi` (structured logging) → `Recoverer` → `Timeout(30s)` → **RateLimit** → routes. Rate limiting is per-client (token bucket via `golang.org/x/time/rate`) and configurable through `rate_limit.rate` and `rate_limit.burst`. Exceeding the limit returns `429`, a `Retry-After` header, and a `TOO_MANY_REQUESTS` response envelope.
 
 Custom middleware lives in `internal/delivery/http/middleware/` and follows the option pattern with table-driven tests.
 

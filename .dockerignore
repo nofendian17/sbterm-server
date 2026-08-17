@@ -11,9 +11,6 @@ coverage.html
 *.test
 *.out
 
-.env
-.env.*
-!.env.example
 config.yaml
 
 logs/

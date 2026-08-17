@@ -10,6 +10,8 @@ Local/container deployment uses these files:
 Dockerfile
 .dockerignore
 docker-compose.yml
+config.yaml.example
+config.yaml          # your local config; copy from config.yaml.example
 ```
 
 Service composition:
@@ -66,28 +68,30 @@ docker compose down -v
 
 ## Configuration
 
-`docker-compose.yml` uses environment variables with default values.
+The app is configured exclusively through `config.yaml`, mounted read-only into the container at `/app/config.yaml`. Copy the template and edit it before starting:
 
-### App
+```bash
+cp config.yaml.example config.yaml
+```
+
+For Docker Compose the app reaches `postgres` and `redis` through the service names, so set the hosts accordingly in `config.yaml`:
+
+```yaml
+database:
+  url: postgres://postgres:postgres@postgres:5432/sbterm?sslmode=disable
+
+redis:
+  url: redis://redis:6379/0
+```
+
+### Compose variables
+
+The remaining variables below only affect Docker Compose infrastructure (image tag, host ports, and database credentials). They are unrelated to app config:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `APP_NAME` | `sbterm-server` | Application name |
 | `APP_VERSION` | `dev` | Application version and image tag |
 | `APP_HOST_PORT` | `8080` | Host port published to the app |
-| `APP_DB_MAX_CONNS` | `10` | Max database connections |
-| `APP_DB_MIN_CONNS` | `0` | Min database connections |
-| `APP_REDIS_URL` | `redis://redis:6379/0` | Redis URL inside the Docker network |
-| `APP_REDIS_MAX_RETRIES` | `3` | Max Redis retry attempts |
-| `APP_REDIS_POOL_SIZE` | `10` | Redis connection pool size |
-| `APP_REDIS_MIN_IDLE_CONNS` | `0` | Min idle Redis connections |
-| `APP_REDIS_DIAL_TIMEOUT` | `5s` | Redis dial timeout |
-| `APP_REDIS_READ_TIMEOUT` | `3s` | Redis read timeout |
-| `APP_REDIS_WRITE_TIMEOUT` | `3s` | Redis write timeout |
-| `APP_LOG_LEVEL` | `info` | Log level |
-| `APP_LOG_FORMAT` | `json` | Container log format |
-| `APP_RATE_LIMIT_RATE` | `10` | Request rate per second |
-| `APP_RATE_LIMIT_BURST` | `20` | Burst limit |
 
 ### PostgreSQL
 
@@ -104,13 +108,13 @@ docker compose down -v
 | --- | --- | --- |
 | `REDIS_HOST_PORT` | `6379` | Redis host port |
 
-Example shell override:
+Example override:
 
 ```bash
 APP_VERSION=0.1.0 APP_HOST_PORT=8081 docker compose up -d --build
 ```
 
-Or create a local `.env` file:
+Or create a `.env` file at the repository root for the compose-level variables:
 
 ```env
 APP_VERSION=0.1.0
@@ -119,10 +123,9 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=change-me
 POSTGRES_DB=sbterm
 REDIS_HOST_PORT=6379
-APP_LOG_FORMAT=json
 ```
 
-> `.env` is not committed because it is already listed in `.gitignore`.
+> `.env` is optional and only feeds the Compose variables above; application configuration always comes from `config.yaml`.
 
 ## Service URLs
 
@@ -140,7 +143,7 @@ Redis:
 redis://redis:6379/0
 ```
 
-To run the app on the host without Docker, use `localhost` as shown in `.env.example`.
+To run the app on the host without Docker, use `localhost` as shown in `config.yaml.example`.
 
 ## Healthcheck
 
@@ -183,9 +186,9 @@ For production, at minimum change or review:
 
 - `POSTGRES_PASSWORD`
 - `APP_VERSION`
-- `APP_LOG_FORMAT=json`
+- `log.format: json` in `config.yaml`
 - port exposure for the target environment
 - backup strategy for volumes/database/cache according to persistence requirements
-- secret management; do not store production passwords in a plain `.env` file
+- secret management; do not store production passwords in `config.yaml` (mount it read-only from a secret store)
 
 If deployed behind a reverse proxy/load balancer, review the rate-limit key strategy so all traffic is not treated as coming from the same proxy IP.

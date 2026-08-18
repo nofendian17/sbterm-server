@@ -33,6 +33,7 @@ redis:
 questdb:
   url: ws::addr=localhost:9000;username=questdb;password=questdb;
   table: running_trades
+  order_book_table: order_books
 
 # Exodus Stockbit REST API client settings.
 # player_id, username, and password are used to obtain and refresh the token.
@@ -54,9 +55,14 @@ stockbit:
     - name: running_trade_batch_all
       channels:
         running_trade_batch: ["*"]
-    - name: order_book_v3_selected
+    # Order book frames only stream when the order_book channel is subscribed
+    # together with liveprice, iepiev, and best_bid_offer on one connection.
+    - name: order_book_selected
       channels:
-        order_book_v3: ["BBCA", "BBRI"]
+        order_book: ["BBCA", "BBRI"]
+        liveprice: ["BBCA", "BBRI"]
+        iepiev: ["BBCA", "BBRI"]
+        best_bid_offer: ["BBCA", "BBRI"]
   ws_ping_interval: 30s
   ws_reconnect_backoff_initial: 1s
   ws_reconnect_backoff_max: 30s

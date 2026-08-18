@@ -31,6 +31,7 @@ type Service struct {
 	subs      []*Subscription
 	refresher *stockbit.Refresher
 	store     questdb.RunningTradeBatchStore
+	obStore   questdb.OrderBookStore
 	logger    log.Logger
 
 	ctx    context.Context
@@ -39,8 +40,8 @@ type Service struct {
 }
 
 // New builds a Service around the configured subscriptions.
-func New(subs []*Subscription, refresher *stockbit.Refresher, store questdb.RunningTradeBatchStore, logger log.Logger) *Service {
-	return &Service{subs: subs, refresher: refresher, store: store, logger: logger}
+func New(subs []*Subscription, refresher *stockbit.Refresher, store questdb.RunningTradeBatchStore, obStore questdb.OrderBookStore, logger log.Logger) *Service {
+	return &Service{subs: subs, refresher: refresher, store: store, obStore: obStore, logger: logger}
 }
 
 // BuildChannel maps a channel config onto the corresponding datafeed channel
@@ -115,11 +116,29 @@ func (s *Service) run(sub *Subscription, userID int64) {
 		}
 	}()
 
+	obSink, err := s.obStore.NewOrderBookSink(s.ctx)
+	if err != nil {
+		s.logger.Warn("questdb sink: borrow order book sink failed", "subscription", sub.Name, "error", err)
+		return
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := obSink.Close(closeCtx); err != nil {
+			s.logger.Warn("questdb sink: close order book sink failed", "subscription", sub.Name, "error", err)
+		}
+	}()
+
 	err = sub.Client.Run(s.ctx, request, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
 		s.logger.Debug("stockbit ws frame", "subscription", sub.Name, "message", wsMessageJSON(m))
 		if batch := m.GetRunningTradeBatch(); batch != nil {
 			if err := sink.Store(ctx, batch); err != nil {
 				s.logger.Warn("questdb sink: store running trade batch failed", "subscription", sub.Name, "error", err)
+			}
+		}
+		if ob := m.GetOrderbook(); ob != nil {
+			if err := obSink.Store(ctx, ob); err != nil {
+				s.logger.Warn("questdb sink: store order book failed", "subscription", sub.Name, "error", err)
 			}
 		}
 		return nil

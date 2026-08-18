@@ -33,8 +33,9 @@ func defaultConfig() *Config {
 			WriteTimeout: 3 * time.Second,
 		},
 		QuestDB: QuestDBConfig{
-			URL:   "ws::addr=localhost:9000;",
-			Table: "running_trades",
+			URL:            "ws::addr=localhost:9000;",
+			Table:          "running_trades",
+			OrderBookTable: "order_books",
 		},
 		Stockbit: StockbitConfig{
 			BaseURL:                   "https://exodus.stockbit.com",
@@ -188,8 +189,9 @@ http:
 					WriteTimeout: 1500 * time.Millisecond,
 				}
 				c.QuestDB = QuestDBConfig{
-					URL:   "ws::addr=db.example.com:9000;",
-					Table: "trade_ticks",
+					URL:            "ws::addr=db.example.com:9000;",
+					Table:          "trade_ticks",
+					OrderBookTable: "order_books",
 				}
 				c.Stockbit = StockbitConfig{
 					BaseURL:                   "https://exodus.example.com",

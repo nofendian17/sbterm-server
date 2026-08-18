@@ -113,7 +113,7 @@ func provideInfrastructure(injector *do.RootScope) {
 		logger := do.MustInvoke[log.Logger](i)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.Table, logger)
+		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.Table, logger, questdb.WithOrderBookTable(cfg.QuestDB.OrderBookTable))
 	})
 }
 
@@ -482,7 +482,7 @@ func provideStockbit(injector *do.RootScope) {
 				Channel: deliveryws.BuildChannel(sub.Channels),
 			})
 		}
-		return deliveryws.New(subs, refresher, store, logger), nil
+		return deliveryws.New(subs, refresher, store, store, logger), nil
 	})
 }
 

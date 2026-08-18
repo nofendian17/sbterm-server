@@ -57,8 +57,9 @@ type RedisConfig struct {
 // QuestDBConfig describes the QuestDB time-series database connection. The URL
 // is a QWP WebSocket connect string (e.g. "ws::addr=questdb:9000;").
 type QuestDBConfig struct {
-	URL   string `mapstructure:"url"`
-	Table string `mapstructure:"table"`
+	URL            string `mapstructure:"url"`
+	Table          string `mapstructure:"table"`
+	OrderBookTable string `mapstructure:"order_book_table"`
 }
 
 type StockbitConfig struct {
@@ -159,6 +160,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.write_timeout", 3*time.Second)
 	v.SetDefault("questdb.url", "ws::addr=localhost:9000;")
 	v.SetDefault("questdb.table", "running_trades")
+	v.SetDefault("questdb.order_book_table", "order_books")
 	v.SetDefault("stockbit.base_url", "https://exodus.stockbit.com")
 	v.SetDefault("stockbit.timeout", 30*time.Second)
 	v.SetDefault("stockbit.retry_count", 3)

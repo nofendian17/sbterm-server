@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"google.golang.org/protobuf/proto"
@@ -57,11 +58,12 @@ func (h *FrameHandler) Handle(ctx context.Context, topic string, value []byte) e
 
 // Close flushes and releases both sinks.
 func (h *FrameHandler) Close(ctx context.Context) error {
+	var errs []error
 	if err := h.runningSink.Close(ctx); err != nil {
-		return fmt.Errorf("ingest: close running trade sink: %w", err)
+		errs = append(errs, fmt.Errorf("ingest: close running trade sink: %w", err))
 	}
 	if err := h.obSink.Close(ctx); err != nil {
-		return fmt.Errorf("ingest: close order book sink: %w", err)
+		errs = append(errs, fmt.Errorf("ingest: close order book sink: %w", err))
 	}
-	return nil
+	return errors.Join(errs...)
 }

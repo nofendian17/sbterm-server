@@ -43,6 +43,9 @@ func (s *Service) Start() {
 
 func (s *Service) run() {
 	for {
+		if s.ctx.Err() != nil {
+			return
+		}
 		fetches := s.consumer.PollFetches(s.ctx)
 		if fetches.IsClientClosed() {
 			return

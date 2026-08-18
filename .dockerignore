@@ -12,6 +12,8 @@ coverage.html
 *.out
 
 config.yaml
+config.ws.yaml
+config.ingest.yaml
 
 logs/
 *.log

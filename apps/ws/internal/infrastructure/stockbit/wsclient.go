@@ -501,9 +501,7 @@ func WSChannelTradebook(reqs ...*ordertradev1.TradebookWebsocketRequest) *datafe
 	return &datafeedv1.WebsocketChannel{Tradebook: reqs}
 }
 
-// MergeWSChannels combines symbol-array channels into a single subscription
-// channel. Typed channels (market mover, order queue, tradebook) are ignored
-// because they carry structured requests instead of shared symbols.
+// sleepCtx waits for d or until ctx is done, reporting which happened.
 func sleepCtx(ctx context.Context, d time.Duration) bool {
 	t := time.NewTimer(d)
 	defer t.Stop()
@@ -525,6 +523,9 @@ func truncate(s string) string {
 	return s[:len(s)-size] + "..."
 }
 
+// MergeWSChannels combines symbol-array channels into a single subscription
+// channel. Typed channels (market mover, order queue, tradebook) are ignored
+// because they carry structured requests instead of shared symbols.
 func MergeWSChannels(chans ...*datafeedv1.WebsocketChannel) *datafeedv1.WebsocketChannel {
 	out := &datafeedv1.WebsocketChannel{}
 	for _, ch := range chans {

@@ -1,0 +1,22 @@
+# QuestDB time-series database connection. The URL is a QWP (WebSocket)
+# connect string; the client connects lazily, so QuestDB may start late.
+# In Docker Compose, use host "questdb". When running locally, use "localhost".
+# Keep username/password in sync with the compose QDB_HTTP_USER/QDB_HTTP_PASSWORD.
+questdb:
+  url: ws::addr=localhost:9000;username=questdb;password=questdb;
+  table: running_trades
+  order_book_table: order_books
+
+# Kafka consumer settings.
+# In Docker Compose, use broker host "redpanda" (redpanda:29092).
+kafka:
+  brokers: ["localhost:29092"]
+  group: sbterm-ingest
+  topics: ["datafeed.running_trade_batch", "datafeed.order_book"]
+
+# Logging settings.
+# format supports "text" and "json".
+log:
+  level: info
+  format: text
+  add_source: false

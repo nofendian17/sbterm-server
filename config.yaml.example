@@ -26,15 +26,6 @@ redis:
   read_timeout: 3s
   write_timeout: 3s
 
-# QuestDB time-series database connection. The URL is a QWP (WebSocket)
-# connect string; the client connects lazily, so QuestDB may start late.
-# In Docker Compose, use host "questdb". When running locally, use "localhost".
-    # Keep username/password in sync with the compose QDB_HTTP_USER/QDB_HTTP_PASSWORD.
-questdb:
-  url: ws::addr=localhost:9000;username=questdb;password=questdb;
-  table: running_trades
-  order_book_table: order_books
-
 # Exodus Stockbit REST API client settings.
 # player_id, username, and password are used to obtain and refresh the token.
 stockbit:
@@ -44,28 +35,6 @@ stockbit:
   player_id: ""
   username: ""
   password: ""
-
-  # Stockbit datafeed WebSocket client. The client always dials and subscribes
-  # to each ws_subscriptions entry at boot; leave ws_subscriptions empty to
-  # skip the subscription. Each entry opens its own connection. Symbol arrays
-  # accept explicit symbols (e.g. [BBCA, BBRI]) or "*" to subscribe to all
-  # symbols on that channel.
-  ws_url: wss://wss-trading.stockbit.com/ws
-  ws_subscriptions:
-    - name: running_trade_batch_all
-      channels:
-        running_trade_batch: ["*"]
-    # Order book frames only stream when the order_book channel is subscribed
-    # together with liveprice, iepiev, and best_bid_offer on one connection.
-    - name: order_book_selected
-      channels:
-        order_book: ["BBCA", "BBRI"]
-        liveprice: ["BBCA", "BBRI"]
-        iepiev: ["BBCA", "BBRI"]
-        best_bid_offer: ["BBCA", "BBRI"]
-  ws_ping_interval: 30s
-  ws_reconnect_backoff_initial: 1s
-  ws_reconnect_backoff_max: 30s
 
 # Logging settings.
 # format supports "text" and "json".

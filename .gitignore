@@ -13,6 +13,8 @@ coverage.html
 
 # Local config
 config.yaml
+config.ws.yaml
+config.ingest.yaml
 
 # Logs
 *.log

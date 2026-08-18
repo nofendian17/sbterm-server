@@ -1,0 +1,48 @@
+# Stockbit datafeed WebSocket client settings.
+# player_id, username, and password are used to obtain and refresh the REST token.
+# The client always dials and subscribes to each ws_subscriptions entry at boot;
+# leave ws_subscriptions empty to skip the subscription. Each entry opens its
+# own connection. Symbol arrays accept explicit symbols (e.g. [BBCA, BBRI]) or
+# "*" to subscribe to all symbols on that channel.
+stockbit:
+  base_url: https://exodus.stockbit.com
+  timeout: 30s
+  retry_count: 3
+  player_id: ""
+  username: ""
+  password: ""
+  ws_url: wss://wss-trading.stockbit.com/ws
+  ws_subscriptions:
+    - name: running_trade_batch_all
+      channels:
+        running_trade_batch: ["*"]
+    # Order book frames only stream when the order_book channel is subscribed
+    # together with liveprice, iepiev, and best_bid_offer on one connection.
+    - name: order_book_selected
+      channels:
+        order_book: ["BBCA", "BBRI"]
+        liveprice: ["BBCA", "BBRI"]
+        iepiev: ["BBCA", "BBRI"]
+        best_bid_offer: ["BBCA", "BBRI"]
+  ws_ping_interval: 30s
+  ws_reconnect_backoff_initial: 1s
+  ws_reconnect_backoff_max: 30s
+
+# Redis connection URL.
+# In Docker Compose, use host "redis". When running locally, use "localhost".
+redis:
+  url: redis://localhost:6379/0
+
+# Kafka producer settings.
+# In Docker Compose, use broker host "redpanda" (redpanda:29092).
+kafka:
+  brokers: ["localhost:29092"]
+  running_trade_batch_topic: datafeed.running_trade_batch
+  order_book_topic: datafeed.order_book
+
+# Logging settings.
+# format supports "text" and "json".
+log:
+  level: info
+  format: text
+  add_source: false

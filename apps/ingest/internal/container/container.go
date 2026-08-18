@@ -37,14 +37,20 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	do.Provide(injector, func(i do.Injector) (*service.Service, error) {
-		qdb := do.MustInvoke[*questdb.Client](i)
-		consumer := do.MustInvoke[*kafka.Consumer](i)
+		qdbClient, err := do.Invoke[*questdb.Client](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: construct questdb client: %w", err)
+		}
+		consumer, err := do.Invoke[*kafka.Consumer](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: construct kafka consumer: %w", err)
+		}
 
-		runningSink, err := qdb.NewRunningTradeBatchSink(context.Background())
+		runningSink, err := qdbClient.NewRunningTradeBatchSink(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("container: borrow running trade sink: %w", err)
 		}
-		obSink, err := qdb.NewOrderBookSink(context.Background())
+		obSink, err := qdbClient.NewOrderBookSink(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("container: borrow order book sink: %w", err)
 		}
@@ -76,6 +82,7 @@ func Run() error {
 	log.SetDefault(logger)
 
 	injector := New(cfg, logger)
+	defer injector.Shutdown()
 
 	svc, err := do.Invoke[*service.Service](injector)
 	if err != nil {

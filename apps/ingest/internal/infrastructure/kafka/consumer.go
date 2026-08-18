@@ -39,3 +39,10 @@ func (c *Consumer) AllowRebalance() {
 func (c *Consumer) Close() {
 	c.client.Close()
 }
+
+// Shutdown implements the samber/do shutdown hook, closing the client and
+// leaving the consumer group.
+func (c *Consumer) Shutdown() error {
+	c.Close()
+	return nil
+}

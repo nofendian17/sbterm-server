@@ -1,12 +1,12 @@
 services:
-  app:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: apps/api/Dockerfile
       args:
         APP_VERSION: ${APP_VERSION:-dev}
-    image: sbterm-server:${APP_VERSION:-dev}
-    container_name: sbterm-server
+    image: sbterm-api:${APP_VERSION:-dev}
+    container_name: sbterm-api
     restart: always
     volumes:
       - ./config.yaml:/app/config.yaml:ro
@@ -17,14 +17,46 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      questdb:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  ws:
+    build:
+      context: .
+      dockerfile: apps/ws/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: sbterm-ws:${APP_VERSION:-dev}
+    container_name: sbterm-ws
+    restart: always
+    volumes:
+      - ./config.ws.yaml:/app/config.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  ingest:
+    build:
+      context: .
+      dockerfile: apps/ingest/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: sbterm-ingest:${APP_VERSION:-dev}
+    container_name: sbterm-ingest
+    restart: always
+    volumes:
+      - ./config.ingest.yaml:/app/config.yaml:ro
+    depends_on:
+      questdb:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
 
   postgres:
     image: postgres:18-alpine
@@ -78,7 +110,33 @@ services:
       retries: 5
       start_period: 10s
 
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.12
+    container_name: sbterm-redpanda
+    restart: always
+    command:
+      - redpanda start
+      - --overprovisioned
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --node-id 0
+      - --kafka-addr PLAIN://0.0.0.0:29092
+      - --advertise-kafka-addr PLAIN://redpanda:29092
+      - --set redpanda.auto_create_topics_enabled=true
+    ports:
+      - "${REDPANDA_HOST_PORT:-29092}:29092"
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 volumes:
   postgres-data:
   redis-data:
   questdb-data:
+  redpanda-data:

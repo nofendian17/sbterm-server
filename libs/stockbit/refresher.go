@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 // Credentials are the account details used to obtain the first token pair.

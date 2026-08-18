@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 const streamBody = `{"message":"20 stream post(s) retrieved","data":{"stream":[{"stream_id":34884767,"title_url":"streams/announcement/41a33437efb2c797eb3a8e9055bb318d","title":"Laporan Harian atas Nilai Aktiva Bersih dan Komposisi Portofolio [XKMS]","content":"","created_at":"2026-08-14 18:17:44","created_display":"14 Aug 26, 18:17","updated_at":"0000-00-00 00:00:00","user":{"user_id":3,"is_author":false,"username":"StockbitReports","fullname":"Stockbit Reports","avatar":"https://avatar.stockbit.com/3-1366883879.jpeg","is_verified":true,"user_privilege":"PRIVILEGE_MEMBER","is_pro":false,"country":"COUNTRY_ID","verified_status":"VERIFIED_STATUS_COMMUNITY"},"status":{"is_pinned":false,"is_trending":false,"is_reposted":false,"is_liked":false,"is_saved":false,"is_followed":false,"is_unavailable":false,"is_junk":false,"is_spam":false,"is_violation":false,"is_deleted":false},"total_replies":0,"total_likes":0,"type":"STREAM_TYPE_REPORT","parent_stream_id":0,"reports":[{"type":"Others"}],"topics":["XKMS"],"summary":{"title":"Laporan Harian Nilai Aset Bersih","summary":"XKMS melaporkan nilai aset bersih sebesar Rp126,71 miliar per 14 Agustus 2026.","key_points":["Nilai aset bersih tercatat Rp126,71 miliar."],"key_takeaway":"Laporan harian ini bersifat rutin.","model":"SUMMARY_MODEL_AI","model_version":"v1"},"reaction":null}],"pagination":{"is_last_page":false,"next_cursor":34884487,"total":20},"invalid_watchlist_ids":[]}}`

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 const searchBody = `{"message":"Success retrieved search results","data":{"chat":[],"company":[{"id":"59","name":"BBRI","country":"ID","desc":"Bank Rakyat Indonesia (Persero) Tbk.","exchange":"IDX","is_following":false,"img":"","is_verified":false,"other":"saham","status":"0","symbol_2":"BBRI","symbol_3":"BBRI","total_followers":0,"is_tradeable":true,"type":"Saham","url":"symbol/BBRI","icon_url":"https://assets.stockbit.com/logos/companies/BBRI.png"}],"insider":[],"people":[],"sector":[],"industries":[],"pagination":{"has_more_companies":false,"has_more_insiders":false,"has_more_users":false}}}`

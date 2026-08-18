@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 func TestGet(t *testing.T) {

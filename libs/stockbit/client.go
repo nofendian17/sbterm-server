@@ -16,8 +16,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	pkghttpclient "github.com/nofendian17/sbterm-server/pkg/httpclient"
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	pkghttpclient "github.com/nofendian17/sbterm/libs/pkg/httpclient"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 // defaultBaseURL is the third-party endpoint the client talks to.

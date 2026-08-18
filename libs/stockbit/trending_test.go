@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 const trendingBody = `{"message":"Successfully retrieved trending stocks list","data":[{"change":"+5","symbol":"DSSA","percent":"0.52000","name":"Dian Swastatika Sentosa Tbk","last":"975","symbol_2":"DSSA","symbol_3":"DSSA","company_id":"143","notation":[{"notation_code":"G","notation_desc":"Sanksi Administratif","icon_url":{"light_mode":"https://assets.stockbit.com/logos/notations/light/G.png","dark_mode":"https://assets.stockbit.com/logos/notations/dark/G.png"}}],"uma":false,"tradeable":1,"country":"ID","type":"Saham","corp_action":{"active":false,"icon":"","text":"","detail":null},"isexist":0,"status":"STATUS_ACTIVE","icon_url":"https://assets.stockbit.com/logos/companies/DSSA.png","is_following":false,"formatted_price":"","is_exists":false,"previous":"970","day_trade_info":{"is_show_multiplier":false,"multiplier":"0"},"trading_limit_info":{"is_trading_limit":false,"haircut_percentage":""},"margin_info":{"is_margin_trading":false,"percentage":"","percentage_raw":0}}]}`

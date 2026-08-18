@@ -74,7 +74,7 @@ make install-hooks # install git hooks (core.hooksPath -> .githooks)
 
 ## Config
 
-Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.yaml.example` (api), `config.ws.yaml.example` (ws), or `config.ingest.yaml.example` (ingest) to `config.yaml`, `config.ws.yaml`, `config.ingest.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `server.url`, `redis.url`, `kafka.seed_brokers`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
+Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.yaml.example` (api), `config.ws.yaml.example` (ws), or `config.ingest.yaml.example` (ingest) to `config.yaml`, `config.ws.yaml`, `config.ingest.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `stockbit.ws_url`, `redis.url`, `kafka.brokers`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
 
 - App metadata: `app.name`, `app.version` (default `dev`).
 - Build-time version can be set through ldflags:

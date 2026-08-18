@@ -1460,13 +1460,15 @@ func TestFrameHandler(t *testing.T) {
 	})
 
 	t.Run("sink store error propagates", func(t *testing.T) {
-		rs := &errRunningSink{err: errors.New("boom")}
+		rs := &errRunningSink{err: errBoom}
 		h := service.NewFrameHandler(rs, &fakeObSink{}, topics, logger)
 		bytes, err := proto.Marshal(&datafeedv1.RunningTradeBatch{Batch: []*datafeedv1.RunningTrade{}})
 		require.NoError(t, err)
-		require.ErrorIs(t, h.Handle(context.Background(), "datafeed.running_trade_batch", bytes), errors.New("boom"))
+		require.ErrorIs(t, h.Handle(context.Background(), "datafeed.running_trade_batch", bytes), errBoom)
 	})
 }
+
+var errBoom = errors.New("boom")
 
 type errRunningSink struct{ fakeRunningSink; err error }
 func (e *errRunningSink) Store(_ context.Context, _ *datafeedv1.RunningTradeBatch) error { return e.err }

@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	ordertradev1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/order_trade/entity/v1"
-	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
+	ordertradev1 "github.com/nofendian17/sbterm/libs/proto/financial/order_trade/entity/v1"
+	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
 
 // wsURL converts an httptest server URL into a ws:// URL.
@@ -64,6 +64,18 @@ func drain(c *websocket.Conn) {
 			return
 		}
 	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition not met before deadline")
 }
 
 // pingFrame is the byte-exact datafeed ping verified in wire_compat_test.go.

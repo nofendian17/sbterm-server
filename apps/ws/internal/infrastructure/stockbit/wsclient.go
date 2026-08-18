@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 
-	ordertradev1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/financial/order_trade/entity/v1"
-	datafeedv1 "github.com/nofendian17/sbterm-server/internal/infrastructure/stockbit/proto/securities/transactional/datafeed/v1"
-	"github.com/nofendian17/sbterm-server/pkg/log"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
+	ordertradev1 "github.com/nofendian17/sbterm/libs/proto/financial/order_trade/entity/v1"
+	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
 
 // KeyProvider supplies the websocket key used to authenticate a datafeed
@@ -503,6 +504,27 @@ func WSChannelTradebook(reqs ...*ordertradev1.TradebookWebsocketRequest) *datafe
 // MergeWSChannels combines symbol-array channels into a single subscription
 // channel. Typed channels (market mover, order queue, tradebook) are ignored
 // because they carry structured requests instead of shared symbols.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func truncate(s string) string {
+	const max = 4096
+	if len(s) <= max {
+		return s
+	}
+	s = s[:max]
+	_, size := utf8.DecodeLastRuneInString(s)
+	return s[:len(s)-size] + "..."
+}
+
 func MergeWSChannels(chans ...*datafeedv1.WebsocketChannel) *datafeedv1.WebsocketChannel {
 	out := &datafeedv1.WebsocketChannel{}
 	for _, ch := range chans {

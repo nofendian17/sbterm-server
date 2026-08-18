@@ -1,0 +1,10 @@
+go 1.26.5
+
+use (
+	./apps/api
+	./apps/ws
+	./apps/ingest
+	./libs/pkg
+	./libs/proto
+	./libs/stockbit
+)

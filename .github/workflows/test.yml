@@ -26,10 +26,10 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: go mod download
+        run: go work sync
 
       - name: Check gofmt formatting
         run: make fmt-check
 
       - name: Run tests with race detector
-        run: go test -race -v ./...
+        run: make test-race

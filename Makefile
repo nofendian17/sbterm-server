@@ -1,26 +1,44 @@
-.PHONY: help run build test test-race vet fmt fmt-check install-hooks mock tidy
+.PHONY: help run-api run-ws run-ingest build test test-race vet fmt fmt-check install-hooks mock tidy
 
-APP_NAME := sbterm-server
+MODULES := apps/api apps/ws apps/ingest libs/pkg libs/proto libs/stockbit
 
-GO_FILES := $(shell find . -name '*.go' -not -path './.git/*')
+GO_FILES := $(shell find apps libs -name '*.go' -not -path './.git/*')
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-14s %s\n", $$1, $$2}'
 
-run: ## Run the server
-	go run ./cmd/server
+run-api: ## Run the REST api
+	go run ./apps/api/cmd/server
 
-build: ## Build the binary into bin/
-	go build -o bin/$(APP_NAME) ./cmd/server
+run-ws: ## Run the datafeed websocket publisher
+	go run ./apps/ws/cmd/ws
 
-test: ## Run all tests
-	go test ./...
+run-ingest: ## Run the questdb ingester
+	go run ./apps/ingest/cmd/ingest
+
+build: ## Build every binary into bin/
+	mkdir -p bin
+	go build -o bin/sbterm-api ./apps/api/cmd/server
+	go build -o bin/sbterm-ws ./apps/ws/cmd/ws
+	go build -o bin/sbterm-ingest ./apps/ingest/cmd/ingest
+
+test: ## Run all tests in the workspace
+	@for d in $(MODULES); do \
+		echo "==> $$d"; \
+		(cd $$d && go test ./...) || exit 1; \
+	done
 
 test-race: ## Run all tests with the race detector
-	go test -race ./...
+	@for d in $(MODULES); do \
+		echo "==> $$d"; \
+		(cd $$d && go test -race ./...) || exit 1; \
+	done
 
-vet: ## Run go vet
-	go vet ./...
+vet: ## Run go vet on the workspace
+	@for d in $(MODULES); do \
+		echo "==> $$d"; \
+		(cd $$d && go vet ./...) || exit 1; \
+	done
 
 fmt: ## Format all Go source files with gofmt
 	gofmt -w $(GO_FILES)
@@ -40,7 +58,11 @@ install-hooks: ## Install git hooks (core.hooksPath -> .githooks)
 	@echo "git hooks installed (core.hooksPath = $$(git config core.hooksPath))"
 
 mock: ## Generate mocks with uber-go/mock (go generate)
-	go generate ./...
+	cd apps/api && go generate ./...
 
-tidy: ## Tidy go.mod and go.sum
-	go mod tidy
+tidy: ## Tidy every module's go.mod and go.sum
+	go work sync
+	@for d in $(MODULES); do \
+		echo "==> $$d"; \
+		(cd $$d && go mod tidy) || exit 1; \
+	done

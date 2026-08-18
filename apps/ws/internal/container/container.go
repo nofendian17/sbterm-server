@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/samber/do/v2"
@@ -20,8 +19,6 @@ import (
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 	"github.com/nofendian17/sbterm/libs/stockbit"
 )
-
-const shutdownTimeout = 5 * time.Second
 
 // New wires the refresher, the Kafka producer, and the datafeed websocket
 // service into a samber/do root scope.
@@ -41,7 +38,11 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		}
 		client := stockbit.New(opts...)
 
-		store := stockbit.NewRedisTokenStore(redisClient(cfg))
+		rdb, err := redisClient(cfg)
+		if err != nil {
+			return nil, err
+		}
+		store := stockbit.NewRedisTokenStore(rdb)
 		refresher := stockbit.NewRefresher(client, store, stockbit.Credentials{
 			PlayerID: cfg.Stockbit.PlayerID,
 			Username: cfg.Stockbit.Username,
@@ -96,13 +97,13 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 }
 
 // redisClient builds the go-redis client backing the token store. The store
-// needs only the connection; failures surface lazily on refresh.
-func redisClient(cfg *config.Config) redis.Cmdable {
+// needs only the connection; connectivity failures surface lazily on refresh.
+func redisClient(cfg *config.Config) (*redis.Client, error) {
 	opt, err := redis.ParseURL(cfg.Redis.URL)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("ws: parse redis url: %w", err)
 	}
-	return redis.NewClient(opt)
+	return redis.NewClient(opt), nil
 }
 
 // Run loads the config, wires the container, starts the token refresher and
@@ -131,6 +132,7 @@ func Run() error {
 		return fmt.Errorf("container: construct stockbit refresher: %w", err)
 	}
 	refresher.Start()
+	defer injector.Shutdown()
 
 	if len(cfg.Stockbit.WSSubscriptions) == 0 {
 		logger.Warn("stockbit ws_subscriptions is empty; no datafeed subscriptions")

@@ -55,7 +55,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			return nil, fmt.Errorf("container: borrow order book sink: %w", err)
 		}
 
-		handler := service.NewFrameHandler(runningSink, obSink, cfg.Topics(), logger)
+		handler := service.NewFrameHandler(runningSink, obSink, service.TopicsFromList(cfg.Kafka.Topics), logger)
 		return service.NewService(consumer, handler, logger), nil
 	})
 

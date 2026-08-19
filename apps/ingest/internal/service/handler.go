@@ -19,6 +19,26 @@ type Topics struct {
 	OrderBook         string
 }
 
+const (
+	topicRunningTradeBatch = "datafeed.running_trade_batch"
+	topicOrderBook         = "datafeed.order_book"
+)
+
+// TopicsFromList maps the configured topic names onto the typed topic set.
+// Names outside the datafeed pipeline are ignored.
+func TopicsFromList(topics []string) Topics {
+	t := Topics{}
+	for _, name := range topics {
+		switch name {
+		case topicRunningTradeBatch:
+			t.RunningTradeBatch = name
+		case topicOrderBook:
+			t.OrderBook = name
+		}
+	}
+	return t
+}
+
 // RunningTradeBatchSink persists running trade batches on one writer goroutine.
 // Implementations are not safe for concurrent use; Close flushes buffered rows
 // and releases the underlying connection.

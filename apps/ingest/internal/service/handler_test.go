@@ -39,6 +39,40 @@ func (f *fakeObSink) Store(_ context.Context, ob *consumerv1.Orderbook) error {
 
 func (f *fakeObSink) Close(context.Context) error { return f.closeErr }
 
+func TestTopicsFromList(t *testing.T) {
+	tests := []struct {
+		name   string
+		topics []string
+		want   Topics
+	}{
+		{
+			name:   "both pipeline topics map",
+			topics: []string{"datafeed.running_trade_batch", "datafeed.order_book"},
+			want:   Topics{RunningTradeBatch: "datafeed.running_trade_batch", OrderBook: "datafeed.order_book"},
+		},
+		{
+			name:   "only running trade batch",
+			topics: []string{"datafeed.running_trade_batch"},
+			want:   Topics{RunningTradeBatch: "datafeed.running_trade_batch"},
+		},
+		{
+			name:   "unrelated topics ignored",
+			topics: []string{"datafeed.who", "other.topic"},
+			want:   Topics{},
+		},
+		{
+			name:   "empty list maps to empty set",
+			topics: nil,
+			want:   Topics{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, TopicsFromList(tt.topics))
+		})
+	}
+}
+
 func TestFrameHandler(t *testing.T) {
 	topics := Topics{RunningTradeBatch: "datafeed.running_trade_batch", OrderBook: "datafeed.order_book"}
 	logger := log.New(log.WithWriter(io.Discard))

@@ -1,4 +1,4 @@
-package ws_test
+package service_test
 
 import (
 	"testing"
@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/nofendian17/sbterm/apps/ws/internal/delivery/ws"
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/config"
 	stockbitws "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/stockbit"
+	"github.com/nofendian17/sbterm/apps/ws/internal/service"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
 
@@ -50,7 +50,7 @@ func TestBuildChannel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.True(t, proto.Equal(tt.want, ws.BuildChannel(tt.ch)))
+			assert.True(t, proto.Equal(tt.want, service.BuildChannel(tt.ch)))
 		})
 	}
 }

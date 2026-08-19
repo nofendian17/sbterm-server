@@ -12,9 +12,10 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/samber/do/v2"
 
-	deliveryws "github.com/nofendian17/sbterm/apps/ws/internal/delivery/ws"
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/config"
+	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 	stockbitws "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/stockbit"
+	service "github.com/nofendian17/sbterm/apps/ws/internal/service"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 	"github.com/nofendian17/sbterm/libs/stockbit"
 )
@@ -51,21 +52,21 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		return refresher, nil
 	})
 
-	do.Provide(injector, func(i do.Injector) (*deliveryws.Producer, error) {
-		return deliveryws.NewProducer(cfg.Kafka.Brokers, logger)
+	do.Provide(injector, func(i do.Injector) (*kafka.Producer, error) {
+		return kafka.NewProducer(cfg.Kafka.Brokers, logger)
 	})
 
-	do.Provide(injector, func(i do.Injector) (*deliveryws.Service, error) {
+	do.Provide(injector, func(i do.Injector) (*service.Service, error) {
 		refresher, err := do.Invoke[*stockbit.Refresher](i)
 		if err != nil {
 			return nil, err
 		}
-		publisher, err := do.Invoke[*deliveryws.Producer](i)
+		publisher, err := do.Invoke[*kafka.Producer](i)
 		if err != nil {
 			return nil, err
 		}
 
-		subs := make([]*deliveryws.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
+		subs := make([]*service.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
 		for _, sub := range cfg.Stockbit.WSSubscriptions {
 			ws := stockbitws.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
 				key, err := refresher.Client().GetWebSocketKey(ctx)
@@ -81,18 +82,18 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 				stockbitws.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
 				stockbitws.WithWSLogger(logger),
 			)
-			subs = append(subs, &deliveryws.Subscription{
+			subs = append(subs, &service.Subscription{
 				Name:    sub.Name,
 				Client:  ws,
-				Channel: deliveryws.BuildChannel(sub.Channels),
+				Channel: service.BuildChannel(sub.Channels),
 			})
 		}
 
-		router := deliveryws.NewFrameRouter(publisher, deliveryws.Topics{
+		router := service.NewFrameRouter(publisher, service.Topics{
 			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
 			OrderBook:         cfg.Kafka.OrderBookTopic,
 		})
-		return deliveryws.New(subs, refresher, router, logger), nil
+		return service.New(subs, refresher, router, logger), nil
 	})
 
 	return injector
@@ -139,7 +140,7 @@ func Run() error {
 	if len(cfg.Stockbit.WSSubscriptions) == 0 {
 		logger.Warn("stockbit ws_subscriptions is empty; no datafeed subscriptions")
 	} else {
-		wsSvc, err := do.Invoke[*deliveryws.Service](injector)
+		wsSvc, err := do.Invoke[*service.Service](injector)
 		if err != nil {
 			return fmt.Errorf("container: construct stockbit ws service: %w", err)
 		}

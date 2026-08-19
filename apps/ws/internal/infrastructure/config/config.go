@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
-
-	kafkapkg "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 )
 
 const (
@@ -73,11 +71,6 @@ type LogConfig struct {
 	Level     string `mapstructure:"level"`
 	Format    string `mapstructure:"format"`
 	AddSource bool   `mapstructure:"add_source"`
-}
-
-// Topics maps the configured topic names onto the pipeline topic set.
-func (c Config) Topics() kafkapkg.Topics {
-	return kafkapkg.Topics{RunningTradeBatch: c.Kafka.RunningTradeBatchTopic, OrderBook: c.Kafka.OrderBookTopic}
 }
 
 func Load() (*Config, error) {

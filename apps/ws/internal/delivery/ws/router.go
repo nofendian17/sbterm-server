@@ -6,7 +6,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	kafkapkg "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
 
@@ -14,13 +13,13 @@ import (
 // the single boundary between the websocket transport and the ingestion
 // pipeline.
 type FrameRouter struct {
-	publisher kafkapkg.Publisher
-	topics    kafkapkg.Topics
+	publisher Publisher
+	topics    Topics
 }
 
 // NewFrameRouter builds a router that publishes running trade batches and
 // order book snapshots to the configured topics.
-func NewFrameRouter(publisher kafkapkg.Publisher, topics kafkapkg.Topics) *FrameRouter {
+func NewFrameRouter(publisher Publisher, topics Topics) *FrameRouter {
 	return &FrameRouter{publisher: publisher, topics: topics}
 }
 

@@ -1,4 +1,4 @@
-package kafka
+package ws
 
 import (
 	"context"
@@ -8,19 +8,6 @@ import (
 
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
-
-// Topics names the Kafka topics used by the datafeed pipeline.
-type Topics struct {
-	RunningTradeBatch string
-	OrderBook         string
-}
-
-// Publisher sends one protobuf frame to a topic. Implementations must be safe
-// for concurrent use.
-type Publisher interface {
-	Publish(ctx context.Context, topic string, key string, value []byte) error
-	Close()
-}
 
 // Producer publishes datafeed frames to Redpanda/Kafka via franz-go.
 type Producer struct {
@@ -32,6 +19,7 @@ type Producer struct {
 func NewProducer(brokers []string, logger log.Logger) (*Producer, error) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
+		kgo.AllowAutoTopicCreation(),
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 	)
 	if err != nil {
@@ -54,3 +42,8 @@ func (p *Producer) Publish(ctx context.Context, topic string, key string, value 
 func (p *Producer) Close() {
 	p.client.Close()
 }
+
+// ponytail: Producer sits next to its port while delivery/ws is the only
+// consumer and the app stays flat. Split ports and adapters apart when a
+// second publisher implementation or a second consuming app appears.
+var _ Publisher = (*Producer)(nil)

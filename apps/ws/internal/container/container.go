@@ -14,7 +14,6 @@ import (
 
 	deliveryws "github.com/nofendian17/sbterm/apps/ws/internal/delivery/ws"
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/config"
-	kafkapkg "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 	stockbitws "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/stockbit"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 	"github.com/nofendian17/sbterm/libs/stockbit"
@@ -52,8 +51,8 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		return refresher, nil
 	})
 
-	do.Provide(injector, func(i do.Injector) (*kafkapkg.Producer, error) {
-		return kafkapkg.NewProducer(cfg.Kafka.Brokers, logger)
+	do.Provide(injector, func(i do.Injector) (*deliveryws.Producer, error) {
+		return deliveryws.NewProducer(cfg.Kafka.Brokers, logger)
 	})
 
 	do.Provide(injector, func(i do.Injector) (*deliveryws.Service, error) {
@@ -61,7 +60,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		if err != nil {
 			return nil, err
 		}
-		publisher, err := do.Invoke[*kafkapkg.Producer](i)
+		publisher, err := do.Invoke[*deliveryws.Producer](i)
 		if err != nil {
 			return nil, err
 		}
@@ -89,7 +88,10 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			})
 		}
 
-		router := deliveryws.NewFrameRouter(publisher, cfg.Topics())
+		router := deliveryws.NewFrameRouter(publisher, deliveryws.Topics{
+			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
+			OrderBook:         cfg.Kafka.OrderBookTopic,
+		})
 		return deliveryws.New(subs, refresher, router, logger), nil
 	})
 

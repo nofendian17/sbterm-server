@@ -5,7 +5,6 @@ import "context"
 // Topics names the Kafka topics used by the datafeed pipeline.
 type Topics struct {
 	RunningTradeBatch string
-	OrderBook         string
 }
 
 // Publisher sends one protobuf frame to a topic. Implementations must be safe

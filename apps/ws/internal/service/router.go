@@ -17,8 +17,8 @@ type FrameRouter struct {
 	topics    Topics
 }
 
-// NewFrameRouter builds a router that publishes running trade batches and
-// order book snapshots to the configured topics.
+// NewFrameRouter builds a router that publishes running trade batches to the
+// configured topic.
 func NewFrameRouter(publisher Publisher, topics Topics) *FrameRouter {
 	return &FrameRouter{publisher: publisher, topics: topics}
 }
@@ -38,13 +38,6 @@ func (r *FrameRouter) Route(ctx context.Context, m *datafeedv1.WebsocketWrapMess
 			symbol = trades[0].GetStock()
 		}
 		return r.publisher.Publish(ctx, r.topics.RunningTradeBatch, symbol, value)
-	}
-	if ob := m.GetOrderbook(); ob != nil {
-		value, err := proto.Marshal(ob)
-		if err != nil {
-			return fmt.Errorf("ws: marshal order book: %w", err)
-		}
-		return r.publisher.Publish(ctx, r.topics.OrderBook, ob.GetStockCode(), value)
 	}
 	return nil
 }

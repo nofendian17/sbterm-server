@@ -20,7 +20,9 @@ type runningTradeBatchSink struct {
 
 // Store writes every trade in the batch as a row. While the table schema is
 // pending the batch is skipped (logged at debug) instead of buffered, so the
-// first data written always lands in the partitioned, deduplicated table.
+// first data written always lands in the partitioned, deduplicated table. Rows
+// are left buffered for the sender's auto-flush (qwpAutoFlushRows) so each QWP
+// transaction carries a meaningful number of rows; Close flushes the tail.
 func (s *runningTradeBatchSink) Store(ctx context.Context, batch *datafeedv1.RunningTradeBatch) error {
 	if err := s.client.ensureSchema(ctx, s.client.table, errSchemaPending); err != nil {
 		if errors.Is(err, errSchemaPending) {
@@ -34,10 +36,7 @@ func (s *runningTradeBatchSink) Store(ctx context.Context, batch *datafeedv1.Run
 			return err
 		}
 	}
-	// Publish the buffered rows now. The facade's auto-flush is used as a
-	// backstop but observed to lag well past its documented interval, and
-	// trade data is latency-sensitive.
-	return s.sender.Flush(ctx)
+	return nil
 }
 
 // Close flushes buffered rows and returns the sender to the pool.
@@ -49,18 +48,18 @@ func (s *runningTradeBatchSink) Close(ctx context.Context) error {
 // then Symbols, then columns, then the row finalizer (At).
 func (s *runningTradeBatchSink) write(ctx context.Context, t *datafeedv1.RunningTrade) error {
 	s.sender.Table(s.client.table)
-	s.sender.Symbol("symbol", t.GetStock())
+	s.sender.Symbol("stock", t.GetStock())
 	s.sender.Symbol("action", t.GetAction().String())
 	s.sender.Symbol("market_board", t.GetMarketBoard().String())
 	s.sender.Float64Column("price", t.GetPrice())
-	s.sender.Float64Column("volume", t.GetVolume())
+	s.sender.Int64Column("volume", int64(t.GetVolume()))
 	s.sender.BoolColumn("is_global", t.GetIsGlobal())
 	s.sender.Float64Column("change_value", changeValue(t))
 	s.sender.Float64Column("change_percentage", changePercentage(t))
-	s.sender.Int32Column("trade_number", t.GetTradeNumber())
+	s.sender.Int64Column("trade_number", int64(t.GetTradeNumber()))
 	s.sender.Float64Column("value", t.GetValue())
 	if ws := t.GetWebsocketTime(); ws != nil && ws.IsValid() {
-		s.sender.TimestampColumn("websocket_time", ws.AsTime())
+		s.sender.TimestampColumn("websocket_ts", ws.AsTime())
 	}
 	return s.sender.At(ctx, tradeTimestamp(t))
 }

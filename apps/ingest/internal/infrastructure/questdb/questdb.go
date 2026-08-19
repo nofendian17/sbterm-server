@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,9 +23,10 @@ import (
 // DefaultTable is the running trade table created when config does not name one.
 const DefaultTable = "running_trades"
 
-// DefaultOrderBookTable is the order book table created when config does not
-// name one.
-const DefaultOrderBookTable = "order_books"
+// qwpAutoFlushRows batches buffered rows into QWP transactions of meaningful
+// size (QuestDB recommends > 100 rows per transaction); the sender's default
+// auto-flush interval (1s) still bounds latency on slow streams.
+const qwpAutoFlushRows = 100
 
 // schemaRetryInterval throttles CREATE TABLE attempts while the server is down.
 const schemaRetryInterval = 5 * time.Second
@@ -33,58 +35,32 @@ const schemaRetryInterval = 5 * time.Second
 // should be skipped this round.
 var errSchemaPending = errors.New("questdb: running trade table schema pending")
 
-// errOrderBookSchemaPending reports that the order book schema retry is
-// throttled and the frame should be skipped this round.
-var errOrderBookSchemaPending = errors.New("questdb: order book table schema pending")
-
-// errMalformedOrderBook reports an order book body that is not a #O snapshot.
-var errMalformedOrderBook = errors.New("questdb: malformed order book body")
-
-// Option configures a Client.
-type Option func(*options)
-
-type options struct {
-	orderBookTable string
-}
-
-// WithOrderBookTable names the table used for order book level rows. An empty
-// name keeps DefaultOrderBookTable.
-func WithOrderBookTable(name string) Option {
-	return func(o *options) { o.orderBookTable = name }
-}
-
 // Client is a handle to one QuestDB deployment. It is safe for concurrent use;
 // the underlying facade owns pools of senders and query sessions.
 type Client struct {
-	db             *qdb.QuestDB
-	table          string
-	orderBookTable string
-	logger         log.Logger
+	db     *qdb.QuestDB
+	table  string
+	logger log.Logger
 
 	mu           sync.Mutex
 	schemaOK     map[string]bool
 	lastSchemaAt map[string]time.Time
 }
 
-// New dials QuestDB over QWP and prepares the running trade and order book
-// tables. The dial is lazy (lazy_connect), so a down server does not fail
-// construction; each schema is created on first successful contact and
-// re-attempted until it lands. An empty conf falls back to the local default
-// endpoint; an empty table uses DefaultTable, and an empty order book table
-// (or no WithOrderBookTable) uses DefaultOrderBookTable.
-func New(ctx context.Context, conf, table string, logger log.Logger, opts ...Option) (*Client, error) {
+// New dials QuestDB over QWP and prepares the running trade table. The dial is
+// lazy (lazy_connect), so a down server does not fail construction; the schema
+// is created on first successful contact and re-attempted until it lands. An
+// empty conf falls back to the local default endpoint; an empty table uses
+// DefaultTable.
+func New(ctx context.Context, conf, table string, logger log.Logger) (*Client, error) {
 	if conf == "" {
 		conf = "ws::addr=localhost:9000;"
 	}
+	if !strings.Contains(conf, "auto_flush_rows") {
+		conf = fmt.Sprintf("%s;auto_flush_rows=%d", strings.TrimRight(conf, ";"), qwpAutoFlushRows)
+	}
 	if table == "" {
 		table = DefaultTable
-	}
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
-	if o.orderBookTable == "" {
-		o.orderBookTable = DefaultOrderBookTable
 	}
 
 	db, err := qdb.NewQuestDB(ctx, conf,
@@ -102,18 +78,14 @@ func New(ctx context.Context, conf, table string, logger log.Logger, opts ...Opt
 	}
 
 	c := &Client{
-		db:             db,
-		table:          table,
-		orderBookTable: o.orderBookTable,
-		logger:         logger,
-		schemaOK:       make(map[string]bool),
-		lastSchemaAt:   make(map[string]time.Time),
+		db:           db,
+		table:        table,
+		logger:       logger,
+		schemaOK:     make(map[string]bool),
+		lastSchemaAt: make(map[string]time.Time),
 	}
 	if err := c.ensureSchema(ctx, c.table, errSchemaPending); err != nil && !errors.Is(err, errSchemaPending) {
 		logger.Warn("questdb: create running trade table failed; will retry", "error", err)
-	}
-	if err := c.ensureSchema(ctx, c.orderBookTable, errOrderBookSchemaPending); err != nil && !errors.Is(err, errOrderBookSchemaPending) {
-		logger.Warn("questdb: create order book table failed; will retry", "error", err)
 	}
 	return c, nil
 }
@@ -132,22 +104,6 @@ func (c *Client) NewRunningTradeBatchSink(ctx context.Context) (*runningTradeBat
 		return nil, errors.New("questdb: sender is not a QWP sender")
 	}
 	return &runningTradeBatchSink{client: c, sender: qs}, nil
-}
-
-// NewOrderBookSink leases a QWP sender for one writer goroutine. The sink is
-// not safe for concurrent use; callers must Close it to flush and return the
-// sender to the pool.
-func (c *Client) NewOrderBookSink(ctx context.Context) (*orderBookSink, error) {
-	sender, err := c.db.BorrowSender(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("questdb: borrow sender: %w", err)
-	}
-	qs, ok := sender.(qdb.QwpSender)
-	if !ok {
-		_ = sender.Close(ctx)
-		return nil, errors.New("questdb: sender is not a QWP sender")
-	}
-	return &orderBookSink{client: c, sender: qs}, nil
 }
 
 // Ping verifies the server answers a trivial query. With lazy_connect the pool
@@ -195,13 +151,7 @@ func (c *Client) ensureSchema(ctx context.Context, table string, pending error) 
 	c.lastSchemaAt[table] = time.Now()
 	c.mu.Unlock()
 
-	var err error
-	switch table {
-	case c.orderBookTable:
-		err = c.createOrderBookTable(ctx)
-	default:
-		err = c.createTradeTable(ctx)
-	}
+	err := c.createTradeTable(ctx)
 	c.mu.Lock()
 	if err == nil {
 		c.schemaOK[table] = true
@@ -217,54 +167,26 @@ func (c *Client) createTradeTable(ctx context.Context) error {
 	}
 	defer q.Close()
 
-	// The designated timestamp column must be part of the dedup keys; the
-	// keys (ts, symbol, trade_number) make a replayed trade collapse onto
-	// itself when the QWP sender reconnects and replays an unacked frame.
+	// SYMBOL columns carry a lookup cache so filters on stock/market_board stay
+	// fast as the table grows. The designated timestamp column must be part of
+	// the dedup keys; (ts, stock, trade_number) make a replayed trade collapse
+	// onto itself when the QWP sender reconnects and replays an unacked frame.
 	ddl := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
   ts TIMESTAMP,
-  symbol SYMBOL,
+  websocket_ts TIMESTAMP,
+  stock SYMBOL capacity 2048 CACHE INDEX,
   price DOUBLE,
-  volume DOUBLE,
-  action SYMBOL,
-  is_global BOOLEAN,
+  volume LONG,
+  value DOUBLE,
   change_value DOUBLE,
   change_percentage DOUBLE,
-  trade_number INT,
-  market_board SYMBOL,
-  value DOUBLE,
-  websocket_time TIMESTAMP
-) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS (ts, symbol, trade_number)`, c.table)
+  trade_number LONG,
+  market_board SYMBOL capacity 10 CACHE,
+  is_global BOOLEAN,
+  action SYMBOL
+) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS (ts, stock, trade_number)`, c.table)
 	if _, err := q.Exec(ctx, ddl); err != nil {
 		return fmt.Errorf("questdb: create table %s: %w", c.table, err)
-	}
-	return nil
-}
-
-// createOrderBookTable creates the order book level table. Each frame is a
-// full side snapshot; every level becomes a row keyed by the frame timestamp,
-// symbol, side, price, and sequence number, so a replayed frame collapses onto
-// itself while distinct frames keep their full history.
-func (c *Client) createOrderBookTable(ctx context.Context) error {
-	q, err := c.db.BorrowQuery(ctx)
-	if err != nil {
-		return fmt.Errorf("questdb: borrow query: %w", err)
-	}
-	defer q.Close()
-
-	ddl := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-  ts TIMESTAMP,
-  symbol SYMBOL,
-  side SYMBOL,
-  price LONG,
-  frequency LONG,
-  shares LONG,
-  sequence_number LONG,
-  order_book_id LONG,
-  receive_ts TIMESTAMP,
-  board SYMBOL
-) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS (ts, symbol, side, price, sequence_number)`, c.orderBookTable)
-	if _, err := q.Exec(ctx, ddl); err != nil {
-		return fmt.Errorf("questdb: create table %s: %w", c.orderBookTable, err)
 	}
 	return nil
 }

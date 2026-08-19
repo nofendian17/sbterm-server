@@ -16,7 +16,7 @@ import (
 )
 
 func TestProducerPublish(t *testing.T) {
-	cluster, err := kfake.NewCluster(kfake.SeedTopics(1, "datafeed.running_trade_batch", "datafeed.order_book"))
+	cluster, err := kfake.NewCluster(kfake.SeedTopics(1, "datafeed.running_trade_batch"))
 	require.NoError(t, err)
 	defer cluster.Close()
 
@@ -33,14 +33,14 @@ func TestProducerPublish(t *testing.T) {
 			value: []byte(`{"batch":[]}`),
 		},
 		{
-			name:  "order book keyed by stock code",
-			topic: "datafeed.order_book",
+			name:  "running trade keyed by stock code",
+			topic: "datafeed.running_trade_batch",
 			key:   "BBCA",
-			value: []byte(`{"side":"#O"}`),
+			value: []byte(`{"batch":[]}`),
 		},
 		{
 			name:  "empty key and value",
-			topic: "datafeed.order_book",
+			topic: "datafeed.running_trade_batch",
 			key:   "",
 			value: nil,
 		},
@@ -85,7 +85,7 @@ func TestProducerPublishUnreachable(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	require.Error(t, p.Publish(ctx, "datafeed.order_book", "BBCA", []byte("v")))
+	require.Error(t, p.Publish(ctx, "datafeed.running_trade_batch", "BBCA", []byte("v")))
 }
 
 // consumeMatching reads records from the fake cluster until one equals want,

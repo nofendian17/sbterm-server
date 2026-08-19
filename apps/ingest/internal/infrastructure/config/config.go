@@ -23,9 +23,8 @@ type Config struct {
 }
 
 type QuestDBConfig struct {
-	URL            string `mapstructure:"url"`
-	Table          string `mapstructure:"table"`
-	OrderBookTable string `mapstructure:"order_book_table"`
+	URL                string `mapstructure:"url"`
+	RunningTradesTable string `mapstructure:"running_trades_table"`
 }
 
 // KafkaConfig names the Kafka topic for each pipeline explicitly, so the
@@ -35,7 +34,6 @@ type KafkaConfig struct {
 	Brokers                []string `mapstructure:"brokers"`
 	Group                  string   `mapstructure:"group"`
 	RunningTradeBatchTopic string   `mapstructure:"running_trade_batch_topic"`
-	OrderBookTopic         string   `mapstructure:"order_book_topic"`
 }
 
 type LogConfig struct {
@@ -69,13 +67,11 @@ func Load() (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("questdb.url", "ws::addr=localhost:9000;")
-	v.SetDefault("questdb.table", "running_trades")
-	v.SetDefault("questdb.order_book_table", "order_books")
+	v.SetDefault("questdb.url", "ws::addr=localhost:9000;auto_flush_rows=100;")
+	v.SetDefault("questdb.running_trades_table", "running_trades")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")
-	v.SetDefault("kafka.order_book_topic", "datafeed.order_book")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

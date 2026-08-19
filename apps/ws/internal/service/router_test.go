@@ -30,7 +30,7 @@ func (f *fakePublisher) Publish(_ context.Context, topic string, key string, val
 func (f *fakePublisher) Close() { f.closed = true }
 
 func TestFrameRouter(t *testing.T) {
-	topics := Topics{RunningTradeBatch: "datafeed.running_trade_batch", OrderBook: "datafeed.order_book"}
+	topics := Topics{RunningTradeBatch: "datafeed.running_trade_batch"}
 
 	t.Run("running trade batch publishes to its topic keyed by first symbol", func(t *testing.T) {
 		pub := &fakePublisher{}
@@ -47,23 +47,6 @@ func TestFrameRouter(t *testing.T) {
 		got := &datafeedv1.RunningTradeBatch{}
 		require.NoError(t, proto.Unmarshal(pub.topics[0].value, got))
 		assert.Equal(t, "BBRI", got.GetBatch()[0].GetStock())
-	})
-
-	t.Run("order book publishes to its topic keyed by stock code", func(t *testing.T) {
-		pub := &fakePublisher{}
-		router := NewFrameRouter(pub, topics)
-
-		ob := &consumerv1.Orderbook{StockCode: "BBCA"}
-		msg := &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Orderbook{Orderbook: ob}}
-
-		require.NoError(t, router.Route(context.Background(), msg))
-		require.Len(t, pub.topics, 1)
-		assert.Equal(t, "datafeed.order_book", pub.topics[0].topic)
-		assert.Equal(t, "BBCA", pub.topics[0].key)
-
-		got := &consumerv1.Orderbook{}
-		require.NoError(t, proto.Unmarshal(pub.topics[0].value, got))
-		assert.Equal(t, "BBCA", got.GetStockCode())
 	})
 
 	t.Run("frames without an ingested channel publish nothing", func(t *testing.T) {

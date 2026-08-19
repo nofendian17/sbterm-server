@@ -3,9 +3,8 @@
 # In Docker Compose, use host "questdb". When running locally, use "localhost".
 # Keep username/password in sync with the compose QDB_HTTP_USER/QDB_HTTP_PASSWORD.
 questdb:
-  url: ws::addr=localhost:9000;username=questdb;password=questdb;
-  table: running_trades
-  order_book_table: order_books
+  url: ws::addr=localhost:9000;username=questdb;password=questdb;auto_flush_rows=100;
+  running_trades_table: running_trades
 
 # Kafka consumer settings.
 # In Docker Compose, use broker host "redpanda" (redpanda:29092).
@@ -13,10 +12,9 @@ questdb:
 kafka:
   brokers: ["redpanda:29092"]
   group: sbterm-ingest
-  # Names of the topics for each pipeline. These can be any Kafka topic name;
-  # they must match the same settings in config.ws.yaml.
+  # Name of the topic for the running trade pipeline. This can be any Kafka
+  # topic name; it must match the same setting in config.ws.yaml.
   running_trade_batch_topic: datafeed.running_trade_batch
-  order_book_topic: datafeed.order_book
 
 # Logging settings.
 # format supports "text" and "json".

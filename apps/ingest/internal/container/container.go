@@ -29,7 +29,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	do.Provide(injector, func(i do.Injector) (*questdb.Client, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.Table, logger, questdb.WithOrderBookTable(cfg.QuestDB.OrderBookTable))
+		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.RunningTradesTable, logger)
 	})
 
 	do.Provide(injector, func(i do.Injector) (*kafka.Consumer, error) {
@@ -50,16 +50,11 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		if err != nil {
 			return nil, fmt.Errorf("container: borrow running trade sink: %w", err)
 		}
-		obSink, err := qdbClient.NewOrderBookSink(context.Background())
-		if err != nil {
-			return nil, fmt.Errorf("container: borrow order book sink: %w", err)
-		}
 
 		topics := service.Topics{
 			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
-			OrderBook:         cfg.Kafka.OrderBookTopic,
 		}
-		handler := service.NewFrameHandler(runningSink, obSink, topics, logger)
+		handler := service.NewFrameHandler(runningSink, topics, logger)
 		return service.NewService(consumer, handler, logger), nil
 	})
 
@@ -69,7 +64,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 // kafkaTopicList collects the configured topic names into the slice the
 // Kafka consumer subscribes to.
 func kafkaTopicList(kafkaCfg config.KafkaConfig) []string {
-	return []string{kafkaCfg.RunningTradeBatchTopic, kafkaCfg.OrderBookTopic}
+	return []string{kafkaCfg.RunningTradeBatchTopic}
 }
 
 // Run loads the config, wires the container, starts the ingest loop, and

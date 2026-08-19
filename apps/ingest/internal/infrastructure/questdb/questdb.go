@@ -44,32 +44,6 @@ var errOrderBookSchemaPending = errors.New("questdb: order book table schema pen
 // errMalformedOrderBook reports an order book body that is not a #O snapshot.
 var errMalformedOrderBook = errors.New("questdb: malformed order book body")
 
-// RunningTradeBatchSink persists running trade batches on one writer goroutine.
-// Implementations are not safe for concurrent use; Close flushes buffered rows
-// and releases the underlying connection.
-type RunningTradeBatchSink interface {
-	Store(ctx context.Context, batch *datafeedv1.RunningTradeBatch) error
-	Close(ctx context.Context) error
-}
-
-// RunningTradeBatchStore leases per-goroutine running trade batch sinks.
-type RunningTradeBatchStore interface {
-	NewRunningTradeBatchSink(ctx context.Context) (RunningTradeBatchSink, error)
-}
-
-// OrderBookSink persists one order book side snapshot on one writer goroutine.
-// Implementations are not safe for concurrent use; Close flushes buffered rows
-// and releases the underlying connection.
-type OrderBookSink interface {
-	Store(ctx context.Context, ob *consumerv1.Orderbook) error
-	Close(ctx context.Context) error
-}
-
-// OrderBookStore leases per-goroutine order book sinks.
-type OrderBookStore interface {
-	NewOrderBookSink(ctx context.Context) (OrderBookSink, error)
-}
-
 // Option configures a Client.
 type Option func(*options)
 
@@ -151,7 +125,7 @@ func New(ctx context.Context, conf, table string, logger log.Logger, opts ...Opt
 // NewRunningTradeBatchSink leases a QWP sender for one writer goroutine. The
 // sink is not safe for concurrent use; callers must Close it to flush and
 // return the sender to the pool.
-func (c *Client) NewRunningTradeBatchSink(ctx context.Context) (RunningTradeBatchSink, error) {
+func (c *Client) NewRunningTradeBatchSink(ctx context.Context) (*runningTradeBatchSink, error) {
 	sender, err := c.db.BorrowSender(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("questdb: borrow sender: %w", err)
@@ -167,7 +141,7 @@ func (c *Client) NewRunningTradeBatchSink(ctx context.Context) (RunningTradeBatc
 // NewOrderBookSink leases a QWP sender for one writer goroutine. The sink is
 // not safe for concurrent use; callers must Close it to flush and return the
 // sender to the pool.
-func (c *Client) NewOrderBookSink(ctx context.Context) (OrderBookSink, error) {
+func (c *Client) NewOrderBookSink(ctx context.Context) (*orderBookSink, error) {
 	sender, err := c.db.BorrowSender(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("questdb: borrow sender: %w", err)

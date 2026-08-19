@@ -1,6 +1,6 @@
 # sbterm-server — Architecture Review & Refactoring Report
 
-**Date:** 2026-08-19 · **Scope:** Go 1.26.5 workspace monorepo (6 modules) · **Status:** Review complete; fixes applied and verified (uncommitted)
+**Date:** 2026-08-19 · **Scope:** Go 1.26.5 workspace monorepo (6 modules) · **Status:** Review complete; fixes applied and verified. Wave 1 fixes on `refactor/review-fixes`, clean-architecture wave on `refactor/clean-architecture`.
 
 ---
 
@@ -136,6 +136,20 @@ Good baseline: table-driven handlers tests with named subtests, gomock for useca
 | 9 | `t.Parallel()` across test suites | P3 | ⏸ DEFERRED — suite is fast; add when test time matters |
 | 10 | Integration tests for Kafka/QuestDB pipeline (build tag `integration`) | P3 | ⏸ DEFERRED — do together with docker-compose stack usage |
 
+### Clean-architecture wave (branch `refactor/clean-architecture`)
+
+Ports-where-consumed pass over the ws and ingest apps. The dependency rule already held (delivery → service → infrastructure, composition root on top); the wave removes the leftover adapter-owned port definitions.
+
+| # | Change | Status |
+|---|--------|--------|
+| 11 | ws: move `Publisher`/`Topics` ports into `delivery/ws` (defined where consumed); co-locate the franz-go `Producer` adapter with a `var _ Publisher = (*Producer)(nil)` check; delete the now-empty `infrastructure/kafka` package; drop `config.Topics()` (config no longer imports delivery) | ✅ `2691a65` |
+| 12 | ws: un-export `BuildChannel` → `buildChannel` | ⏸ SKIPPED — legitimate composition-root API; only cross-package caller is the container, where a named exported function reads better than a wrapper |
+| 13 | ingest: move `RunningTradeBatchSink`/`OrderBookSink` ports into `service` (defined where consumed); questdb returns unexported concrete sinks (`*runningTradeBatchSink`, `*orderBookSink`); delete the zero-consumer `RunningTradeBatchStore`/`OrderBookStore` interfaces | ✅ `a516263` |
+| 14 | ingest: wire a sink-factory `Store` interface into the container | ⏸ SKIPPED — the composition root is exactly where concrete adapter types belong; a factory port with one implementation adds indirection without a second consumer or test to justify it |
+| 15 | ingest: drop `franz-go` from `service` — replace `EachRecord` callback with a plain `for` loop over `fetches.Records()` | ✅ `4c4088b` |
+
+Sink/store greps verified zero remaining consumers before each deletion; `var _` compile-time checks anchor the new ports; `service` still imports the proto packages (shared domain, correct direction).
+
 ---
 
 ## 9. Verification
@@ -148,4 +162,4 @@ make test-race    ✅ all 6 modules pass with -race
 make vet          ✅ all 6 modules clean
 ```
 
-**Changes are NOT committed** — 8 files modified by this review (+199/−89), plus the pre-existing concurrent edit to `producer.go`. Review and commit at your leisure, or ask me to phrase the commit(s).
+All changes are committed atomically: the F-01..F-07 fixes as a wave on `refactor/review-fixes` (6 commits, F-03 deferred), the ports-where-consumed pass as the clean-architecture wave on `refactor/clean-architecture` (`2691a65` ws ports, `a516263` ingest ports, `4c4088b` service decoupling). The concurrent `kgo.AllowAutoTopicCreation()` edit on the ws producer rode along with the port move (`2691a65`) — its behavior is preserved. Both branches pass the full verification suite and are ready to review/merge.

@@ -10,8 +10,8 @@ Local/container deployment uses these files:
 Dockerfile
 .dockerignore
 docker-compose.yml
-config.yaml.example
-config.yaml          # your local config; copy from config.yaml.example
+config.api.yaml.example
+config.api.yaml          # your local config; copy from config.api.yaml.example
 ```
 
 Service composition:
@@ -68,13 +68,13 @@ docker compose down -v
 
 ## Configuration
 
-The app is configured exclusively through `config.yaml`, mounted read-only into the container at `/app/config.yaml`. Copy the template and edit it before starting:
+The app is configured exclusively through `config.api.yaml`, mounted read-only into the container at `/app/config.api.yaml`. Copy the template and edit it before starting:
 
 ```bash
-cp config.yaml.example config.yaml
+cp config.api.yaml.example config.api.yaml
 ```
 
-For Docker Compose the app reaches `postgres` and `redis` through the service names, so set the hosts accordingly in `config.yaml`:
+For Docker Compose the app reaches `postgres` and `redis` through the service names, so set the hosts accordingly in `config.api.yaml`:
 
 ```yaml
 database:
@@ -116,14 +116,14 @@ The remaining variables below only affect Docker Compose infrastructure (image t
 | `QDB_HTTP_USER` | `questdb` | HTTP basic auth user for REST, Web Console, and QWP |
 | `QDB_HTTP_PASSWORD` | `questdb` | HTTP basic auth password |
 
-QuestDB runs with HTTP basic auth enabled (`QDB_HTTP_USER`/`QDB_HTTP_PASSWORD`). The app authenticates through the QWP connect string in `config.yaml`:
+QuestDB runs with HTTP basic auth enabled (`QDB_HTTP_USER`/`QDB_HTTP_PASSWORD`). The app authenticates through the QWP connect string in `config.api.yaml`:
 
 ```yaml
 questdb:
   url: ws::addr=questdb:9000;username=questdb;password=questdb;
 ```
 
-Keep the credentials in `config.yaml` in sync with the compose variables; changing them in `.env` requires the same update in `config.yaml`.
+Keep the credentials in `config.api.yaml` in sync with the compose variables; changing them in `.env` requires the same update in `config.api.yaml`.
 
 Example override:
 
@@ -142,7 +142,7 @@ POSTGRES_DB=sbterm
 REDIS_HOST_PORT=6379
 ```
 
-> `.env` is optional and only feeds the Compose variables above; application configuration always comes from `config.yaml`.
+> `.env` is optional and only feeds the Compose variables above; application configuration always comes from `config.api.yaml`.
 
 ## Service URLs
 
@@ -160,7 +160,7 @@ Redis:
 redis://redis:6379/0
 ```
 
-To run the app on the host without Docker, use `localhost` as shown in `config.yaml.example`.
+To run the app on the host without Docker, use `localhost` as shown in `config.api.yaml.example`.
 
 ## Healthcheck
 
@@ -209,9 +209,9 @@ For production, at minimum change or review:
 
 - `POSTGRES_PASSWORD`
 - `APP_VERSION`
-- `log.format: json` in `config.yaml`
+- `log.format: json` in `config.api.yaml`
 - port exposure for the target environment
 - backup strategy for volumes/database/cache according to persistence requirements
-- secret management; do not store production passwords in `config.yaml` (mount it read-only from a secret store)
+- secret management; do not store production passwords in `config.api.yaml` (mount it read-only from a secret store)
 
 If deployed behind a reverse proxy/load balancer, review the rate-limit key strategy so all traffic is not treated as coming from the same proxy IP.

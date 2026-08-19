@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	ConfigFileName = "config"
+	ConfigFileName = "config.ws"
 	ConfigFileType = "yaml"
 	ConfigFilePath = "."
 )

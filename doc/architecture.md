@@ -188,8 +188,8 @@ Contains technical details that can be replaced without changing usecases.
 
 Responsibilities:
 
-- Load configuration from defaults and the `config.yaml` config file.
-- Precedence: `config.yaml` > defaults.
+- Load configuration from defaults and the `config.api.yaml` config file.
+- Precedence: `config.api.yaml` > defaults.
 
 Configuration includes:
 
@@ -513,13 +513,13 @@ The current coverage target is practical rather than absolute. Generated mocks a
 
 ## Configuration
 
-Configuration is loaded from `config.yaml` by `internal/infrastructure/config` with this precedence:
+Configuration is loaded from `config.api.yaml` by `internal/infrastructure/config` with this precedence:
 
 ```text
-config.yaml > defaults
+config.api.yaml > defaults
 ```
 
-The file is looked up in the working directory. Copy `config.yaml.example` to `config.yaml` and edit it; see `config.yaml.example` for the full schema.
+The file is looked up in the working directory. Copy `config.api.yaml.example` to `config.api.yaml` and edit it; see `config.api.yaml.example` for the full schema.
 
 Example YAML:
 

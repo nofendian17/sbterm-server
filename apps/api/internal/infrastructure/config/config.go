@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ConfigFileName = "config"
+	ConfigFileName = "config.api"
 	ConfigFileType = "yaml"
 	ConfigFilePath = "."
 )

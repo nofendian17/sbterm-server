@@ -13,7 +13,10 @@ questdb:
 kafka:
   brokers: ["redpanda:29092"]
   group: sbterm-ingest
-  topics: ["datafeed.running_trade_batch", "datafeed.order_book"]
+  # Names of the topics for each pipeline. These can be any Kafka topic name;
+  # they must match the same settings in config.ws.yaml.
+  running_trade_batch_topic: datafeed.running_trade_batch
+  order_book_topic: datafeed.order_book
 
 # Logging settings.
 # format supports "text" and "json".

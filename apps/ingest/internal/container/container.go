@@ -33,7 +33,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	do.Provide(injector, func(i do.Injector) (*kafka.Consumer, error) {
-		return kafka.NewConsumer(cfg.Kafka.Brokers, cfg.Kafka.Group, cfg.Kafka.Topics)
+		return kafka.NewConsumer(cfg.Kafka.Brokers, cfg.Kafka.Group, kafkaTopicList(cfg.Kafka))
 	})
 
 	do.Provide(injector, func(i do.Injector) (*service.Service, error) {
@@ -55,11 +55,21 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			return nil, fmt.Errorf("container: borrow order book sink: %w", err)
 		}
 
-		handler := service.NewFrameHandler(runningSink, obSink, service.TopicsFromList(cfg.Kafka.Topics), logger)
+		topics := service.Topics{
+			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
+			OrderBook:         cfg.Kafka.OrderBookTopic,
+		}
+		handler := service.NewFrameHandler(runningSink, obSink, topics, logger)
 		return service.NewService(consumer, handler, logger), nil
 	})
 
 	return injector
+}
+
+// kafkaTopicList collects the configured topic names into the slice the
+// Kafka consumer subscribes to.
+func kafkaTopicList(kafkaCfg config.KafkaConfig) []string {
+	return []string{kafkaCfg.RunningTradeBatchTopic, kafkaCfg.OrderBookTopic}
 }
 
 // Run loads the config, wires the container, starts the ingest loop, and
@@ -91,7 +101,7 @@ func Run() error {
 	svc.Start()
 	logger.Info("ingest started",
 		"group", cfg.Kafka.Group,
-		"topics", cfg.Kafka.Topics,
+		"topics", kafkaTopicList(cfg.Kafka),
 		"questdb", cfg.QuestDB.URL,
 	)
 

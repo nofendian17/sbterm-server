@@ -28,10 +28,14 @@ type QuestDBConfig struct {
 	OrderBookTable string `mapstructure:"order_book_table"`
 }
 
+// KafkaConfig names the Kafka topic for each pipeline explicitly, so the
+// mapping does not depend on matching a hardcoded topic string; any topic
+// name configured here is used as-is.
 type KafkaConfig struct {
-	Brokers []string `mapstructure:"brokers"`
-	Group   string   `mapstructure:"group"`
-	Topics  []string `mapstructure:"topics"`
+	Brokers                []string `mapstructure:"brokers"`
+	Group                  string   `mapstructure:"group"`
+	RunningTradeBatchTopic string   `mapstructure:"running_trade_batch_topic"`
+	OrderBookTopic         string   `mapstructure:"order_book_topic"`
 }
 
 type LogConfig struct {
@@ -70,7 +74,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("questdb.order_book_table", "order_books")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
-	v.SetDefault("kafka.topics", []string{"datafeed.running_trade_batch", "datafeed.order_book"})
+	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")
+	v.SetDefault("kafka.order_book_topic", "datafeed.order_book")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

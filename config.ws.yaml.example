@@ -35,8 +35,9 @@ redis:
 
 # Kafka producer settings.
 # In Docker Compose, use broker host "redpanda" (redpanda:29092).
+# When running locally on the host, use "localhost:29092".
 kafka:
-  brokers: ["localhost:29092"]
+  brokers: ["redpanda:29092"]
   running_trade_batch_topic: datafeed.running_trade_batch
   order_book_topic: datafeed.order_book
 

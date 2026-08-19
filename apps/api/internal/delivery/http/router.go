@@ -56,7 +56,42 @@ func WithRateLimit(rate, burst int) RouterOption {
 	}
 }
 
-func NewRouter(handler *health.HealthHandler, trendingHandler *trending.TrendingHandler, moverHandler *mover.MarketMoverHandler, sessionHandler *session.MarketSessionHandler, indexHandler *index.IndexHandler, sectorsHandler *sectors.SectorsHandler, stocksHandler *stocks.StocksHandler, companyProfileHandler *companyprofile.CompanyProfileHandler, subsidiaryHandler *subsidiary.SubsidiaryHandler, shareholdingHandler *shareholding.ShareholdingHandler, networkHandler *network.ShareholdingNetworkHandler, majorHolderHandler *majorholder.MajorHolderHandler, marketDetectorHandler *marketdetector.MarketDetectorHandler, topStockHandler *topstock.TopStockHandler, corpActionHandler *corpaction.CorpActionHandler, keystatsHandler *keystats.KeystatsHandler, pricePerformanceHandler *priceperformance.PricePerformanceHandler, chartHandler *chart.ChartbitHandler, fundaChartHandler *fundachart.FundaChartHandler, fundaChartMetricsHandler *fundachart.FundaChartMetricsHandler, findataFinancialHandler *findata.FindataFinancialHandler, indexSummaryHandler *indexsummary.IndexSummaryHandler, runningTradeHandler *runningtrade.RunningTradeHandler, orderBookHandler *orderbook.OrderBookHandler, foreignDomesticHandler *foreigndomestic.ForeignDomesticHandler, historicalSummaryHandler *historicalsummary.HistoricalSummaryHandler, activityHandler *activity.ActivityHandler, brokerTopHandler *brokertop.BrokerTopHandler, streamHandler *stream.StreamHandler, searchHandler *search.SearchHandler, orderQueueHandler *orderqueue.OrderQueueHandler, logger log.Logger, opts ...RouterOption) chi.Router {
+// Handlers groups every REST handler the router needs, one field per domain.
+type Handlers struct {
+	Health            *health.HealthHandler
+	Trending          *trending.TrendingHandler
+	MarketMover       *mover.MarketMoverHandler
+	MarketSession     *session.MarketSessionHandler
+	Index             *index.IndexHandler
+	Sectors           *sectors.SectorsHandler
+	Stocks            *stocks.StocksHandler
+	CompanyProfile    *companyprofile.CompanyProfileHandler
+	Subsidiary        *subsidiary.SubsidiaryHandler
+	Shareholding      *shareholding.ShareholdingHandler
+	Network           *network.ShareholdingNetworkHandler
+	MajorHolder       *majorholder.MajorHolderHandler
+	MarketDetector    *marketdetector.MarketDetectorHandler
+	TopStock          *topstock.TopStockHandler
+	CorpAction        *corpaction.CorpActionHandler
+	Keystats          *keystats.KeystatsHandler
+	PricePerformance  *priceperformance.PricePerformanceHandler
+	Chart             *chart.ChartbitHandler
+	FundaChart        *fundachart.FundaChartHandler
+	FundaChartMetrics *fundachart.FundaChartMetricsHandler
+	Financial         *findata.FindataFinancialHandler
+	IndexSummary      *indexsummary.IndexSummaryHandler
+	RunningTrade      *runningtrade.RunningTradeHandler
+	OrderBook         *orderbook.OrderBookHandler
+	ForeignDomestic   *foreigndomestic.ForeignDomesticHandler
+	HistoricalSummary *historicalsummary.HistoricalSummaryHandler
+	Activity          *activity.ActivityHandler
+	BrokerTop         *brokertop.BrokerTopHandler
+	Stream            *stream.StreamHandler
+	Search            *search.SearchHandler
+	OrderQueue        *orderqueue.OrderQueueHandler
+}
+
+func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -82,45 +117,45 @@ func NewRouter(handler *health.HealthHandler, trendingHandler *trending.Trending
 		))
 	}
 
-	r.Get("/health", handler.Health)
+	r.Get("/health", hs.Health.Health)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
-			r.Get("/trending", trendingHandler.Trending)
-			r.Get("/market-mover", moverHandler.MarketMover)
-			r.Get("/market-session", sessionHandler.MarketSession)
-			r.Get("/indexes", indexHandler.Index)
-			r.Get("/sectors", sectorsHandler.Sectors)
-			r.Get("/stocks", stocksHandler.Stocks)
-			r.Get("/company/{symbol}/profile", companyProfileHandler.CompanyProfile)
-			r.Get("/company/{symbol}/subsidiaries", subsidiaryHandler.Subsidiaries)
-			r.Get("/company/{symbol}/shareholding-composition", shareholdingHandler.ShareholdingComposition)
-			r.Get("/insider/shareholding-network", networkHandler.ShareholdingNetwork)
-			r.Get("/insider/majorholder", majorHolderHandler.MajorHolder)
-			r.Get("/market-detector/{symbol}", marketDetectorHandler.MarketDetector)
-			r.Get("/top-stock", topStockHandler.TopStock)
-			r.Get("/company/{symbol}/corp-actions", corpActionHandler.CorpActions)
-			r.Get("/company/{symbol}/keystats", keystatsHandler.Keystats)
-			r.Get("/company/{symbol}/price-performance", pricePerformanceHandler.PricePerformance)
-			r.Get("/company/{symbol}/chart", chartHandler.ChartPrice)
-			r.Get("/company/{symbol}/fundachart", fundaChartHandler.FundaChart)
-			r.Get("/fundachart/metrics", fundaChartMetricsHandler.Metrics)
-			r.Get("/company/{symbol}/financial", findataFinancialHandler.Financial)
-			r.Get("/index/{symbol}/summary", indexSummaryHandler.IndexSummary)
-			r.Get("/index/{symbol}/chart", indexSummaryHandler.IndexChart)
-			r.Get("/company/{symbol}/running-trade-chart", runningTradeHandler.RunningTradeChart)
-			r.Get("/order-trade/running-trade", runningTradeHandler.RunningTrade)
-			r.Get("/company/{symbol}/orderbook", orderBookHandler.OrderBook)
-			r.Get("/order-trade/foreign-domestic/historical", foreignDomesticHandler.ForeignDomesticHistorical)
-			r.Get("/company/{symbol}/historical-summary", historicalSummaryHandler.HistoricalSummary)
-			r.Get("/order-trade/broker/activity-chart", activityHandler.ActivityChart)
-			r.Get("/order-trade/broker/activity", activityHandler.Activity)
-			r.Get("/order-trade/broker/activity/historical", activityHandler.ActivityHistorical)
-			r.Get("/order-trade/broker/top", brokerTopHandler.BrokerTop)
-			r.Get("/order-trade/order-queue", orderQueueHandler.OrderQueue)
-			r.Get("/user/{username}/stream", streamHandler.UserStream)
-			r.Get("/search", searchHandler.Search)
-			r.Get("/stream/announcement/{stream_id}", streamHandler.StreamAnnouncement)
+			r.Get("/trending", hs.Trending.Trending)
+			r.Get("/market-mover", hs.MarketMover.MarketMover)
+			r.Get("/market-session", hs.MarketSession.MarketSession)
+			r.Get("/indexes", hs.Index.Index)
+			r.Get("/sectors", hs.Sectors.Sectors)
+			r.Get("/stocks", hs.Stocks.Stocks)
+			r.Get("/company/{symbol}/profile", hs.CompanyProfile.CompanyProfile)
+			r.Get("/company/{symbol}/subsidiaries", hs.Subsidiary.Subsidiaries)
+			r.Get("/company/{symbol}/shareholding-composition", hs.Shareholding.ShareholdingComposition)
+			r.Get("/insider/shareholding-network", hs.Network.ShareholdingNetwork)
+			r.Get("/insider/majorholder", hs.MajorHolder.MajorHolder)
+			r.Get("/market-detector/{symbol}", hs.MarketDetector.MarketDetector)
+			r.Get("/top-stock", hs.TopStock.TopStock)
+			r.Get("/company/{symbol}/corp-actions", hs.CorpAction.CorpActions)
+			r.Get("/company/{symbol}/keystats", hs.Keystats.Keystats)
+			r.Get("/company/{symbol}/price-performance", hs.PricePerformance.PricePerformance)
+			r.Get("/company/{symbol}/chart", hs.Chart.ChartPrice)
+			r.Get("/company/{symbol}/fundachart", hs.FundaChart.FundaChart)
+			r.Get("/fundachart/metrics", hs.FundaChartMetrics.Metrics)
+			r.Get("/company/{symbol}/financial", hs.Financial.Financial)
+			r.Get("/index/{symbol}/summary", hs.IndexSummary.IndexSummary)
+			r.Get("/index/{symbol}/chart", hs.IndexSummary.IndexChart)
+			r.Get("/company/{symbol}/running-trade-chart", hs.RunningTrade.RunningTradeChart)
+			r.Get("/order-trade/running-trade", hs.RunningTrade.RunningTrade)
+			r.Get("/company/{symbol}/orderbook", hs.OrderBook.OrderBook)
+			r.Get("/order-trade/foreign-domestic/historical", hs.ForeignDomestic.ForeignDomesticHistorical)
+			r.Get("/company/{symbol}/historical-summary", hs.HistoricalSummary.HistoricalSummary)
+			r.Get("/order-trade/broker/activity-chart", hs.Activity.ActivityChart)
+			r.Get("/order-trade/broker/activity", hs.Activity.Activity)
+			r.Get("/order-trade/broker/activity/historical", hs.Activity.ActivityHistorical)
+			r.Get("/order-trade/broker/top", hs.BrokerTop.BrokerTop)
+			r.Get("/order-trade/order-queue", hs.OrderQueue.OrderQueue)
+			r.Get("/user/{username}/stream", hs.Stream.UserStream)
+			r.Get("/search", hs.Search.Search)
+			r.Get("/stream/announcement/{stream_id}", hs.Stream.StreamAnnouncement)
 		})
 	})
 

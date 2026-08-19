@@ -7,7 +7,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/questdb"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 	consumerv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/consumer/entity/v1"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
@@ -20,18 +19,54 @@ type Topics struct {
 	OrderBook         string
 }
 
+const (
+	topicRunningTradeBatch = "datafeed.running_trade_batch"
+	topicOrderBook         = "datafeed.order_book"
+)
+
+// TopicsFromList maps the configured topic names onto the typed topic set.
+// Names outside the datafeed pipeline are ignored.
+func TopicsFromList(topics []string) Topics {
+	t := Topics{}
+	for _, name := range topics {
+		switch name {
+		case topicRunningTradeBatch:
+			t.RunningTradeBatch = name
+		case topicOrderBook:
+			t.OrderBook = name
+		}
+	}
+	return t
+}
+
+// RunningTradeBatchSink persists running trade batches on one writer goroutine.
+// Implementations are not safe for concurrent use; Close flushes buffered rows
+// and releases the underlying connection.
+type RunningTradeBatchSink interface {
+	Store(ctx context.Context, batch *datafeedv1.RunningTradeBatch) error
+	Close(ctx context.Context) error
+}
+
+// OrderBookSink persists one order book side snapshot on one writer goroutine.
+// Implementations are not safe for concurrent use; Close flushes buffered rows
+// and releases the underlying connection.
+type OrderBookSink interface {
+	Store(ctx context.Context, ob *consumerv1.Orderbook) error
+	Close(ctx context.Context) error
+}
+
 // FrameHandler decodes one Kafka record and persists it to the matching
 // QuestDB sink. Both sinks are single-writer; Handler is not safe for
 // concurrent use.
 type FrameHandler struct {
-	runningSink questdb.RunningTradeBatchSink
-	obSink      questdb.OrderBookSink
+	runningSink RunningTradeBatchSink
+	obSink      OrderBookSink
 	topics      Topics
 	logger      log.Logger
 }
 
 // NewFrameHandler builds a handler bound to the two sinks.
-func NewFrameHandler(runningSink questdb.RunningTradeBatchSink, obSink questdb.OrderBookSink, topics Topics, logger log.Logger) *FrameHandler {
+func NewFrameHandler(runningSink RunningTradeBatchSink, obSink OrderBookSink, topics Topics, logger log.Logger) *FrameHandler {
 	return &FrameHandler{runningSink: runningSink, obSink: obSink, topics: topics, logger: logger}
 }
 

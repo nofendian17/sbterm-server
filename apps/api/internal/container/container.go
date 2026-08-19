@@ -693,39 +693,40 @@ func provideHandlers(injector *do.RootScope) {
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
-		handler := do.MustInvoke[*health.HealthHandler](i)
-		trendingHandler := do.MustInvoke[*trending.TrendingHandler](i)
-		moverHandler := do.MustInvoke[*mover.MarketMoverHandler](i)
-		sessionHandler := do.MustInvoke[*session.MarketSessionHandler](i)
-		indexHandler := do.MustInvoke[*index.IndexHandler](i)
-		sectorsHandler := do.MustInvoke[*sectors.SectorsHandler](i)
-		stocksHandler := do.MustInvoke[*stocks.StocksHandler](i)
-		companyProfileHandler := do.MustInvoke[*companyprofile.CompanyProfileHandler](i)
-		subsidiaryHandler := do.MustInvoke[*subsidiary.SubsidiaryHandler](i)
-		shareholdingHandler := do.MustInvoke[*shareholding.ShareholdingHandler](i)
-		networkHandler := do.MustInvoke[*network.ShareholdingNetworkHandler](i)
-		majorHolderHandler := do.MustInvoke[*majorholder.MajorHolderHandler](i)
-		marketDetectorHandler := do.MustInvoke[*marketdetector.MarketDetectorHandler](i)
-		topStockHandler := do.MustInvoke[*topstock.TopStockHandler](i)
-		corpActionHandler := do.MustInvoke[*corpaction.CorpActionHandler](i)
-		keystatsHandler := do.MustInvoke[*keystats.KeystatsHandler](i)
-		pricePerformanceHandler := do.MustInvoke[*priceperformance.PricePerformanceHandler](i)
-		chartHandler := do.MustInvoke[*chart.ChartbitHandler](i)
-		fundaChartHandler := do.MustInvoke[*fundachart.FundaChartHandler](i)
-		fundaChartMetricsHandler := do.MustInvoke[*fundachart.FundaChartMetricsHandler](i)
-		findataFinancialHandler := do.MustInvoke[*findata.FindataFinancialHandler](i)
-		indexSummaryHandler := do.MustInvoke[*indexsummary.IndexSummaryHandler](i)
-		runningTradeHandler := do.MustInvoke[*runningtrade.RunningTradeHandler](i)
-		orderBookHandler := do.MustInvoke[*orderbook.OrderBookHandler](i)
-		foreignDomesticHandler := do.MustInvoke[*foreigndomestic.ForeignDomesticHandler](i)
-		historicalSummaryHandler := do.MustInvoke[*historicalsummary.HistoricalSummaryHandler](i)
-		activityHandler := do.MustInvoke[*activity.ActivityHandler](i)
-		brokerTopHandler := do.MustInvoke[*brokertop.BrokerTopHandler](i)
-		streamHandler := do.MustInvoke[*stream.StreamHandler](i)
-		searchHandler := do.MustInvoke[*search.SearchHandler](i)
-		orderQueueHandler := do.MustInvoke[*orderqueue.OrderQueueHandler](i)
 
-		router := deliveryhttp.NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, searchHandler, orderQueueHandler, logger,
+		router := deliveryhttp.NewRouter(deliveryhttp.Handlers{
+			Health:            do.MustInvoke[*health.HealthHandler](i),
+			Trending:          do.MustInvoke[*trending.TrendingHandler](i),
+			MarketMover:       do.MustInvoke[*mover.MarketMoverHandler](i),
+			MarketSession:     do.MustInvoke[*session.MarketSessionHandler](i),
+			Index:             do.MustInvoke[*index.IndexHandler](i),
+			Sectors:           do.MustInvoke[*sectors.SectorsHandler](i),
+			Stocks:            do.MustInvoke[*stocks.StocksHandler](i),
+			CompanyProfile:    do.MustInvoke[*companyprofile.CompanyProfileHandler](i),
+			Subsidiary:        do.MustInvoke[*subsidiary.SubsidiaryHandler](i),
+			Shareholding:      do.MustInvoke[*shareholding.ShareholdingHandler](i),
+			Network:           do.MustInvoke[*network.ShareholdingNetworkHandler](i),
+			MajorHolder:       do.MustInvoke[*majorholder.MajorHolderHandler](i),
+			MarketDetector:    do.MustInvoke[*marketdetector.MarketDetectorHandler](i),
+			TopStock:          do.MustInvoke[*topstock.TopStockHandler](i),
+			CorpAction:        do.MustInvoke[*corpaction.CorpActionHandler](i),
+			Keystats:          do.MustInvoke[*keystats.KeystatsHandler](i),
+			PricePerformance:  do.MustInvoke[*priceperformance.PricePerformanceHandler](i),
+			Chart:             do.MustInvoke[*chart.ChartbitHandler](i),
+			FundaChart:        do.MustInvoke[*fundachart.FundaChartHandler](i),
+			FundaChartMetrics: do.MustInvoke[*fundachart.FundaChartMetricsHandler](i),
+			Financial:         do.MustInvoke[*findata.FindataFinancialHandler](i),
+			IndexSummary:      do.MustInvoke[*indexsummary.IndexSummaryHandler](i),
+			RunningTrade:      do.MustInvoke[*runningtrade.RunningTradeHandler](i),
+			OrderBook:         do.MustInvoke[*orderbook.OrderBookHandler](i),
+			ForeignDomestic:   do.MustInvoke[*foreigndomestic.ForeignDomesticHandler](i),
+			HistoricalSummary: do.MustInvoke[*historicalsummary.HistoricalSummaryHandler](i),
+			Activity:          do.MustInvoke[*activity.ActivityHandler](i),
+			BrokerTop:         do.MustInvoke[*brokertop.BrokerTopHandler](i),
+			Stream:            do.MustInvoke[*stream.StreamHandler](i),
+			Search:            do.MustInvoke[*search.SearchHandler](i),
+			OrderQueue:        do.MustInvoke[*orderqueue.OrderQueueHandler](i),
+		}, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 		return deliveryhttp.NewServer(router,

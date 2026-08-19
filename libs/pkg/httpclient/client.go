@@ -59,7 +59,7 @@ type client struct {
 	c *heimdallhttp.Client
 }
 
-func NewClient(opts ...Option) Client {
+func NewClient(opts ...Option) *client {
 	o := &options{
 		timeout: 30 * time.Second,
 	}

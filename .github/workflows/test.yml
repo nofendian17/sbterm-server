@@ -33,3 +33,6 @@ jobs:
 
       - name: Run tests with race detector
         run: make test-race
+
+      - name: Run go vet
+        run: make vet

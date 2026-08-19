@@ -1,7 +1,7 @@
-// Package ws runs one Stockbit datafeed websocket client per configured
+// Package service runs one Stockbit datafeed websocket client per configured
 // subscription for the lifetime of the server, publishing decoded frames to
 // Kafka, and stops them on container shutdown.
-package ws
+package service
 
 import (
 	"context"

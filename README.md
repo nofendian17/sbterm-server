@@ -35,8 +35,8 @@ apps/
   ws/                           # datafeed subscriber → publishes to Redpanda/Kafka
     cmd/ws/main.go
     internal/
-      delivery/ws/              # Stockbit websocket client + message dispatch
-      infrastructure/           # redis + kafka publishers
+      service/                  # subscription worker + frame router + publisher port
+      infrastructure/           # stockbit ws client, kafka producer, config
   ingest/                       # Kafka consumer → writes to QuestDB
     cmd/ingest/main.go
     internal/
@@ -48,7 +48,7 @@ libs/
   stockbit/                     # stockbit SDK types
 Makefile
 docker-compose.yml              # api/ws/ingest + postgres, redis, redpanda, questdb
-config.yaml.example             # apps/api config
+config.api.yaml.example          # apps/api config
 config.ws.yaml.example          # apps/ws config
 config.ingest.yaml.example      # apps/ingest config
 ```
@@ -74,7 +74,7 @@ make install-hooks # install git hooks (core.hooksPath -> .githooks)
 
 ## Config
 
-Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.yaml.example` (api), `config.ws.yaml.example` (ws), or `config.ingest.yaml.example` (ingest) to `config.yaml`, `config.ws.yaml`, `config.ingest.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `stockbit.ws_url`, `redis.url`, `kafka.brokers`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
+Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.api.yaml.example` (api), `config.ws.yaml.example` (ws), or `config.ingest.yaml.example` (ingest) to `config.api.yaml`, `config.ws.yaml`, `config.ingest.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `stockbit.ws_url`, `redis.url`, `kafka.brokers`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
 
 - App metadata: `app.name`, `app.version` (default `dev`).
 - Build-time version can be set through ldflags:

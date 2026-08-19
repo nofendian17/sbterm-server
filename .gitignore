@@ -12,7 +12,7 @@ coverage.html
 *.prof
 
 # Local config
-config.yaml
+config.api.yaml
 config.ws.yaml
 config.ingest.yaml
 

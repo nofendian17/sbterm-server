@@ -1,4 +1,4 @@
-package ws
+package service
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
-	kafkapkg "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 	consumerv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/consumer/entity/v1"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
@@ -31,7 +30,7 @@ func (f *fakePublisher) Publish(_ context.Context, topic string, key string, val
 func (f *fakePublisher) Close() { f.closed = true }
 
 func TestFrameRouter(t *testing.T) {
-	topics := kafkapkg.Topics{RunningTradeBatch: "datafeed.running_trade_batch", OrderBook: "datafeed.order_book"}
+	topics := Topics{RunningTradeBatch: "datafeed.running_trade_batch", OrderBook: "datafeed.order_book"}
 
 	t.Run("running trade batch publishes to its topic keyed by first symbol", func(t *testing.T) {
 		pub := &fakePublisher{}

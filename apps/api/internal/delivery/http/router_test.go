@@ -513,7 +513,39 @@ func TestRouter(t *testing.T) {
 				tt.setupOrderQueue(ucOrderQueue)
 			}
 			orderQueueHandler := orderqueue.NewOrderQueueHandler(ucOrderQueue, validator.New())
-			router := NewRouter(handler, trendingHandler, moverHandler, sessionHandler, indexHandler, sectorsHandler, stocksHandler, companyProfileHandler, subsidiaryHandler, shareholdingHandler, networkHandler, majorHolderHandler, marketDetectorHandler, topStockHandler, corpActionHandler, keystatsHandler, pricePerformanceHandler, chartHandler, fundaChartHandler, fundaChartMetricsHandler, findataFinancialHandler, indexSummaryHandler, runningTradeHandler, orderBookHandler, foreignDomesticHandler, historicalSummaryHandler, activityHandler, brokerTopHandler, streamHandler, searchHandler, orderQueueHandler, logger)
+			router := NewRouter(Handlers{
+				Health:            handler,
+				Trending:          trendingHandler,
+				MarketMover:       moverHandler,
+				MarketSession:     sessionHandler,
+				Index:             indexHandler,
+				Sectors:           sectorsHandler,
+				Stocks:            stocksHandler,
+				CompanyProfile:    companyProfileHandler,
+				Subsidiary:        subsidiaryHandler,
+				Shareholding:      shareholdingHandler,
+				Network:           networkHandler,
+				MajorHolder:       majorHolderHandler,
+				MarketDetector:    marketDetectorHandler,
+				TopStock:          topStockHandler,
+				CorpAction:        corpActionHandler,
+				Keystats:          keystatsHandler,
+				PricePerformance:  pricePerformanceHandler,
+				Chart:             chartHandler,
+				FundaChart:        fundaChartHandler,
+				FundaChartMetrics: fundaChartMetricsHandler,
+				Financial:         findataFinancialHandler,
+				IndexSummary:      indexSummaryHandler,
+				RunningTrade:      runningTradeHandler,
+				OrderBook:         orderBookHandler,
+				ForeignDomestic:   foreignDomesticHandler,
+				HistoricalSummary: historicalSummaryHandler,
+				Activity:          activityHandler,
+				BrokerTop:         brokerTopHandler,
+				Stream:            streamHandler,
+				Search:            searchHandler,
+				OrderQueue:        orderQueueHandler,
+			}, logger)
 
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(tt.method, tt.path, nil)
@@ -544,7 +576,39 @@ func TestRouterRateLimit(t *testing.T) {
 			uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{Status: "ok", DBConnected: true, RedisConnected: true}, nil).AnyTimes()
 
 			logger := log.New(log.WithWriter(io.Discard))
-			router := NewRouter(health.NewHealthHandler(uc), trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)), mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()), session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)), index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)), sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)), stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)), companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()), subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()), shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()), network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()), majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()), marketdetector.NewMarketDetectorHandler(mocks.NewMockMarketDetectorUsecase(ctrl), validator.New()), topstock.NewTopStockHandler(mocks.NewMockTopStockUsecase(ctrl), validator.New()), corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()), keystats.NewKeystatsHandler(mocks.NewMockKeystatsUsecase(ctrl), validator.New()), priceperformance.NewPricePerformanceHandler(mocks.NewMockPricePerformanceUsecase(ctrl), validator.New()), chart.NewChartbitHandler(mocks.NewMockChartbitUsecase(ctrl), validator.New()), fundachart.NewFundaChartHandler(mocks.NewMockFundaChartUsecase(ctrl), validator.New()), fundachart.NewFundaChartMetricsHandler(mocks.NewMockFundaChartMetricsUsecase(ctrl), validator.New()), findata.NewFindataFinancialHandler(mocks.NewMockFindataFinancialUsecase(ctrl), validator.New()), indexsummary.NewIndexSummaryHandler(mocks.NewMockIndexSummaryUsecase(ctrl), validator.New()), runningtrade.NewRunningTradeHandler(mocks.NewMockRunningTradeUsecase(ctrl), validator.New()), orderbook.NewOrderBookHandler(mocks.NewMockOrderBookUsecase(ctrl), validator.New()), foreigndomestic.NewForeignDomesticHandler(mocks.NewMockForeignDomesticUsecase(ctrl), validator.New()), historicalsummary.NewHistoricalSummaryHandler(mocks.NewMockHistoricalSummaryUsecase(ctrl), validator.New()), activity.NewActivityHandler(nil, validator.New()), brokertop.NewBrokerTopHandler(mocks.NewMockBrokerTopUsecase(ctrl), validator.New()), stream.NewStreamHandler(mocks.NewMockStreamUsecase(ctrl), validator.New()), search.NewSearchHandler(mocks.NewMockSearchUsecase(ctrl), validator.New()), orderqueue.NewOrderQueueHandler(mocks.NewMockOrderQueueUsecase(ctrl), validator.New()), logger, WithRateLimit(1, 1))
+			router := NewRouter(Handlers{
+				Health:            health.NewHealthHandler(uc),
+				Trending:          trending.NewTrendingHandler(mocks.NewMockTrendingUsecase(ctrl)),
+				MarketMover:       mover.NewMarketMoverHandler(mocks.NewMockMarketMoverUsecase(ctrl), validator.New()),
+				MarketSession:     session.NewMarketSessionHandler(mocks.NewMockMarketSessionUsecase(ctrl)),
+				Index:             index.NewIndexHandler(mocks.NewMockIndexUsecase(ctrl)),
+				Sectors:           sectors.NewSectorsHandler(mocks.NewMockSectorsUsecase(ctrl)),
+				Stocks:            stocks.NewStocksHandler(mocks.NewMockStocksUsecase(ctrl)),
+				CompanyProfile:    companyprofile.NewCompanyProfileHandler(mocks.NewMockCompanyProfileUsecase(ctrl), validator.New()),
+				Subsidiary:        subsidiary.NewSubsidiaryHandler(mocks.NewMockSubsidiaryUsecase(ctrl), validator.New()),
+				Shareholding:      shareholding.NewShareholdingHandler(mocks.NewMockShareholdingCompositionUsecase(ctrl), validator.New()),
+				Network:           network.NewShareholdingNetworkHandler(mocks.NewMockShareholdingNetworkUsecase(ctrl), validator.New()),
+				MajorHolder:       majorholder.NewMajorHolderHandler(mocks.NewMockMajorHolderUsecase(ctrl), validator.New()),
+				MarketDetector:    marketdetector.NewMarketDetectorHandler(mocks.NewMockMarketDetectorUsecase(ctrl), validator.New()),
+				TopStock:          topstock.NewTopStockHandler(mocks.NewMockTopStockUsecase(ctrl), validator.New()),
+				CorpAction:        corpaction.NewCorpActionHandler(mocks.NewMockCorpActionUsecase(ctrl), validator.New()),
+				Keystats:          keystats.NewKeystatsHandler(mocks.NewMockKeystatsUsecase(ctrl), validator.New()),
+				PricePerformance:  priceperformance.NewPricePerformanceHandler(mocks.NewMockPricePerformanceUsecase(ctrl), validator.New()),
+				Chart:             chart.NewChartbitHandler(mocks.NewMockChartbitUsecase(ctrl), validator.New()),
+				FundaChart:        fundachart.NewFundaChartHandler(mocks.NewMockFundaChartUsecase(ctrl), validator.New()),
+				FundaChartMetrics: fundachart.NewFundaChartMetricsHandler(mocks.NewMockFundaChartMetricsUsecase(ctrl), validator.New()),
+				Financial:         findata.NewFindataFinancialHandler(mocks.NewMockFindataFinancialUsecase(ctrl), validator.New()),
+				IndexSummary:      indexsummary.NewIndexSummaryHandler(mocks.NewMockIndexSummaryUsecase(ctrl), validator.New()),
+				RunningTrade:      runningtrade.NewRunningTradeHandler(mocks.NewMockRunningTradeUsecase(ctrl), validator.New()),
+				OrderBook:         orderbook.NewOrderBookHandler(mocks.NewMockOrderBookUsecase(ctrl), validator.New()),
+				ForeignDomestic:   foreigndomestic.NewForeignDomesticHandler(mocks.NewMockForeignDomesticUsecase(ctrl), validator.New()),
+				HistoricalSummary: historicalsummary.NewHistoricalSummaryHandler(mocks.NewMockHistoricalSummaryUsecase(ctrl), validator.New()),
+				Activity:          activity.NewActivityHandler(nil, validator.New()),
+				BrokerTop:         brokertop.NewBrokerTopHandler(mocks.NewMockBrokerTopUsecase(ctrl), validator.New()),
+				Stream:            stream.NewStreamHandler(mocks.NewMockStreamUsecase(ctrl), validator.New()),
+				Search:            search.NewSearchHandler(mocks.NewMockSearchUsecase(ctrl), validator.New()),
+				OrderQueue:        orderqueue.NewOrderQueueHandler(mocks.NewMockOrderQueueUsecase(ctrl), validator.New()),
+			}, logger, WithRateLimit(1, 1))
 
 			for _, want := range tt.wantCodes {
 				rec := httptest.NewRecorder()

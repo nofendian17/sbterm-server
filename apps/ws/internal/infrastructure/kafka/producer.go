@@ -6,21 +6,9 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
+	service "github.com/nofendian17/sbterm/apps/ws/internal/service"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
-
-// Topics names the Kafka topics used by the datafeed pipeline.
-type Topics struct {
-	RunningTradeBatch string
-	OrderBook         string
-}
-
-// Publisher sends one protobuf frame to a topic. Implementations must be safe
-// for concurrent use.
-type Publisher interface {
-	Publish(ctx context.Context, topic string, key string, value []byte) error
-	Close()
-}
 
 // Producer publishes datafeed frames to Redpanda/Kafka via franz-go.
 type Producer struct {
@@ -32,6 +20,7 @@ type Producer struct {
 func NewProducer(brokers []string, logger log.Logger) (*Producer, error) {
 	client, err := kgo.NewClient(
 		kgo.SeedBrokers(brokers...),
+		kgo.AllowAutoTopicCreation(),
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 	)
 	if err != nil {
@@ -54,3 +43,8 @@ func (p *Producer) Publish(ctx context.Context, topic string, key string, value 
 func (p *Producer) Close() {
 	p.client.Close()
 }
+
+// ponytail: Producer sits alone behind its port in service while the app
+// stays flat. Split the port into its own package when a second publisher
+// implementation or a second consuming app appears.
+var _ service.Publisher = (*Producer)(nil)

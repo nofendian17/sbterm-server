@@ -17,12 +17,14 @@ import (
 
 func TestStocksHandlerStocks(t *testing.T) {
 	tests := []struct {
-		name        string
-		setup       func(uc *mocks.MockStocksUsecase)
-		wantStatus  int
-		wantLen     int
-		wantSymbol  string
-		wantErrCode string
+		name              string
+		setup             func(uc *mocks.MockStocksUsecase)
+		wantStatus        int
+		wantLen           int
+		wantSymbol        string
+		wantCompanyStatus *string
+		wantIsUMA         *bool
+		wantErrCode       string
 	}{
 		{
 			name: "returns IHSG stocks",
@@ -31,9 +33,11 @@ func TestStocksHandlerStocks(t *testing.T) {
 					{Symbol: "BBCA", Name: "Bank Central Asia Tbk.", Last: "6375", CompanyStatus: "STATUS_ACTIVE", IsUMA: false},
 				}, nil)
 			},
-			wantStatus: http.StatusOK,
-			wantLen:    1,
-			wantSymbol: "BBCA",
+			wantStatus:        http.StatusOK,
+			wantLen:           1,
+			wantSymbol:        "BBCA",
+			wantCompanyStatus: ptr("STATUS_ACTIVE"),
+			wantIsUMA:         ptr(false),
 		},
 		{
 			name: "usecase error returns 500",
@@ -80,10 +84,14 @@ func TestStocksHandlerStocks(t *testing.T) {
 			}
 			require.Len(t, env.Data, tt.wantLen)
 			assert.Equal(t, tt.wantSymbol, env.Data[0].Symbol)
-			if tt.wantSymbol == "BBCA" {
-				assert.Equal(t, "STATUS_ACTIVE", env.Data[0].CompanyStatus)
-				assert.False(t, env.Data[0].IsUMA)
+			if tt.wantCompanyStatus != nil {
+				assert.Equal(t, *tt.wantCompanyStatus, env.Data[0].CompanyStatus)
+			}
+			if tt.wantIsUMA != nil {
+				assert.Equal(t, *tt.wantIsUMA, env.Data[0].IsUMA)
 			}
 		})
 	}
 }
+
+func ptr[T any](v T) *T { return &v }

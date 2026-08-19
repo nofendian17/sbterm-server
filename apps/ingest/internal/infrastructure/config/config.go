@@ -4,12 +4,10 @@ import (
 	"errors"
 
 	"github.com/spf13/viper"
-
-	"github.com/nofendian17/sbterm/apps/ingest/internal/service"
 )
 
 const (
-	ConfigFileName = "config"
+	ConfigFileName = "config.ingest"
 	ConfigFileType = "yaml"
 	ConfigFilePath = "."
 )
@@ -42,25 +40,8 @@ type LogConfig struct {
 	AddSource bool   `mapstructure:"add_source"`
 }
 
-// Topics returns the service topic set derived from the configured topic list.
-func (c Config) Topics() service.Topics {
-	topics := service.Topics{}
-	for _, t := range c.Kafka.Topics {
-		switch t {
-		case topicRunningTradeBatch:
-			topics.RunningTradeBatch = t
-		case topicOrderBook:
-			topics.OrderBook = t
-		}
-	}
-	return topics
-}
-
-const (
-	topicRunningTradeBatch = "datafeed.running_trade_batch"
-	topicOrderBook         = "datafeed.order_book"
-)
-
+// Load reads the config file over defaults, falling back to defaults when the
+// file is absent.
 func Load() (*Config, error) {
 	v := viper.New()
 	setDefaults(v)
@@ -89,7 +70,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("questdb.order_book_table", "order_books")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
-	v.SetDefault("kafka.topics", []string{topicRunningTradeBatch, topicOrderBook})
+	v.SetDefault("kafka.topics", []string{"datafeed.running_trade_batch", "datafeed.order_book"})
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

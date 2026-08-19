@@ -9,7 +9,7 @@ services:
     container_name: sbterm-api
     restart: always
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config.api.yaml:/app/config.api.yaml:ro
     ports:
       - "${APP_HOST_PORT:-8080}:8080"
     depends_on:
@@ -34,7 +34,7 @@ services:
     container_name: sbterm-ws
     restart: always
     volumes:
-      - ./config.ws.yaml:/app/config.yaml:ro
+      - ./config.ws.yaml:/app/config.ws.yaml:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -51,7 +51,7 @@ services:
     container_name: sbterm-ingest
     restart: always
     volumes:
-      - ./config.ingest.yaml:/app/config.yaml:ro
+      - ./config.ingest.yaml:/app/config.ingest.yaml:ro
     depends_on:
       questdb:
         condition: service_healthy

@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/twmb/franz-go/pkg/kgo"
-
 	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/kafka"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
@@ -55,11 +53,11 @@ func (s *Service) run() {
 				s.logger.Warn("kafka: fetch error", "error", err.Err)
 			}
 		}
-		fetches.EachRecord(func(rec *kgo.Record) {
+		for _, rec := range fetches.Records() {
 			if err := s.handler.Handle(s.ctx, rec.Topic, rec.Value); err != nil {
 				s.logger.Warn("ingest: handle record", "topic", rec.Topic, "partition", rec.Partition, "offset", rec.Offset, "error", err)
 			}
-		})
+		}
 		s.consumer.AllowRebalance()
 	}
 }

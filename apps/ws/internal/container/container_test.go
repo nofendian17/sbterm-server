@@ -20,9 +20,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/nofendian17/sbterm/apps/ws/internal/container"
-	"github.com/nofendian17/sbterm/apps/ws/internal/delivery/ws"
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/config"
 	stockbitws "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/stockbit"
+	"github.com/nofendian17/sbterm/apps/ws/internal/service"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 	"github.com/nofendian17/sbterm/libs/stockbit"
@@ -101,7 +101,7 @@ func TestWSStartsWithSubscriptionsAndStops(t *testing.T) {
 	logger := log.New(log.WithWriter(io.Discard))
 	injector := container.New(cfg, logger)
 
-	svc, err := do.Invoke[*ws.Service](injector)
+	svc, err := do.Invoke[*service.Service](injector)
 	require.NoError(t, err)
 
 	svc.Start()

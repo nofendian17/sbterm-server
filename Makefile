@@ -2,7 +2,7 @@
 
 MODULES := apps/api apps/ws apps/ingest libs/pkg libs/proto libs/stockbit
 
-GO_FILES := $(shell find apps libs -name '*.go' -not -path './.git/*')
+GO_FILES := $(shell find apps libs -name '*.go')
 
 help: ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' Makefile | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-14s %s\n", $$1, $$2}'

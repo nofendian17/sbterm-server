@@ -11,7 +11,7 @@ coverage.html
 *.test
 *.out
 
-config.yaml
+config.api.yaml
 config.ws.yaml
 config.ingest.yaml
 

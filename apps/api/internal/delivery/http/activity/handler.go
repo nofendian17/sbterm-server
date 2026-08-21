@@ -554,3 +554,122 @@ func toHistoricalLotShareResp(in domain.ActivityLotShare) activityLotShareResp {
 		Pct:    in.Pct,
 	}
 }
+
+type brokerDistributionRequest struct {
+	Symbol       string `json:"symbol" validate:"required"`
+	InvestorType string `json:"investor_type" validate:"omitempty,oneof=INVESTOR_TYPE_ALL INVESTOR_TYPE_FOREIGN INVESTOR_TYPE_DOMESTIC"`
+	MarketBoard  string `json:"market_board" validate:"omitempty,oneof=MARKET_TYPE_ALL MARKET_TYPE_REGULER MARKET_TYPE_NEGO"`
+	DataType     string `json:"data_type" validate:"omitempty,oneof=BROKER_DISTRIBUTION_DATA_TYPE_VALUE BROKER_DISTRIBUTION_DATA_TYPE_VOLUME"`
+	Date         string `json:"date" validate:"omitempty,datetime=2006-01-02"`
+	From         string `json:"from" validate:"omitempty,datetime=2006-01-02"`
+	To           string `json:"to" validate:"omitempty,datetime=2006-01-02"`
+}
+
+const (
+	defaultDistributionDataType = "BROKER_DISTRIBUTION_DATA_TYPE_VALUE"
+)
+
+type brokerDistributionResponse struct {
+	DateInfo  string                          `json:"date_info"`
+	ByValue   brokerDistributionSidesResponse `json:"by_value"`
+	ByVolume  brokerDistributionSidesResponse `json:"by_volume"`
+	StartDate string                          `json:"start_date"`
+	EndDate   string                          `json:"end_date"`
+}
+
+type brokerDistributionSidesResponse struct {
+	TopBrokerBuy  []brokerDistributionEntryResponse `json:"top_broker_buy"`
+	TopBrokerSell []brokerDistributionEntryResponse `json:"top_broker_sell"`
+}
+
+type brokerDistributionEntryResponse struct {
+	Detail       brokerDistributionCounterpartyResponse   `json:"detail"`
+	DistributeTo []brokerDistributionCounterpartyResponse `json:"distribute_to"`
+}
+
+type brokerDistributionCounterpartyResponse struct {
+	Code   string `json:"code"`
+	Type   string `json:"type"`
+	Amount int64  `json:"amount"`
+}
+
+func (h *ActivityHandler) BrokerDistribution(w http.ResponseWriter, r *http.Request) {
+	req := brokerDistributionRequest{
+		Symbol:       r.URL.Query().Get("symbol"),
+		InvestorType: r.URL.Query().Get("investor_type"),
+		MarketBoard:  r.URL.Query().Get("market_board"),
+		DataType:     r.URL.Query().Get("data_type"),
+		Date:         r.URL.Query().Get("date"),
+		From:         r.URL.Query().Get("from"),
+		To:           r.URL.Query().Get("to"),
+	}
+	if req.InvestorType == "" {
+		req.InvestorType = defaultInvestorType
+	}
+	if req.MarketBoard == "" {
+		req.MarketBoard = defaultMarketBoard
+	}
+	if req.DataType == "" {
+		req.DataType = defaultDistributionDataType
+	}
+	if (req.From == "") != (req.To == "") {
+		response.ValidationError(w, "validation failed", map[string]string{"from": "from and to must both be provided or both omitted"})
+		return
+	}
+	if req.From != "" && req.From > req.To {
+		response.ValidationError(w, "validation failed", map[string]string{"from": "from must be earlier than or equal to to"})
+		return
+	}
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to validate broker distribution params")
+		return
+	}
+
+	data, err := h.uc.GetBrokerDistribution(r.Context(), req.Symbol, req.InvestorType, req.MarketBoard, req.DataType, req.Date, req.From, req.To)
+	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no broker distribution data for the requested parameters")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get broker distribution")
+		return
+	}
+	response.OK(w, toBrokerDistributionResponse(data))
+}
+
+func toBrokerDistributionResponse(d *domain.BrokerDistributionData) brokerDistributionResponse {
+	return brokerDistributionResponse{
+		DateInfo:  d.DateInfo,
+		ByValue:   toBrokerDistributionSidesResponse(d.ByValue),
+		ByVolume:  toBrokerDistributionSidesResponse(d.ByVolume),
+		StartDate: d.StartDate,
+		EndDate:   d.EndDate,
+	}
+}
+
+func toBrokerDistributionSidesResponse(in domain.BrokerDistributionSides) brokerDistributionSidesResponse {
+	return brokerDistributionSidesResponse{
+		TopBrokerBuy:  toBrokerDistributionEntriesResponse(in.TopBrokerBuy),
+		TopBrokerSell: toBrokerDistributionEntriesResponse(in.TopBrokerSell),
+	}
+}
+
+func toBrokerDistributionEntriesResponse(in []domain.BrokerDistributionEntry) []brokerDistributionEntryResponse {
+	out := make([]brokerDistributionEntryResponse, 0, len(in))
+	for _, e := range in {
+		ctps := make([]brokerDistributionCounterpartyResponse, 0, len(e.DistributeTo))
+		for _, c := range e.DistributeTo {
+			ctps = append(ctps, brokerDistributionCounterpartyResponse{Code: c.Code, Type: c.Type, Amount: c.Amount})
+		}
+		out = append(out, brokerDistributionEntryResponse{
+			Detail:       brokerDistributionCounterpartyResponse{Code: e.Detail.Code, Type: e.Detail.Type, Amount: e.Detail.Amount},
+			DistributeTo: ctps,
+		})
+	}
+	return out
+}

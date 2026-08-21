@@ -154,6 +154,7 @@ func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router 
 			r.Get("/order-trade/broker/activity-chart", hs.Activity.ActivityChart)
 			r.Get("/order-trade/broker/activity", hs.Activity.Activity)
 			r.Get("/order-trade/broker/activity/historical", hs.Activity.ActivityHistorical)
+			r.Get("/order-trade/broker/distribution", hs.Activity.BrokerDistribution)
 			r.Get("/order-trade/broker/top", hs.BrokerTop.BrokerTop)
 			r.Get("/order-trade/order-queue", hs.OrderQueue.OrderQueue)
 			r.Get("/user/{username}/stream", hs.Stream.UserStream)

@@ -352,3 +352,105 @@ func TestActivityHandlerActivityHistorical(t *testing.T) {
 		})
 	}
 }
+
+func TestActivityHandlerBrokerDistribution(t *testing.T) {
+	tests := []struct {
+		name        string
+		query       string
+		setup       func(uc *mocks.MockActivityUsecase)
+		wantStatus  int
+		wantErrCode string
+	}{
+		{
+			name:  "returns distribution with defaults",
+			query: "?symbol=BUMI",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetBrokerDistribution(gomock.Any(), "BUMI", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", "BROKER_DISTRIBUTION_DATA_TYPE_VALUE", "", "", "").Return(&domain.BrokerDistributionData{
+					DateInfo: "2026-08-19",
+					ByValue: domain.BrokerDistributionSides{
+						TopBrokerBuy: []domain.BrokerDistributionEntry{{
+							Detail:       domain.BrokerDistributionCounterparty{Code: "MG", Type: "Lokal", Amount: 683315577200},
+							DistributeTo: []domain.BrokerDistributionCounterparty{{Code: "XL", Type: "Asing", Amount: 96841421100}},
+						}},
+					},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:  "passes enums and range through",
+			query: "?symbol=BUMI&investor_type=INVESTOR_TYPE_FOREIGN&market_board=MARKET_TYPE_ALL&data_type=BROKER_DISTRIBUTION_DATA_TYPE_VOLUME&from=2026-08-02&to=2026-08-19",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetBrokerDistribution(gomock.Any(), "BUMI", "INVESTOR_TYPE_FOREIGN", "MARKET_TYPE_ALL", "BROKER_DISTRIBUTION_DATA_TYPE_VOLUME", "", "2026-08-02", "2026-08-19").Return(&domain.BrokerDistributionData{}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{name: "missing symbol returns 422", query: "?investor_type=INVESTOR_TYPE_ALL", wantStatus: http.StatusUnprocessableEntity, wantErrCode: "VALIDATION_ERROR"},
+		{name: "single bound returns 422", query: "?symbol=BUMI&from=2026-08-02", wantStatus: http.StatusUnprocessableEntity, wantErrCode: "VALIDATION_ERROR"},
+		{name: "reversed range returns 422", query: "?symbol=BUMI&from=2026-08-19&to=2026-08-02", wantStatus: http.StatusUnprocessableEntity, wantErrCode: "VALIDATION_ERROR"},
+		{name: "bad enum returns 422", query: "?symbol=BUMI&data_type=BOGUS", wantStatus: http.StatusUnprocessableEntity, wantErrCode: "VALIDATION_ERROR"},
+		{
+			name:  "upstream 400 returns 422",
+			query: "?symbol=BUMI&from=2026-08-19&to=2026-08-19",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetBrokerDistribution(gomock.Any(), "BUMI", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", "BROKER_DISTRIBUTION_DATA_TYPE_VALUE", "", "2026-08-19", "2026-08-19").Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "Invalid date"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name:  "usecase error returns 500",
+			query: "?symbol=BUMI",
+			setup: func(uc *mocks.MockActivityUsecase) {
+				uc.EXPECT().GetBrokerDistribution(gomock.Any(), "BUMI", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", "BROKER_DISTRIBUTION_DATA_TYPE_VALUE", "", "", "").Return(nil, errors.New("boom"))
+			},
+			wantStatus:  http.StatusInternalServerError,
+			wantErrCode: "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc := mocks.NewMockActivityUsecase(ctrl)
+			if tt.setup != nil {
+				tt.setup(uc)
+			}
+
+			h := NewActivityHandler(uc, validator.New())
+			rec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/order-trade/broker/distribution"+tt.query, nil)
+			h.BrokerDistribution(rec, req)
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+
+			var env struct {
+				Success bool `json:"success"`
+				Data    *struct {
+					DateInfo string `json:"date_info"`
+					ByValue  struct {
+						TopBrokerBuy []struct {
+							Detail struct {
+								Code   string `json:"code"`
+								Amount int64  `json:"amount"`
+							} `json:"detail"`
+						} `json:"top_broker_buy"`
+					} `json:"by_value"`
+				} `json:"data"`
+				Error *struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+
+			if tt.wantErrCode != "" {
+				require.NotNil(t, env.Error)
+				assert.Equal(t, tt.wantErrCode, env.Error.Code)
+				return
+			}
+			require.NotNil(t, env.Data)
+		})
+	}
+}

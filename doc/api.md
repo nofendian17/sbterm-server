@@ -48,6 +48,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 36 | `GET /api/v1/order-trade/order-queue` | [Order queue](#get-apiv1order-tradeorder-queue) |
 | 37 | `GET /api/v1/notifications` | [Notifications](#get-apiv1notifications) |
 | 38 | `GET /api/v1/stream/conversation/{stream_id}` | [Stream](#get-apiv1streamconversationstream_id) |
+| 39 | `GET /api/v1/order-trade/broker/distribution` | [Broker distribution](#get-apiv1order-tradebrokerdistribution) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -2052,6 +2053,69 @@ curl 'http://localhost:8080/api/v1/order-trade/broker/activity/historical?interv
         { "date_from": "2026-07-01", "date_to": "2026-07-31", "net_summary": { "avg_price": 676.19, "freq": 24248, "lot": 7726, "value": -1823597000 } }
       ]
     }
+  }
+}
+```
+
+## Broker distribution
+
+### `GET /api/v1/order-trade/broker/distribution`
+Per-broker distribution of one symbol: the top buy/sell brokers and whom they
+traded with (proxies `/order-trade/broker/distribution`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | yes | one symbol |
+| `investor_type` | no | `INVESTOR_TYPE_ALL` (default), `INVESTOR_TYPE_FOREIGN`, `INVESTOR_TYPE_DOMESTIC` |
+| `market_board` | no | `MARKET_TYPE_REGULER` (default), `MARKET_TYPE_ALL`, `MARKET_TYPE_NEGO` |
+| `data_type` | no | `BROKER_DISTRIBUTION_DATA_TYPE_VALUE` (default), `BROKER_DISTRIBUTION_DATA_TYPE_VOLUME` |
+| `date` | no | `YYYY-MM-DD` — single session; wins over `from`/`to` when set |
+| `from` | no | `YYYY-MM-DD`; both-or-neither with `to` (422 otherwise) |
+| `to` | no | `YYYY-MM-DD`; reversed range → 422 |
+
+- **Omitting all date params returns the latest session.** Upstream silently
+  ignores a single bound (`from`-only); this server rejects it with 422
+  (`from and to must both be provided or both omitted`) per house convention.
+- **`data_type` selects which section fills**: the other side comes back as
+  empty arrays, never omitted.
+- Unknown enums / missing symbol → upstream 400 → surfaced as
+  `422 VALIDATION_ERROR`.
+
+`data: { date_info, by_value: {sides}, by_volume: {sides}, start_date, end_date }`
+where sides is `{ top_broker_buy: [entry], top_broker_sell: [entry] }` and each
+entry is `{ detail: {code, type, amount}, distribute_to: [{code, type, amount}] }`.
+
+- Top lists hold up to ~12 brokers; `distribute_to` length varies (~75 max).
+- `type` is a display string: `Lokal`, `Asing`, `Pemerintah`. `amount` is a JSON number.
+- `date_info` echoes the session actually returned; `start_date`/`end_date` the
+  requested range (single day → same value).
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/api/v1/order-trade/broker/distribution?symbol=BUMI&investor_type=INVESTOR_TYPE_ALL&market_board=MARKET_TYPE_REGULER&data_type=BROKER_DISTRIBUTION_DATA_TYPE_VALUE&from=2026-08-02&to=2026-08-19'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "date_info": "2026-08-19",
+    "by_value": {
+      "top_broker_buy": [
+        {
+          "detail": { "code": "MG", "type": "Lokal", "amount": 683315577200 },
+          "distribute_to": [
+            { "code": "XL", "type": "Lokal", "amount": 96841421100 },
+            { "code": "CC", "type": "Pemerintah", "amount": 70343513200 }
+          ]
+        }
+      ],
+      "top_broker_sell": []
+    },
+    "by_volume": { "top_broker_buy": [], "top_broker_sell": [] },
+    "start_date": "2026-08-02",
+    "end_date": "2026-08-19"
   }
 }
 ```

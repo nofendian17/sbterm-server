@@ -220,3 +220,43 @@ func toNetValueTrend(in []stockbit.ActivityNetValueTrend) []domain.ActivityNetVa
 }
 
 var _ repository.ActivityRepository = (*ActivityRepository)(nil)
+
+func (r *ActivityRepository) GetBrokerDistribution(ctx context.Context, symbol, investorType, marketBoard, dataType, date, from, to string) (*domain.BrokerDistributionData, error) {
+	resp, err := r.client.GetBrokerDistribution(ctx, symbol, investorType, marketBoard, dataType, date, from, to)
+	if err != nil {
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
+		return nil, err
+	}
+	return &domain.BrokerDistributionData{
+		DateInfo:  resp.Data.DateInfo,
+		ByValue:   toBrokerDistributionSides(resp.Data.ByValue),
+		ByVolume:  toBrokerDistributionSides(resp.Data.ByVolume),
+		StartDate: resp.Data.StartDate,
+		EndDate:   resp.Data.EndDate,
+	}, nil
+}
+
+func toBrokerDistributionSides(in stockbit.BrokerDistributionSides) domain.BrokerDistributionSides {
+	return domain.BrokerDistributionSides{
+		TopBrokerBuy:  toBrokerDistributionEntries(in.TopBrokerBuy),
+		TopBrokerSell: toBrokerDistributionEntries(in.TopBrokerSell),
+	}
+}
+
+func toBrokerDistributionEntries(in []stockbit.BrokerDistributionEntry) []domain.BrokerDistributionEntry {
+	out := make([]domain.BrokerDistributionEntry, 0, len(in))
+	for _, e := range in {
+		ctps := make([]domain.BrokerDistributionCounterparty, 0, len(e.DistributeTo))
+		for _, c := range e.DistributeTo {
+			ctps = append(ctps, domain.BrokerDistributionCounterparty{Code: c.Code, Type: c.Type, Amount: c.Amount})
+		}
+		out = append(out, domain.BrokerDistributionEntry{
+			Detail:       domain.BrokerDistributionCounterparty{Code: e.Detail.Code, Type: e.Detail.Type, Amount: e.Detail.Amount},
+			DistributeTo: ctps,
+		})
+	}
+	return out
+}

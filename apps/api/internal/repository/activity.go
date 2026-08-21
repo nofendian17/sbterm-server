@@ -11,4 +11,5 @@ type ActivityRepository interface {
 	GetActivityChart(ctx context.Context, symbols, brokersCode []string, from, to, period, investorType, marketBoard string) (*domain.ActivityChartData, error)
 	GetActivity(ctx context.Context, brokerCode []string, transactionType, investorType, marketBoard string, limit, page int, from, to, netValPeriod string) (*domain.ActivityData, error)
 	GetActivityHistorical(ctx context.Context, interval, dateFrom, dateTo string, brokerCodes, symbols []string, marketBoard, investorType, netInterval string) (*domain.ActivityHistoricalData, error)
+	GetBrokerDistribution(ctx context.Context, symbol, investorType, marketBoard, dataType, date, from, to string) (*domain.BrokerDistributionData, error)
 }

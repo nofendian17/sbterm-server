@@ -157,3 +157,42 @@ func (c *MockActivityRepositoryGetActivityHistoricalCall) DoAndReturn(f func(con
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// GetBrokerDistribution mocks base method.
+func (m *MockActivityRepository) GetBrokerDistribution(ctx context.Context, symbol, investorType, marketBoard, dataType, date, from, to string) (*domain.BrokerDistributionData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBrokerDistribution", ctx, symbol, investorType, marketBoard, dataType, date, from, to)
+	ret0, _ := ret[0].(*domain.BrokerDistributionData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBrokerDistribution indicates an expected call of GetBrokerDistribution.
+func (mr *MockActivityRepositoryMockRecorder) GetBrokerDistribution(ctx, symbol, investorType, marketBoard, dataType, date, from, to any) *MockActivityRepositoryGetBrokerDistributionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBrokerDistribution", reflect.TypeOf((*MockActivityRepository)(nil).GetBrokerDistribution), ctx, symbol, investorType, marketBoard, dataType, date, from, to)
+	return &MockActivityRepositoryGetBrokerDistributionCall{Call: call}
+}
+
+// MockActivityRepositoryGetBrokerDistributionCall wrap *gomock.Call
+type MockActivityRepositoryGetBrokerDistributionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockActivityRepositoryGetBrokerDistributionCall) Return(arg0 *domain.BrokerDistributionData, arg1 error) *MockActivityRepositoryGetBrokerDistributionCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockActivityRepositoryGetBrokerDistributionCall) Do(f func(context.Context, string, string, string, string, string, string, string) (*domain.BrokerDistributionData, error)) *MockActivityRepositoryGetBrokerDistributionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockActivityRepositoryGetBrokerDistributionCall) DoAndReturn(f func(context.Context, string, string, string, string, string, string, string) (*domain.BrokerDistributionData, error)) *MockActivityRepositoryGetBrokerDistributionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

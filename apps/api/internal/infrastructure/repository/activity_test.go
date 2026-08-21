@@ -238,3 +238,48 @@ func TestActivityRepositoryGetActivityHistorical(t *testing.T) {
 		})
 	}
 }
+
+const brokerDistributionRepoBody = `{"message":"ok","data":{"date_info":"2026-08-19","by_value":{"top_broker_buy":[{"detail":{"code":"MG","type":"Lokal","amount":683315577200},"distribute_to":[{"code":"XL","type":"Asing","amount":96841421100}]}],"top_broker_sell":[]},"by_volume":{"top_broker_buy":[],"top_broker_sell":[]},"start_date":"2026-08-02","end_date":"2026-08-19"}}`
+
+func TestActivityRepositoryGetBrokerDistribution(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr bool
+		wantUp  bool
+	}{
+		{name: "returns mapped distribution", status: http.StatusOK, body: brokerDistributionRepoBody},
+		{name: "propagates upstream error", status: http.StatusInternalServerError, body: `{"message":"boom"}`, wantErr: true},
+		{name: "translates upstream 400 into domain error", status: http.StatusBadRequest, body: `{"message":"Invalid date"}`, wantUp: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/order-trade/broker/distribution", r.URL.Path)
+				assert.Equal(t, "BUMI", r.URL.Query().Get("symbol"))
+				w.WriteHeader(tt.status)
+				w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+
+			repo := NewActivityRepository(stockbit.New(stockbit.WithBaseURL(srv.URL)))
+			got, err := repo.GetBrokerDistribution(context.Background(), "BUMI", "INVESTOR_TYPE_ALL", "MARKET_TYPE_REGULER", "BROKER_DISTRIBUTION_DATA_TYPE_VALUE", "", "2026-08-02", "2026-08-19")
+			if tt.wantUp {
+				var upErr *domain.UpstreamError
+				require.ErrorAs(t, err, &upErr)
+				return
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "2026-08-19", got.DateInfo)
+			require.Len(t, got.ByValue.TopBrokerBuy, 1)
+			assert.Equal(t, int64(96841421100), got.ByValue.TopBrokerBuy[0].DistributeTo[0].Amount)
+			assert.Empty(t, got.ByVolume.TopBrokerBuy)
+		})
+	}
+}

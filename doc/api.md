@@ -46,6 +46,8 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 34 | `GET /api/v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-apiv1order-tradeforeign-domestichistorical) |
 | 35 | `GET /api/v1/search` | [Search](#get-apiv1search) |
 | 36 | `GET /api/v1/order-trade/order-queue` | [Order queue](#get-apiv1order-tradeorder-queue) |
+| 37 | `GET /api/v1/notifications` | [Notifications](#get-apiv1notifications) |
+| 38 | `GET /api/v1/stream/conversation/{stream_id}` | [Stream](#get-apiv1streamconversationstream_id) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -2212,6 +2214,72 @@ curl 'http://localhost:8080/api/v1/stream/announcement/f3e83a0aeb3c9c48800b7f3be
 }
 ```
 
+### `GET /api/v1/stream/conversation/{stream_id}`
+A stream post plus one page of its replies — the content behind a
+[notification](#get-apiv1notifications) item (proxies
+`/stream/v3/conversation/{id}`; upstream exposes it as a body-less POST, this
+server accepts a plain GET).
+
+| param | required | values |
+|---|---|---|
+| `stream_id` | path | the post id — a notification's `link_to.value` |
+
+- **Chaining:** `GET /api/v1/notifications` → take `items[].link_to.value` →
+  pass it here to render the notification's content.
+- Unknown/expired `stream_id` (upstream 400/404) → `422 VALIDATION_ERROR`
+  (`no conversation data for the requested stream`). Via the router, an empty
+  segment doesn't match the route and falls through to `404`.
+- `parent` is the requested post; `replies[]` are its comments
+  (`STREAM_TYPE_POST`). Both use the same post shape as the
+  [user stream](#get-apiv1userusernamestream).
+- `more: true` means more replies exist server-side; paging is not exposed yet.
+- `parent.summary` is the AI summary (`null` when absent); `reaction.reactions`
+  aggregates emoji counts.
+
+`data: { more, prev, parent: {post}, replies: [{post}] }`
+
+#### Example: request / response
+
+```bash
+# Resolve a notification's content (id from link_to.value)
+curl 'http://localhost:8080/api/v1/stream/conversation/35071377'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "more": false,
+    "prev": true,
+    "parent": {
+      "stream_id": 35071377,
+      "title_url": "streams/announcement/1c0bec4af147edd99368381d57767446",
+      "title": "Penyampaian Laporan Keuangan Interim Yang Ditelaah Secara Terbatas [BRIS]",
+      "created_display": "21 Aug 26, 17:18",
+      "user": { "username": "StockbitReports", "fullname": "Stockbit Reports", "is_verified": true },
+      "total_replies": 24,
+      "total_likes": 57,
+      "type": "STREAM_TYPE_REPORT",
+      "topics": ["BRIS"],
+      "summary": {
+        "summary": "BRIS (Bank Syariah Indonesia) membukukan laba bersih H1 2026 sebesar Rp4,16 triliun, naik 11,08% YoY ...",
+        "key_points": ["Laba bersih semester I 2026 mencapai Rp4,16 triliun, tumbuh 11,08% YoY."],
+        "model": "SUMMARY_MODEL_AI"
+      },
+      "reaction": { "reactions": [{ "reaction": "👍", "total": 55 }], "total": 57 }
+    },
+    "replies": [
+      {
+        "stream_id": 35071473,
+        "content": "good luck",
+        "user": { "username": "zackmoy", "fullname": "Achmad zaqi mubarok" },
+        "type": "STREAM_TYPE_POST"
+      }
+    ]
+  }
+}
+```
+
 ### `GET /api/v1/search`
 Global symbol/entity search (proxies `/search`). Returns matching companies,
 insider labels, chat rooms, people, sectors and industries in one payload.
@@ -2274,6 +2342,72 @@ curl 'http://localhost:8080/api/v1/search?keyword=BBRI&page=1&type=company'
       "has_more_insiders": false,
       "has_more_users": false
     }
+  }
+}
+```
+
+## Notifications
+
+### `GET /api/v1/notifications`
+The authenticated account's notification feed (proxies `/notification`). The
+server's own credentials identify the user — no client `Authorization` needed.
+
+| param | required | values |
+|---|---|---|
+| `last_id` | no | int64 cursor — pass the last row's `id` to fetch older items (default 0 = newest) |
+| `limit` | no | int 1..25 (default 20; upstream caps at 25) |
+| `types` | no | repeatable (`?types=A&types=B`); omitted → all types |
+
+- **Type filter** accepts the seven reference types: `NOTIF_TYPE_NEW_REPORT`,
+  `NOTIF_TYPE_NEWSFEED`, `NOTIF_TYPE_COMPANY_PUBLIC_EXPOSE`,
+  `NOTIF_TYPE_COMPANY_SHAREHOLDING`, `NOTIF_TYPE_COMPANY_DIVIDEND`,
+  `NOTIF_TYPE_COMPANY_CORP_ACTION`, `NOTIF_TYPE_COMPANY_OTHERS`. Unknown values →
+  `422 VALIDATION_ERROR`.
+- **Response can contain other types** (e.g. `NOTIF_TYPE_POSTALERT`) when
+  `types` is omitted — upstream returns every kind for the account.
+- Non-numeric `last_id`/`limit` → `422`; `last_id=0` is omitted from the
+  upstream call (same result as sending it).
+- `message` is an upstream template with `%key%` placeholders; resolve them with
+  the matching `masks[]` entry (`key` → `text`), rendered bold via `tag`.
+
+`data: { unread, items: [{ id, type, avatar, message, masks: [{ key, text,
+tag, type }], link_to: { key, value }, created, is_read }] }`
+
+- `unread` is the account-wide unread count (not affected by filters).
+- `link_to.value` identifies the related object (e.g. stream/report id);
+  `link_to.key` its kind.
+- `created` is an RFC3339 UTC timestamp.
+- Items are newest-first.
+
+#### Example: request / response
+
+```bash
+# The seven-type filter from the reference upstream curl
+curl 'http://localhost:8080/api/v1/notifications?last_id=0&limit=20&types=NOTIF_TYPE_NEW_REPORT&types=NOTIF_TYPE_NEWSFEED&types=NOTIF_TYPE_COMPANY_PUBLIC_EXPOSE&types=NOTIF_TYPE_COMPANY_SHAREHOLDING&types=NOTIF_TYPE_COMPANY_DIVIDEND&types=NOTIF_TYPE_COMPANY_CORP_ACTION&types=NOTIF_TYPE_COMPANY_OTHERS'
+
+# Defaults: newest page of everything
+curl 'http://localhost:8080/api/v1/notifications'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "unread": 0,
+    "items": [
+      {
+        "id": 85348738,
+        "type": "NOTIF_TYPE_COMPANY_OTHERS",
+        "avatar": "",
+        "message": "[%0kutu%] Report: \"Hadir di IIGCE 2026, ... [PGEO]\"",
+        "masks": [
+          { "key": "0kutu", "text": "PGEO", "tag": "PAYLOAD_MASK_TAG_BOLD", "type": "PAYLOAD_MASK_TYPE_COMPANY" }
+        ],
+        "link_to": { "key": 1, "value": "35074794" },
+        "created": "2026-08-21T14:10:53Z",
+        "is_read": true
+      }
+    ]
   }
 }
 ```

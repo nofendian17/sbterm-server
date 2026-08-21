@@ -26,6 +26,7 @@ import (
 	mw "github.com/nofendian17/sbterm/apps/api/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/network"
+	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/notification"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/orderbook"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/orderqueue"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/priceperformance"
@@ -60,6 +61,7 @@ func WithRateLimit(rate, burst int) RouterOption {
 type Handlers struct {
 	Health            *health.HealthHandler
 	Trending          *trending.TrendingHandler
+	Notification      *notification.NotificationHandler
 	MarketMover       *mover.MarketMoverHandler
 	MarketSession     *session.MarketSessionHandler
 	Index             *index.IndexHandler
@@ -122,6 +124,7 @@ func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/v1", func(r chi.Router) {
 			r.Get("/trending", hs.Trending.Trending)
+			r.Get("/notifications", hs.Notification.GetNotifications)
 			r.Get("/market-mover", hs.MarketMover.MarketMover)
 			r.Get("/market-session", hs.MarketSession.MarketSession)
 			r.Get("/indexes", hs.Index.Index)
@@ -156,6 +159,7 @@ func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router 
 			r.Get("/user/{username}/stream", hs.Stream.UserStream)
 			r.Get("/search", hs.Search.Search)
 			r.Get("/stream/announcement/{stream_id}", hs.Stream.StreamAnnouncement)
+			r.Get("/stream/conversation/{stream_id}", hs.Stream.StreamConversation)
 		})
 	})
 

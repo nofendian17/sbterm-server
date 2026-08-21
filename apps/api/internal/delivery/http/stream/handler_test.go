@@ -292,3 +292,117 @@ func TestStreamHandlerUserStream(t *testing.T) {
 		})
 	}
 }
+
+func TestStreamHandlerStreamConversation(t *testing.T) {
+	const streamID = "35071377"
+	tests := []struct {
+		name        string
+		path        string
+		direct      bool
+		setup       func(uc *mocks.MockStreamUsecase)
+		wantStatus  int
+		wantErrCode string
+	}{
+		{
+			name: "returns conversation with parent and replies",
+			path: "/api/v1/stream/conversation/" + streamID,
+			setup: func(uc *mocks.MockStreamUsecase) {
+				uc.EXPECT().GetStreamConversation(gomock.Any(), streamID).Return(&domain.StreamConversationData{
+					More:   false,
+					Prev:   true,
+					Parent: domain.StreamPost{StreamID: 35071377, Title: "Report [BRIS]", Type: "STREAM_TYPE_REPORT"},
+					Replies: []domain.StreamPost{
+						{StreamID: 35071473, Content: "good luck", Type: "STREAM_TYPE_POST"},
+					},
+				}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:        "missing stream_id returns 422",
+			path:        "/api/v1/stream/conversation/",
+			direct:      true,
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "upstream 400 returns 422",
+			path: "/api/v1/stream/conversation/" + streamID,
+			setup: func(uc *mocks.MockStreamUsecase) {
+				uc.EXPECT().GetStreamConversation(gomock.Any(), streamID).Return(nil, &domain.UpstreamError{Status: http.StatusBadRequest, Msg: "invalid"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "upstream 404 returns 422",
+			path: "/api/v1/stream/conversation/" + streamID,
+			setup: func(uc *mocks.MockStreamUsecase) {
+				uc.EXPECT().GetStreamConversation(gomock.Any(), streamID).Return(nil, &domain.UpstreamError{Status: http.StatusNotFound, Msg: "not found"})
+			},
+			wantStatus:  http.StatusUnprocessableEntity,
+			wantErrCode: "VALIDATION_ERROR",
+		},
+		{
+			name: "usecase error returns 500",
+			path: "/api/v1/stream/conversation/" + streamID,
+			setup: func(uc *mocks.MockStreamUsecase) {
+				uc.EXPECT().GetStreamConversation(gomock.Any(), streamID).Return(nil, errors.New("boom"))
+			},
+			wantStatus:  http.StatusInternalServerError,
+			wantErrCode: "INTERNAL_ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			uc := mocks.NewMockStreamUsecase(ctrl)
+			if tt.setup != nil {
+				tt.setup(uc)
+			}
+
+			rec := httptest.NewRecorder()
+			if tt.direct {
+				h := NewStreamHandler(uc, validator.New())
+				h.StreamConversation(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			} else {
+				r := chi.NewRouter()
+				h := NewStreamHandler(uc, validator.New())
+				r.Get("/api/v1/stream/conversation/{stream_id}", h.StreamConversation)
+				r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			}
+
+			assert.Equal(t, tt.wantStatus, rec.Code)
+
+			var env struct {
+				Success bool `json:"success"`
+				Data    *struct {
+					Parent struct {
+						StreamID int64  `json:"stream_id"`
+						Title    string `json:"title"`
+					} `json:"parent"`
+					Replies []struct {
+						Content string `json:"content"`
+					} `json:"replies"`
+				} `json:"data"`
+				Error *struct {
+					Code string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+
+			if tt.wantErrCode != "" {
+				require.NotNil(t, env.Error)
+				assert.Equal(t, tt.wantErrCode, env.Error.Code)
+				return
+			}
+			require.NotNil(t, env.Data)
+			assert.Equal(t, int64(35071377), env.Data.Parent.StreamID)
+			require.Len(t, env.Data.Replies, 1)
+			assert.Equal(t, "good luck", env.Data.Replies[0].Content)
+		})
+	}
+}

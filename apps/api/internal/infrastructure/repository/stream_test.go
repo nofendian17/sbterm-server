@@ -181,3 +181,67 @@ func TestStreamRepositoryGetUserStream(t *testing.T) {
 		})
 	}
 }
+
+const streamConversationRepoBody = `{"message":"Conversation stream posts retrieved successfully","data":{"conversation":{"more":false,"prev":true,"parent":{"stream_id":35071377,"title":"Report [BRIS]","content":"","created_at":"2026-08-21 17:18:12","created_display":"21 Aug 26, 17:18","updated_at":"","user":{"user_id":3,"username":"StockbitReports","fullname":"Stockbit Reports"},"status":{"is_pinned":false},"total_replies":24,"total_likes":57,"type":"STREAM_TYPE_REPORT","parent_stream_id":35071377,"reports":[{"type":"Laporan Keuangan"}],"topics":["BRIS"],"summary":{"title":"T","summary":"S","key_points":["kp"],"key_takeaway":"K","model":"SUMMARY_MODEL_AI","model_version":"v1"},"reaction":{"reactions":[{"reaction":"👍","total":55}],"total":57}},"replies":[{"stream_id":35071473,"content":"good luck","user":{"user_id":1,"username":"zackmoy"},"status":{},"type":"STREAM_TYPE_POST","parent_stream_id":35071377}]}}}`
+
+func TestStreamRepositoryGetStreamConversation(t *testing.T) {
+	const streamID = "35071377"
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr bool
+		wantUp  bool
+	}{
+		{
+			name:   "returns mapped conversation",
+			status: http.StatusOK,
+			body:   streamConversationRepoBody,
+		},
+		{
+			name:    "propagates upstream error",
+			status:  http.StatusInternalServerError,
+			body:    `{"message":"boom"}`,
+			wantErr: true,
+		},
+		{
+			name:   "translates upstream 400 into domain error",
+			status: http.StatusBadRequest,
+			body:   `{"message":"Please check your request"}`,
+			wantUp: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/stream/v3/conversation/"+streamID, r.URL.Path)
+				w.WriteHeader(tt.status)
+				w.Write([]byte(tt.body))
+			}))
+			defer srv.Close()
+
+			client := stockbit.New(stockbit.WithBaseURL(srv.URL))
+			repo := NewStreamRepository(client)
+
+			got, err := repo.GetStreamConversation(context.Background(), streamID)
+			if tt.wantUp {
+				var upErr *domain.UpstreamError
+				require.ErrorAs(t, err, &upErr)
+				return
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.False(t, got.More)
+			assert.True(t, got.Prev)
+			assert.Equal(t, int64(35071377), got.Parent.StreamID)
+			assert.Equal(t, "BRIS", got.Parent.Topics[0])
+			require.Len(t, got.Replies, 1)
+			assert.Equal(t, "good luck", got.Replies[0].Content)
+		})
+	}
+}

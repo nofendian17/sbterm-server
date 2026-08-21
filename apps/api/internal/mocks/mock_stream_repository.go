@@ -80,6 +80,45 @@ func (c *MockStreamRepositoryGetStreamAnnouncementCall) DoAndReturn(f func(conte
 	return c
 }
 
+// GetStreamConversation mocks base method.
+func (m *MockStreamRepository) GetStreamConversation(ctx context.Context, streamID string) (*domain.StreamConversationData, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStreamConversation", ctx, streamID)
+	ret0, _ := ret[0].(*domain.StreamConversationData)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStreamConversation indicates an expected call of GetStreamConversation.
+func (mr *MockStreamRepositoryMockRecorder) GetStreamConversation(ctx, streamID any) *MockStreamRepositoryGetStreamConversationCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStreamConversation", reflect.TypeOf((*MockStreamRepository)(nil).GetStreamConversation), ctx, streamID)
+	return &MockStreamRepositoryGetStreamConversationCall{Call: call}
+}
+
+// MockStreamRepositoryGetStreamConversationCall wrap *gomock.Call
+type MockStreamRepositoryGetStreamConversationCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockStreamRepositoryGetStreamConversationCall) Return(arg0 *domain.StreamConversationData, arg1 error) *MockStreamRepositoryGetStreamConversationCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockStreamRepositoryGetStreamConversationCall) Do(f func(context.Context, string) (*domain.StreamConversationData, error)) *MockStreamRepositoryGetStreamConversationCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockStreamRepositoryGetStreamConversationCall) DoAndReturn(f func(context.Context, string) (*domain.StreamConversationData, error)) *MockStreamRepositoryGetStreamConversationCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetUserStream mocks base method.
 func (m *MockStreamRepository) GetUserStream(ctx context.Context, username, category string, lastStreamID int64, limit int) (*domain.UserStreamData, error) {
 	m.ctrl.T.Helper()

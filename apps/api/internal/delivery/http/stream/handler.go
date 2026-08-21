@@ -182,6 +182,43 @@ type streamAnnouncementResponse struct {
 	CompanyIconURL string `json:"company_icon_url"`
 }
 
+type streamConversationResponse struct {
+	More    bool                 `json:"more"`
+	Prev    bool                 `json:"prev"`
+	Parent  streamPostResponse   `json:"parent"`
+	Replies []streamPostResponse `json:"replies"`
+}
+
+func (h *StreamHandler) StreamConversation(w http.ResponseWriter, r *http.Request) {
+	streamID := chi.URLParam(r, "stream_id")
+	if streamID == "" {
+		response.ValidationError(w, "validation failed", map[string]string{"stream_id": "is required"})
+		return
+	}
+
+	data, err := h.uc.GetStreamConversation(r.Context(), streamID)
+	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && (upErr.Status == http.StatusBadRequest || upErr.Status == http.StatusNotFound) {
+			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no conversation data for the requested stream")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get stream conversation")
+		return
+	}
+
+	replies := make([]streamPostResponse, 0, len(data.Replies))
+	for _, p := range data.Replies {
+		replies = append(replies, toStreamPostResponse(p))
+	}
+	response.OK(w, streamConversationResponse{
+		More:    data.More,
+		Prev:    data.Prev,
+		Parent:  toStreamPostResponse(data.Parent),
+		Replies: replies,
+	})
+}
+
 func (h *StreamHandler) StreamAnnouncement(w http.ResponseWriter, r *http.Request) {
 	streamID := chi.URLParam(r, "stream_id")
 	if streamID == "" {
@@ -254,38 +291,42 @@ func toUserStreamResponse(d *domain.UserStreamData) userStreamResponse {
 		InvalidWatchlistIDs: d.InvalidWatchlistIDs,
 	}
 	for _, p := range d.Stream {
-		out.Stream = append(out.Stream, streamPostResponse{
-			StreamID:       p.StreamID,
-			TitleURL:       p.TitleURL,
-			Title:          p.Title,
-			Content:        p.Content,
-			CreatedAt:      p.CreatedAt,
-			CreatedDisplay: p.CreatedDisplay,
-			UpdatedAt:      p.UpdatedAt,
-			User: streamUserResponse{
-				UserID:         p.User.UserID,
-				IsAuthor:       p.User.IsAuthor,
-				Username:       p.User.Username,
-				Fullname:       p.User.Fullname,
-				Avatar:         p.User.Avatar,
-				IsVerified:     p.User.IsVerified,
-				UserPrivilege:  p.User.UserPrivilege,
-				IsPro:          p.User.IsPro,
-				Country:        p.User.Country,
-				VerifiedStatus: p.User.VerifiedStatus,
-			},
-			Status:         toStreamStatusResponse(p.Status),
-			TotalReplies:   p.TotalReplies,
-			TotalLikes:     p.TotalLikes,
-			Type:           p.Type,
-			ParentStreamID: p.ParentStreamID,
-			Reports:        toStreamReportResponses(p.Reports),
-			Topics:         p.Topics,
-			Summary:        toStreamSummaryResponse(p.Summary),
-			Reaction:       toStreamReactionResponse(p.Reaction),
-		})
+		out.Stream = append(out.Stream, toStreamPostResponse(p))
 	}
 	return out
+}
+
+func toStreamPostResponse(p domain.StreamPost) streamPostResponse {
+	return streamPostResponse{
+		StreamID:       p.StreamID,
+		TitleURL:       p.TitleURL,
+		Title:          p.Title,
+		Content:        p.Content,
+		CreatedAt:      p.CreatedAt,
+		CreatedDisplay: p.CreatedDisplay,
+		UpdatedAt:      p.UpdatedAt,
+		User: streamUserResponse{
+			UserID:         p.User.UserID,
+			IsAuthor:       p.User.IsAuthor,
+			Username:       p.User.Username,
+			Fullname:       p.User.Fullname,
+			Avatar:         p.User.Avatar,
+			IsVerified:     p.User.IsVerified,
+			UserPrivilege:  p.User.UserPrivilege,
+			IsPro:          p.User.IsPro,
+			Country:        p.User.Country,
+			VerifiedStatus: p.User.VerifiedStatus,
+		},
+		Status:         toStreamStatusResponse(p.Status),
+		TotalReplies:   p.TotalReplies,
+		TotalLikes:     p.TotalLikes,
+		Type:           p.Type,
+		ParentStreamID: p.ParentStreamID,
+		Reports:        toStreamReportResponses(p.Reports),
+		Topics:         p.Topics,
+		Summary:        toStreamSummaryResponse(p.Summary),
+		Reaction:       toStreamReactionResponse(p.Reaction),
+	}
 }
 
 func toStreamStatusResponse(s domain.StreamStatus) streamStatusResponse {

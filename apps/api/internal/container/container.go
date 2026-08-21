@@ -31,6 +31,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/marketdetector"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/mover"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/network"
+	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/notification"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/orderbook"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/orderqueue"
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/priceperformance"
@@ -129,6 +130,15 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewTrendingRepository(client), nil
 	})
 	do.MustAs[*infraRepo.TrendingRepository, repository.TrendingRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.NotificationRepository, error) {
+		client, err := do.Invoke[*stockbit.Client](i)
+		if err != nil {
+			return nil, err
+		}
+		return infraRepo.NewNotificationRepository(client), nil
+	})
+	do.MustAs[*infraRepo.NotificationRepository, repository.NotificationRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.MarketMoverRepository, error) {
 		client, err := do.Invoke[*stockbit.Client](i)
@@ -448,6 +458,10 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewTrendingUsecase(do.MustInvoke[repository.TrendingRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.NotificationUsecase, error) {
+		return usecase.NewNotificationUsecase(do.MustInvoke[repository.NotificationRepository](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.MarketMoverUsecase, error) {
 		return usecase.NewMarketMoverUsecase(do.MustInvoke[repository.MarketMoverRepository](i)), nil
 	})
@@ -574,6 +588,10 @@ func provideHandlers(injector *do.RootScope) {
 		return trending.NewTrendingHandler(do.MustInvoke[usecase.TrendingUsecase](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*notification.NotificationHandler, error) {
+		return notification.NewNotificationHandler(do.MustInvoke[usecase.NotificationUsecase](i), do.MustInvoke[validator.Validator](i)), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*mover.MarketMoverHandler, error) {
 		return mover.NewMarketMoverHandler(do.MustInvoke[usecase.MarketMoverUsecase](i), do.MustInvoke[validator.Validator](i)), nil
 	})
@@ -697,6 +715,7 @@ func provideHandlers(injector *do.RootScope) {
 		router := deliveryhttp.NewRouter(deliveryhttp.Handlers{
 			Health:            do.MustInvoke[*health.HealthHandler](i),
 			Trending:          do.MustInvoke[*trending.TrendingHandler](i),
+			Notification:      do.MustInvoke[*notification.NotificationHandler](i),
 			MarketMover:       do.MustInvoke[*mover.MarketMoverHandler](i),
 			MarketSession:     do.MustInvoke[*session.MarketSessionHandler](i),
 			Index:             do.MustInvoke[*index.IndexHandler](i),

@@ -3,6 +3,7 @@ package stockbit
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -138,6 +139,68 @@ func TestGetUserStream(t *testing.T) {
 			if tt.check != nil {
 				tt.check(t, resp, buf.String())
 			}
+		})
+	}
+}
+
+const conversationBody = `{"message":"Conversation stream posts retrieved successfully","data":{"conversation":{"more":false,"prev":true,"parent":{"stream_id":35071377,"title_url":"streams/announcement/1c0bec4af147edd99368381d57767446","title":"Penyampaian Laporan Keuangan Interim [BRIS]","content":"","created_at":"2026-08-21 17:18:12","created_display":"21 Aug 26, 17:18","updated_at":"0000-00-00 00:00:00","user":{"user_id":3,"is_author":false,"username":"StockbitReports","fullname":"Stockbit Reports","avatar":"https://avatar.stockbit.com/3.png","is_verified":true,"user_privilege":"PRIVILEGE_MEMBER","is_pro":false,"country":"COUNTRY_ID","verified_status":"VERIFIED_STATUS_COMMUNITY"},"status":{"is_pinned":false},"total_replies":24,"total_likes":57,"type":"STREAM_TYPE_REPORT","parent_stream_id":35071377,"reports":[{"type":"Laporan Keuangan"}],"topics":["BRIS"],"summary":{"title":"Kinerja Keuangan Semesteran Tumbuh","summary":"Laba bersih H1 2026 Rp4,16 T.","key_points":["kp1"],"key_takeaway":"takeaway","model":"SUMMARY_MODEL_AI","model_version":"v1"},"reaction":{"reactions":[{"reaction":"👍","total":55}],"total":57,"my_reaction":null}},"replies":[{"stream_id":35071473,"title_url":"","title":"","content":"good luck","content_original":"good luck","created_at":"2026-08-21 17:23:14","created_display":"21 Aug 26, 17:23","updated_at":"0000-00-00 00:00:00","user":{"user_id":2046837,"is_author":false,"username":"zackmoy","fullname":"Achmad zaqi mubarok","avatar":"https://avatar.stockbit.com/a.png","is_verified":false,"user_privilege":"PRIVILEGE_MEMBER","is_pro":false,"country":"COUNTRY_ID","verified_status":"VERIFIED_STATUS_IDENTITY"},"status":{},"total_replies":0,"total_likes":0,"type":"STREAM_TYPE_POST","parent_stream_id":35071377}]}}}`
+
+func TestGetStreamConversation(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    []Option
+		handler func(t *testing.T, w http.ResponseWriter, r *http.Request)
+		check   func(t *testing.T, resp *StreamConversationResponse)
+		wantErr bool
+	}{
+		{
+			name: "posts to the conversation path with an empty body",
+			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/stream/v3/conversation/35071377", r.URL.Path)
+				body, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				assert.Empty(t, body)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(conversationBody))
+			},
+			check: func(t *testing.T, resp *StreamConversationResponse) {
+				c := resp.Data.Conversation
+				assert.False(t, c.More)
+				assert.True(t, c.Prev)
+				assert.Equal(t, int64(35071377), c.Parent.StreamID)
+				assert.Equal(t, "StockbitReports", c.Parent.User.Username)
+				require.NotNil(t, c.Parent.Summary)
+				assert.Equal(t, "SUMMARY_MODEL_AI", c.Parent.Summary.Model)
+				require.Len(t, c.Replies, 1)
+				assert.Equal(t, "good luck", c.Replies[0].Content)
+			},
+		},
+		{
+			name: "propagates upstream error",
+			handler: func(t *testing.T, w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"message":"Please check your request"}`))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				tt.handler(t, w, r)
+			}))
+			defer srv.Close()
+
+			opts := append([]Option{WithBaseURL(srv.URL)}, tt.opts...)
+			resp, err := New(opts...).GetStreamConversation(context.Background(), "35071377")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			tt.check(t, resp)
 		})
 	}
 }

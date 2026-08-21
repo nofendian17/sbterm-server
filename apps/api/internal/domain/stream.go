@@ -13,6 +13,14 @@ type UserStreamPaginate struct {
 	Total      int   `json:"total"`
 }
 
+// StreamConversationData is a stream post plus one page of its replies.
+type StreamConversationData struct {
+	More    bool         `json:"more"`
+	Prev    bool         `json:"prev"`
+	Parent  StreamPost   `json:"parent"`
+	Replies []StreamPost `json:"replies"`
+}
+
 // StreamPost is one post in a user stream feed.
 type StreamPost struct {
 	StreamID       int64           `json:"stream_id"`

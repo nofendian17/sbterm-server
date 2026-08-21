@@ -33,48 +33,7 @@ func (r *StreamRepository) GetUserStream(ctx context.Context, username, category
 	}
 	posts := make([]domain.StreamPost, 0, len(resp.Data.Stream))
 	for _, p := range resp.Data.Stream {
-		posts = append(posts, domain.StreamPost{
-			StreamID:       p.StreamID,
-			TitleURL:       p.TitleURL,
-			Title:          p.Title,
-			Content:        p.Content,
-			CreatedAt:      p.CreatedAt,
-			CreatedDisplay: p.CreatedDisplay,
-			UpdatedAt:      p.UpdatedAt,
-			User: domain.StreamUser{
-				UserID:         p.User.UserID,
-				IsAuthor:       p.User.IsAuthor,
-				Username:       p.User.Username,
-				Fullname:       p.User.Fullname,
-				Avatar:         p.User.Avatar,
-				IsVerified:     p.User.IsVerified,
-				UserPrivilege:  p.User.UserPrivilege,
-				IsPro:          p.User.IsPro,
-				Country:        p.User.Country,
-				VerifiedStatus: p.User.VerifiedStatus,
-			},
-			Status: domain.StreamStatus{
-				IsPinned:      p.Status.IsPinned,
-				IsTrending:    p.Status.IsTrending,
-				IsReposted:    p.Status.IsReposted,
-				IsLiked:       p.Status.IsLiked,
-				IsSaved:       p.Status.IsSaved,
-				IsFollowed:    p.Status.IsFollowed,
-				IsUnavailable: p.Status.IsUnavailable,
-				IsJunk:        p.Status.IsJunk,
-				IsSpam:        p.Status.IsSpam,
-				IsViolation:   p.Status.IsViolation,
-				IsDeleted:     p.Status.IsDeleted,
-			},
-			TotalReplies:   p.TotalReplies,
-			TotalLikes:     p.TotalLikes,
-			Type:           p.Type,
-			ParentStreamID: p.ParentStreamID,
-			Reports:        toStreamReports(p.Reports),
-			Topics:         p.Topics,
-			Summary:        toStreamSummary(p.Summary),
-			Reaction:       toStreamReaction(p.Reaction),
-		})
+		posts = append(posts, toDomainStreamPost(p))
 	}
 	return &domain.UserStreamData{
 		Stream: posts,
@@ -85,6 +44,73 @@ func (r *StreamRepository) GetUserStream(ctx context.Context, username, category
 		},
 		InvalidWatchlistIDs: resp.Data.InvalidWatchlistIDs,
 	}, nil
+}
+
+func (r *StreamRepository) GetStreamConversation(ctx context.Context, streamID string) (*domain.StreamConversationData, error) {
+	resp, err := r.client.GetStreamConversation(ctx, streamID)
+	if err != nil {
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+		}
+		return nil, err
+	}
+	c := resp.Data.Conversation
+	replies := make([]domain.StreamPost, 0, len(c.Replies))
+	for _, p := range c.Replies {
+		replies = append(replies, toDomainStreamPost(p))
+	}
+	return &domain.StreamConversationData{
+		More:    c.More,
+		Prev:    c.Prev,
+		Parent:  toDomainStreamPost(c.Parent),
+		Replies: replies,
+	}, nil
+}
+
+func toDomainStreamPost(p stockbit.StreamPost) domain.StreamPost {
+	return domain.StreamPost{
+		StreamID:       p.StreamID,
+		TitleURL:       p.TitleURL,
+		Title:          p.Title,
+		Content:        p.Content,
+		CreatedAt:      p.CreatedAt,
+		CreatedDisplay: p.CreatedDisplay,
+		UpdatedAt:      p.UpdatedAt,
+		User: domain.StreamUser{
+			UserID:         p.User.UserID,
+			IsAuthor:       p.User.IsAuthor,
+			Username:       p.User.Username,
+			Fullname:       p.User.Fullname,
+			Avatar:         p.User.Avatar,
+			IsVerified:     p.User.IsVerified,
+			UserPrivilege:  p.User.UserPrivilege,
+			IsPro:          p.User.IsPro,
+			Country:        p.User.Country,
+			VerifiedStatus: p.User.VerifiedStatus,
+		},
+		Status: domain.StreamStatus{
+			IsPinned:      p.Status.IsPinned,
+			IsTrending:    p.Status.IsTrending,
+			IsReposted:    p.Status.IsReposted,
+			IsLiked:       p.Status.IsLiked,
+			IsSaved:       p.Status.IsSaved,
+			IsFollowed:    p.Status.IsFollowed,
+			IsUnavailable: p.Status.IsUnavailable,
+			IsJunk:        p.Status.IsJunk,
+			IsSpam:        p.Status.IsSpam,
+			IsViolation:   p.Status.IsViolation,
+			IsDeleted:     p.Status.IsDeleted,
+		},
+		TotalReplies:   p.TotalReplies,
+		TotalLikes:     p.TotalLikes,
+		Type:           p.Type,
+		ParentStreamID: p.ParentStreamID,
+		Reports:        toStreamReports(p.Reports),
+		Topics:         p.Topics,
+		Summary:        toStreamSummary(p.Summary),
+		Reaction:       toStreamReaction(p.Reaction),
+	}
 }
 
 func (r *StreamRepository) GetStreamAnnouncement(ctx context.Context, streamID string) ([]domain.StreamAnnouncement, error) {

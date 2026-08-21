@@ -10,6 +10,7 @@ import (
 
 const (
 	userStreamPath         = "/stream/v3/user"
+	streamConversationPath = "/stream/v3/conversation"
 	streamAnnouncementPath = "/stream/announcement"
 )
 
@@ -130,12 +131,38 @@ type StreamAnnouncementResponse struct {
 	Data    []StreamAnnouncement `json:"data"`
 }
 
+// StreamConversationResponse is the conversation endpoint payload: the parent
+// post plus one page of its replies.
+type StreamConversationResponse struct {
+	Message string `json:"message"`
+	Data    struct {
+		Conversation struct {
+			More    bool         `json:"more"`
+			Prev    bool         `json:"prev"`
+			Parent  StreamPost   `json:"parent"`
+			Replies []StreamPost `json:"replies"`
+		} `json:"conversation"`
+	} `json:"data"`
+}
+
 // GetStreamAnnouncement returns the announcement attachments for a stream post
 // identified by its UUID. The access token is attached automatically.
 func (c *Client) GetStreamAnnouncement(ctx context.Context, streamID string) (*StreamAnnouncementResponse, error) {
 	path := streamAnnouncementPath + "/" + url.PathEscape(streamID)
 	var out StreamAnnouncementResponse
 	if err := c.Get(ctx, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetStreamConversation returns a stream post (by id, e.g. a notification's
+// link_to.value) together with one page of its replies. Upstream exposes this
+// as a body-less POST. The access token is attached automatically.
+func (c *Client) GetStreamConversation(ctx context.Context, streamID string) (*StreamConversationResponse, error) {
+	path := streamConversationPath + "/" + url.PathEscape(streamID)
+	var out StreamConversationResponse
+	if err := c.Post(ctx, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

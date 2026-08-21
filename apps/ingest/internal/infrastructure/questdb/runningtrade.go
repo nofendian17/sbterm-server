@@ -3,6 +3,7 @@ package questdb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	qdb "github.com/questdb/go-questdb-client/v4"
@@ -18,11 +19,13 @@ type runningTradeBatchSink struct {
 	sender qdb.QwpSender
 }
 
-// Store writes every trade in the batch as a row. While the table schema is
-// pending the batch is skipped (logged at debug) instead of buffered, so the
-// first data written always lands in the partitioned, deduplicated table. Rows
-// are left buffered for the sender's auto-flush (qwpAutoFlushRows) so each QWP
-// transaction carries a meaningful number of rows; Close flushes the tail.
+// Store writes every trade in the batch as a row and flushes the sender so the
+// rows are pushed to QuestDB before the call returns. The returned error (from
+// either a schema wait or a flush) signals that the batch was not durably
+// persisted; the ingest loop uses that to withhold the Kafka offset and force
+// redelivery. While the table schema is pending the batch is skipped (logged at
+// debug) instead of buffered, so the first data written always lands in the
+// partitioned, deduplicated table.
 func (s *runningTradeBatchSink) Store(ctx context.Context, batch *datafeedv1.RunningTradeBatch) error {
 	if err := s.client.ensureSchema(ctx, s.client.table, errSchemaPending); err != nil {
 		if errors.Is(err, errSchemaPending) {
@@ -35,6 +38,9 @@ func (s *runningTradeBatchSink) Store(ctx context.Context, batch *datafeedv1.Run
 		if err := s.write(ctx, t); err != nil {
 			return err
 		}
+	}
+	if err := s.sender.Flush(ctx); err != nil {
+		return fmt.Errorf("questdb: flush running trade batch: %w", err)
 	}
 	return nil
 }

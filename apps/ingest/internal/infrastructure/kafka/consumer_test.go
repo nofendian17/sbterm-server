@@ -109,3 +109,37 @@ func pollN(t *testing.T, c *Consumer, n int, timeout time.Duration) []*kgo.Recor
 	}
 	return out
 }
+
+func TestConsumerMarkCommit(t *testing.T) {
+	cluster, err := kfake.NewCluster(kfake.SeedTopics(1, "t-commit"))
+	require.NoError(t, err)
+	defer cluster.Close()
+
+	seedRecords(t, cluster.ListenAddrs(), "t-commit", []string{"a", "b", "c", "d"})
+
+	consumer, err := NewConsumer(cluster.ListenAddrs(), "grp-commit", []string{"t-commit"})
+	require.NoError(t, err)
+
+	recs := pollN(t, consumer, 4, 5*time.Second)
+	require.Len(t, recs, 4)
+
+	// Committing an empty slice is a no-op and must not error.
+	require.NoError(t, consumer.MarkCommit(context.Background(), nil))
+
+	// Commit the first two records. Then fully leave the group so a fresh
+	// consumer in the same group resumes at offset 2 ("c", "d").
+	require.NoError(t, consumer.MarkCommit(context.Background(), recs[:2]))
+	consumer.Close()
+
+	// Give kfake time to apply the commit and process the leave-group so the
+	// second consumer sees the committed offset rather than the topic head.
+	time.Sleep(500 * time.Millisecond)
+
+	consumer2, err := NewConsumer(cluster.ListenAddrs(), "grp-commit", []string{"t-commit"})
+	require.NoError(t, err)
+	defer consumer2.Close()
+	rest := pollN(t, consumer2, 2, 5*time.Second)
+	require.Len(t, rest, 2, "redelivery should skip already-committed records")
+	assert.Equal(t, "c", string(rest[0].Value))
+	assert.Equal(t, "d", string(rest[1].Value))
+}

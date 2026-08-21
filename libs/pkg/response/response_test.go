@@ -1,9 +1,7 @@
 package response
 
 import (
-	"bytes"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -11,196 +9,39 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResponses(t *testing.T) {
+func TestUpstream(t *testing.T) {
 	tests := []struct {
-		name        string
-		write       func(w http.ResponseWriter)
-		wantStatus  int
-		wantSuccess bool
-		wantMessage string
-		wantErrCode string
-		wantDetails map[string]string
-		wantData    bool
-		wantMeta    *MetaBody
-		wantNoBody  bool
+		name           string
+		status         int
+		retryAfter     string
+		alsoNoData     []int
+		wantStatus     int
+		wantCode       string
+		wantRetryAfter string
 	}{
-		{
-			name: "ok writes 200 with data",
-			write: func(w http.ResponseWriter) {
-				OK(w, map[string]string{"id": "1"})
-			},
-			wantStatus:  http.StatusOK,
-			wantSuccess: true,
-			wantData:    true,
-		},
-		{
-			name: "created writes 201",
-			write: func(w http.ResponseWriter) {
-				Created(w, "resource")
-			},
-			wantStatus:  http.StatusCreated,
-			wantSuccess: true,
-			wantData:    true,
-		},
-		{
-			name: "success writes custom status",
-			write: func(w http.ResponseWriter) {
-				Success(w, http.StatusAccepted, "accepted")
-			},
-			wantStatus:  http.StatusAccepted,
-			wantSuccess: true,
-			wantData:    true,
-		},
-		{
-			name: "message writes without data",
-			write: func(w http.ResponseWriter) {
-				Message(w, http.StatusOK, "all good")
-			},
-			wantStatus:  http.StatusOK,
-			wantSuccess: true,
-			wantMessage: "all good",
-			wantData:    false,
-		},
-		{
-			name: "no content writes empty body",
-			write: func(w http.ResponseWriter) {
-				NoContent(w)
-			},
-			wantStatus: http.StatusNoContent,
-			wantNoBody: true,
-		},
-		{
-			name: "error writes error envelope",
-			write: func(w http.ResponseWriter) {
-				Error(w, http.StatusNotFound, CodeNotFound, "user not found")
-			},
-			wantStatus:  http.StatusNotFound,
-			wantSuccess: false,
-			wantMessage: "user not found",
-			wantErrCode: CodeNotFound,
-		},
-		{
-			name: "validation error writes details",
-			write: func(w http.ResponseWriter) {
-				ValidationError(w, "invalid input", map[string]string{"email": "must be a valid email address"})
-			},
-			wantStatus:  http.StatusUnprocessableEntity,
-			wantSuccess: false,
-			wantMessage: "invalid input",
-			wantErrCode: CodeValidation,
-			wantDetails: map[string]string{"email": "must be a valid email address"},
-		},
-		{
-			name: "paginated writes data and meta",
-			write: func(w http.ResponseWriter) {
-				Paginated(w, []string{"item1", "item2"}, &MetaBody{
-					Page:       1,
-					Limit:      10,
-					TotalItems: 100,
-					TotalPages: 10,
-				})
-			},
-			wantStatus:  http.StatusOK,
-			wantSuccess: true,
-			wantData:    true,
-			wantMeta: &MetaBody{
-				Page:       1,
-				Limit:      10,
-				TotalItems: 100,
-				TotalPages: 10,
-			},
-		},
+		{name: "400 becomes 422 validation", status: 400, wantStatus: 422, wantCode: CodeValidation},
+		{name: "404 in alsoNoData becomes 422", status: 404, alsoNoData: []int{404}, wantStatus: 422, wantCode: CodeValidation},
+		{name: "404 alone becomes 500", status: 404, wantStatus: 500, wantCode: CodeInternalError},
+		{name: "429 becomes 429 with retry-after", status: 429, retryAfter: "30", wantStatus: 429, wantCode: CodeTooManyRequests, wantRetryAfter: "30"},
+		{name: "429 without hint has no header", status: 429, wantStatus: 429, wantCode: CodeTooManyRequests},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			tt.write(rec)
+			wrote := Upstream(rec, tt.status, tt.retryAfter, "no data", "fallback", tt.alsoNoData...)
 
+			require.True(t, wrote)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 
-			if tt.wantNoBody {
-				assert.Empty(t, rec.Body.String())
-				return
-			}
-
 			var env struct {
-				Success bool            `json:"success"`
-				Message string          `json:"message"`
-				Data    json.RawMessage `json:"data"`
-				Meta    *MetaBody       `json:"meta"`
-				Error   *struct {
-					Code    string            `json:"code"`
-					Message string            `json:"message"`
-					Details map[string]string `json:"details"`
+				Error struct {
+					Code string `json:"code"`
 				} `json:"error"`
 			}
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
-
-			assert.Equal(t, tt.wantSuccess, env.Success)
-			if tt.wantMessage != "" {
-				assert.Equal(t, tt.wantMessage, env.Message)
-			}
-			if tt.wantData {
-				assert.NotEmpty(t, env.Data)
-			} else {
-				assert.Empty(t, env.Data)
-			}
-			if tt.wantErrCode != "" {
-				require.NotNil(t, env.Error)
-				assert.Equal(t, tt.wantErrCode, env.Error.Code)
-			} else {
-				assert.Nil(t, env.Error)
-			}
-			if tt.wantDetails != nil {
-				require.NotNil(t, env.Error)
-				assert.Equal(t, tt.wantDetails, env.Error.Details)
-			}
-			if tt.wantMeta != nil {
-				require.NotNil(t, env.Meta)
-				assert.Equal(t, tt.wantMeta, env.Meta)
-			}
-		})
-	}
-}
-
-func TestWriteJSON(t *testing.T) {
-	tests := []struct {
-		name     string
-		status   int
-		body     any
-		wantType string
-		check    func(t *testing.T, rec *httptest.ResponseRecorder)
-	}{
-		{
-			name:     "sets content type and encodes body",
-			status:   http.StatusOK,
-			body:     map[string]string{"a": "b"},
-			wantType: "application/json",
-			check: func(t *testing.T, rec *httptest.ResponseRecorder) {
-				assert.Contains(t, bytes.NewBuffer(rec.Body.Bytes()).String(), `"a":"b"`)
-			},
-		},
-		{
-			name:   "encode error returns internal server error",
-			status: http.StatusOK,
-			body:   map[string]any{"bad": make(chan struct{})},
-			check: func(t *testing.T, rec *httptest.ResponseRecorder) {
-				assert.Equal(t, http.StatusInternalServerError, rec.Code)
-				assert.Equal(t, "text/plain; charset=utf-8", rec.Header().Get("Content-Type"))
-				assert.Contains(t, rec.Body.String(), http.StatusText(http.StatusInternalServerError))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			WriteJSON(rec, tt.status, tt.body)
-			if tt.wantType != "" {
-				assert.Equal(t, tt.wantType, rec.Header().Get("Content-Type"))
-			}
-			tt.check(t, rec)
+			assert.Equal(t, tt.wantCode, env.Error.Code)
+			assert.Equal(t, tt.wantRetryAfter, rec.Header().Get("Retry-After"))
 		})
 	}
 }

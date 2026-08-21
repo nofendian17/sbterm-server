@@ -26,7 +26,7 @@ func (r *SearchRepository) GetSearch(ctx context.Context, keyword string, page i
 		// empty keyword) to a client-facing status.
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

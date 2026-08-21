@@ -159,8 +159,7 @@ func (h *StreamHandler) UserStream(w http.ResponseWriter, r *http.Request) {
 	data, err := h.uc.GetUserStream(r.Context(), username, req.Category, req.LastStreamID, req.Limit)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no user stream data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no user stream data for the requested parameters", "failed to get user stream") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get user stream")
@@ -199,8 +198,7 @@ func (h *StreamHandler) StreamConversation(w http.ResponseWriter, r *http.Reques
 	data, err := h.uc.GetStreamConversation(r.Context(), streamID)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && (upErr.Status == http.StatusBadRequest || upErr.Status == http.StatusNotFound) {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no conversation data for the requested stream")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no conversation data for the requested stream", "failed to get stream conversation", http.StatusNotFound) {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get stream conversation")
@@ -229,8 +227,7 @@ func (h *StreamHandler) StreamAnnouncement(w http.ResponseWriter, r *http.Reques
 	announcements, err := h.uc.GetStreamAnnouncement(r.Context(), streamID)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no announcement data for the requested stream")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no announcement data for the requested stream", "failed to get stream announcement") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get stream announcement")

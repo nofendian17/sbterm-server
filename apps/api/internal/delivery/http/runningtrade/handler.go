@@ -186,8 +186,7 @@ func (h *RunningTradeHandler) RunningTradeChart(w http.ResponseWriter, r *http.R
 		// today before the market closes). Surface that as a clear 422 instead
 		// of a confusing 500.
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no running trade data for the requested date range")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no running trade data for the requested date range", "failed to get running trade chart") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get running trade chart")
@@ -238,8 +237,7 @@ func (h *RunningTradeHandler) RunningTrade(w http.ResponseWriter, r *http.Reques
 	data, err := h.uc.GetRunningTrade(r.Context(), req.Symbol, req.Sort, req.OrderBy, req.Date, req.Limit, req.TradeNumber)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no running trade data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no running trade data for the requested parameters", "failed to get running trade") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get running trade")

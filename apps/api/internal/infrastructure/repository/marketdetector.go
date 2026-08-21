@@ -26,7 +26,7 @@ func (r *MarketDetectorRepository) GetMarketDetector(ctx context.Context, symbol
 		// invalid date range) to a client-facing status.
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

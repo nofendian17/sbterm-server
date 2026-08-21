@@ -24,7 +24,7 @@ func (r *ActivityRepository) GetActivityChart(ctx context.Context, symbols, brok
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (r *ActivityRepository) GetActivity(ctx context.Context, brokerCode []strin
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (r *ActivityRepository) GetActivityHistorical(ctx context.Context, interval
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (r *ActivityRepository) GetBrokerDistribution(ctx context.Context, symbol, 
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

@@ -32,7 +32,7 @@ func (r *OrderQueueRepository) GetOrderQueue(ctx context.Context, stockCode, act
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

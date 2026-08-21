@@ -135,8 +135,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	result, err := h.uc.GetSearch(r.Context(), req.Keyword, req.Page, req.Type)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "invalid search parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "invalid search parameters", "failed to search") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to search")

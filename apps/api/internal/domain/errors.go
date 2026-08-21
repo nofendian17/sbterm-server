@@ -8,6 +8,8 @@ import "fmt"
 type UpstreamError struct {
 	Status int
 	Msg    string
+	// RetryAfter carries the upstream rate-limit hint for 429 responses.
+	RetryAfter string
 }
 
 func (e *UpstreamError) Error() string {

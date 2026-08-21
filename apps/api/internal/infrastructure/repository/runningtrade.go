@@ -26,7 +26,7 @@ func (r *RunningTradeRepository) GetRunningTradeChart(ctx context.Context, symbo
 		// date whose session has no data yet) to a client-facing status.
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (r *RunningTradeRepository) GetRunningTrade(ctx context.Context, symbol, so
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

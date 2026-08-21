@@ -139,8 +139,7 @@ func (h *MarketDetectorHandler) MarketDetector(w http.ResponseWriter, r *http.Re
 	data, err := h.uc.GetMarketDetector(r.Context(), req.Symbol, req.From, req.To, req.TransactionType, req.MarketBoard, req.InvestorType, req.Limit)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no market detector data for the requested date range")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no market detector data for the requested date range", "failed to get market detector data") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get market detector data")

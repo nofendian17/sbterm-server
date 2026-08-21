@@ -133,8 +133,7 @@ func (h *OrderBookHandler) OrderBook(w http.ResponseWriter, r *http.Request) {
 	data, err := h.uc.GetOrderBook(r.Context(), req.Symbol)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no order book data for the requested symbol")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no order book data for the requested symbol", "failed to get order book") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get order book")

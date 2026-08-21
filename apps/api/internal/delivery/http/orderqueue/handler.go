@@ -132,8 +132,7 @@ func (h *OrderQueueHandler) OrderQueue(w http.ResponseWriter, r *http.Request) {
 	data, err := h.uc.GetOrderQueue(r.Context(), req.StockCode, req.ActionType, req.BoardType, req.OrderStatus, req.SortBy, req.SortDirection, req.Limit, req.Price)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no order queue data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no order queue data for the requested parameters", "failed to get order queue") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get order queue")

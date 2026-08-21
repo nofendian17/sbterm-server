@@ -23,7 +23,7 @@ func (r *ForeignDomesticRepository) GetForeignDomesticHistorical(ctx context.Con
 	if err != nil {
 		var se *stockbit.StatusError
 		if errors.As(err, &se) {
-			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg}
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
 		}
 		return nil, err
 	}

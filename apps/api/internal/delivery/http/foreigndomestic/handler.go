@@ -124,8 +124,7 @@ func (h *ForeignDomesticHandler) ForeignDomesticHistorical(w http.ResponseWriter
 	data, err := h.uc.GetForeignDomesticHistorical(r.Context(), req.Symbol, req.MarketType, req.Period, req.From, req.To)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no foreign domestic data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no foreign domestic data for the requested parameters", "failed to get foreign domestic historical") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get foreign domestic historical")

@@ -272,8 +272,7 @@ func (h *ActivityHandler) ActivityChart(w http.ResponseWriter, r *http.Request) 
 	data, err := h.uc.GetActivityChart(r.Context(), req.Symbols, req.BrokersCode, req.From, req.To, req.Period, req.InvestorType, req.MarketBoard)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no activity chart data for the requested date range")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no activity chart data for the requested date range", "failed to get activity chart") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get activity chart")
@@ -328,8 +327,7 @@ func (h *ActivityHandler) Activity(w http.ResponseWriter, r *http.Request) {
 	data, err := h.uc.GetActivity(r.Context(), req.BrokerCode, req.TransactionType, req.InvestorType, req.MarketBoard, req.Limit, req.Page, req.From, req.To, req.NetValPeriod)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no activity data for the requested date range")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no activity data for the requested date range", "failed to get activity") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get activity")
@@ -373,8 +371,7 @@ func (h *ActivityHandler) ActivityHistorical(w http.ResponseWriter, r *http.Requ
 	data, err := h.uc.GetActivityHistorical(r.Context(), req.Interval, req.DateFrom, req.DateTo, req.BrokerCodes, req.Symbols, req.MarketBoard, req.InvestorType, req.NetInterval)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no broker activity historical data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no broker activity historical data for the requested parameters", "failed to get broker activity historical") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get broker activity historical")
@@ -632,8 +629,7 @@ func (h *ActivityHandler) BrokerDistribution(w http.ResponseWriter, r *http.Requ
 	data, err := h.uc.GetBrokerDistribution(r.Context(), req.Symbol, req.InvestorType, req.MarketBoard, req.DataType, req.Date, req.From, req.To)
 	if err != nil {
 		var upErr *domain.UpstreamError
-		if errors.As(err, &upErr) && upErr.Status == http.StatusBadRequest {
-			response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "no broker distribution data for the requested parameters")
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no broker distribution data for the requested parameters", "failed to get broker distribution") {
 			return
 		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get broker distribution")

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"slices"
 )
 
 const (
@@ -102,4 +103,24 @@ func ValidationError(w http.ResponseWriter, message string, details map[string]s
 			Details: details,
 		},
 	})
+}
+
+// Upstream maps one upstream failure onto the envelope and returns true when
+// it wrote a response. Status 400 (or any status in alsoNoData) becomes 422
+// VALIDATION_ERROR with message; 429 becomes 429 TOO_MANY_REQUESTS honoring
+// retryAfter (RFC 8574, seconds or HTTP-date, passed through verbatim);
+// anything else becomes 500 with fallback.
+func Upstream(w http.ResponseWriter, upstreamStatus int, retryAfter, message, fallback string, alsoNoData ...int) bool {
+	switch {
+	case upstreamStatus == http.StatusBadRequest || slices.Contains(alsoNoData, upstreamStatus):
+		Error(w, http.StatusUnprocessableEntity, CodeValidation, message)
+	case upstreamStatus == http.StatusTooManyRequests:
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		Error(w, http.StatusTooManyRequests, CodeTooManyRequests, "upstream rate limited; slow down and retry")
+	default:
+		Error(w, http.StatusInternalServerError, CodeInternalError, fallback)
+	}
+	return true
 }

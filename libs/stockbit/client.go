@@ -47,6 +47,8 @@ type StatusError struct {
 	Method string
 	Path   string
 	Msg    string
+	// RetryAfter carries the upstream Retry-After hint (429 responses).
+	RetryAfter string
 }
 
 func (e *StatusError) Error() string {
@@ -283,7 +285,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 			msg := truncate(string(respBytes))
-			err := &StatusError{Status: resp.StatusCode, Method: method, Path: path, Msg: strings.TrimSpace(msg)}
+			err := &StatusError{Status: resp.StatusCode, Method: method, Path: path, Msg: strings.TrimSpace(msg), RetryAfter: resp.Header.Get("Retry-After")}
 			if resp.StatusCode == http.StatusUnauthorized {
 				return errors.Join(ErrUnauthorized, err)
 			}

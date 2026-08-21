@@ -2225,7 +2225,10 @@ server accepts a plain GET).
 | `stream_id` | path | the post id — a notification's `link_to.value` |
 
 - **Chaining:** `GET /api/v1/notifications` → take `items[].link_to.value` →
-  pass it here to render the notification's content.
+  pass it here to render the notification's content. For report posts,
+  `parent.title_url` (`streams/announcement/<uuid>`) feeds the
+  [announcement endpoint](#get-apiv1streamannouncementstream_id) to fetch the
+  attached PDFs.
 - Unknown/expired `stream_id` (upstream 400/404) → `422 VALIDATION_ERROR`
   (`no conversation data for the requested stream`). Via the router, an empty
   segment doesn't match the route and falls through to `404`.

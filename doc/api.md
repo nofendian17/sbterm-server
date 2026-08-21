@@ -1176,6 +1176,9 @@ date range or a preset period (proxies `/order-trade/running-trade/chart/{symbol
 - `broker_code` is repeatable; each value selects a broker whose series is
   included in `broker_chart_data`. Omitted → upstream picks its default set
   (live-verified: `XL, BK, AK, CC, YU` for DSSA over `2026-08-02..2026-08-11`).
+  **Upstream caps `broker_code` at 7 per request** — 8 or more returns the
+  misleading `422 no running trade data for the requested date range` even when
+  data exists; split into multiple calls of ≤ 7 brokers and merge client-side.
 - `investor_type` and `market_board` default to `INVESTOR_TYPE_ALL` /
   `BOARD_TYPE_ALL` when omitted.
 

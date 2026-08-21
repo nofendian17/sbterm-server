@@ -107,12 +107,12 @@ func (s *Service) processFetches(fetches kgo.Fetches) {
 }
 
 // trimToPartition returns the committed slice with the failing record and any
-// later record on the same partition removed, so the batch resumes exactly at
-// the failed offset.
+// later record on the same topic partition removed, so the batch resumes
+// exactly at the failed offset.
 func trimToPartition(committed []*kgo.Record, failedAt *kgo.Record) []*kgo.Record {
 	out := committed[:0]
 	for _, r := range committed {
-		if r.Partition == failedAt.Partition && r.Offset >= failedAt.Offset {
+		if r.Topic == failedAt.Topic && r.Partition == failedAt.Partition && r.Offset >= failedAt.Offset {
 			continue
 		}
 		out = append(out, r)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 
@@ -101,6 +102,20 @@ func TestProcessFetchesStopsAndRedeliversOnError(t *testing.T) {
 	// Only offset 10 is committed; 11 and 12 are redelivered.
 	verifyCommitted(t, committer, []int64{10})
 	assert.Equal(t, uint64(2), failing.calls, "the failure record should be attempted but not beyond")
+}
+
+// TestTrimToPartitionKeepsOtherTopics verifies that trimming on failure keys
+// on (topic, partition), not partition alone: another topic's record that
+// shares the partition number must survive the trim.
+func TestTrimToPartitionKeepsOtherTopics(t *testing.T) {
+	committed := []*kgo.Record{rec("t2", 0, 20), rec("t1", 0, 10)}
+	out := trimToPartition(committed, rec("t1", 0, 11))
+
+	var got []string
+	for _, r := range out {
+		got = append(got, fmt.Sprintf("%s/%d@%d", r.Topic, r.Partition, r.Offset))
+	}
+	assert.Equal(t, []string{"t2/0@20", "t1/0@10"}, got)
 }
 
 // offsetFailingSink fails on its second Store call. Records are processed in

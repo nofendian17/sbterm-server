@@ -1,0 +1,18 @@
+# HTTP port serving GET /ws and GET /healthz.
+port: ":8081"
+
+# Kafka consumer settings for the fan-out stream.
+# In Docker Compose, use broker host "redpanda" (redpanda:29092).
+# The consumer group is dedicated to this app; offsets start at the end of
+# every partition and are never committed — durability belongs to apps/ingest.
+kafka:
+  brokers: ["redpanda:29092"]
+  group: sbterm-stream
+  running_trade_batch_topic: datafeed.running_trade_batch
+
+# Logging settings.
+# format supports "text" and "json".
+log:
+  level: info
+  format: text
+  add_source: false

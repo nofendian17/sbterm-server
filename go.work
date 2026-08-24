@@ -2,8 +2,10 @@ go 1.26.5
 
 use (
 	./apps/api
-	./apps/ws
 	./apps/ingest
+	./apps/stream
+	./apps/ws
+	./libs/marketdata
 	./libs/pkg
 	./libs/proto
 	./libs/stockbit

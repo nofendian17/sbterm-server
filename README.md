@@ -1,6 +1,6 @@
 # sbterm-server
 
-Go monorepo (single `go.work` workspace, six modules) for a Stockbit real-time price pipeline. Data flows **Stockbit WS → apps/ws → Redpanda/Kafka → apps/ingest → QuestDB**, alongside a REST API (`apps/api`) built on strict Clean Architecture (domain → usecase → repository (contract) → infrastructure) with dependency injection via [samber/do](https://github.com/samber/do).
+Go monorepo (single `go.work` workspace, eight modules) for a Stockbit real-time price pipeline. Data flows **Stockbit WS → apps/ws → Redpanda/Kafka → apps/ingest → QuestDB**, alongside a REST API (`apps/api`) built on strict Clean Architecture (domain → usecase → repository (contract) → infrastructure) with dependency injection via [samber/do](https://github.com/samber/do), and a public WebSocket fan-out (`apps/stream`) that streams the `datafeed.running_trade_batch` topic to external clients with per-channel symbol subscriptions.
 
 ## Tech Stack
 
@@ -42,15 +42,24 @@ apps/
     internal/
       infrastructure/           # questdb + kafka consumer
       service/                  # consume + insert pipeline
+  stream/                       # Kafka consumer → WebSocket fan-out to external clients
+    cmd/stream/main.go
+    internal/
+      container/                # DI wiring + lifecycle (shutdown: loop → HTTP → hub → Kafka)
+      service/                  # channel registry, hub fan-out, client buffer/write pump, poll loop
+      delivery/ws/              # chi router, gorilla upgrade GET /ws, GET /healthz, control-frame parsing
+      infrastructure/           # viper config, kafka consumer group (offset AtEnd, no commit)
 libs/
   pkg/                          # shared: log, httpclient, response, validator
+  marketdata/                   # canonical projections shared by ingest (DB rows) and stream (WS envelopes)
   proto/                        # generated/wire-compat protobuf types (datav1, datafeedv1, ...)
   stockbit/                     # stockbit SDK types
 Makefile
-docker-compose.yml              # api/ws/ingest + postgres, redis, redpanda, questdb
+docker-compose.yml              # api/ws/ingest/stream + postgres, redis, redpanda, questdb
 config.api.yaml.example          # apps/api config
 config.ws.yaml.example          # apps/ws config
 config.ingest.yaml.example      # apps/ingest config
+config.stream.yaml.example      # apps/stream config
 ```
 
 ## Commands
@@ -59,8 +68,9 @@ config.ingest.yaml.example      # apps/ingest config
 make run-api       # go run ./apps/api/cmd/server
 make run-ws        # go run ./apps/ws/cmd/ws
 make run-ingest    # go run ./apps/ingest/cmd/ingest
-make build         # build sbterm-api/sbterm-ws/sbterm-ingest into bin/
-make test          # go test ./... in every module (apps/api apps/ws apps/ingest libs/pkg libs/proto libs/stockbit)
+make run-stream    # go run ./apps/stream/cmd/stream
+make build         # build sbterm-api/sbterm-ws/sbterm-ingest/sbterm-stream into bin/
+make test          # go test ./... in every module (apps/api apps/ws apps/ingest apps/stream libs/pkg libs/marketdata libs/proto libs/stockbit)
 make test-race     # same, with the race detector
 make vet           # go vet ./... in every module
 make mock          # cd apps/api && go generate ./... (regenerate mocks)
@@ -74,7 +84,7 @@ make install-hooks # install git hooks (core.hooksPath -> .githooks)
 
 ## Config
 
-Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.api.yaml.example` (api), `config.ws.yaml.example` (ws), or `config.ingest.yaml.example` (ingest) to `config.api.yaml`, `config.ws.yaml`, `config.ingest.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `stockbit.ws_url`, `redis.url`, `kafka.brokers`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
+Each service reads its own YAML via [viper](https://github.com/spf13/viper): copy `config.api.yaml.example` (api), `config.ws.yaml.example` (ws), `config.ingest.yaml.example` (ingest), or `config.stream.yaml.example` (stream) to `config.api.yaml`, `config.ws.yaml`, `config.ingest.yaml`, `config.stream.yaml` respectively — the live files are gitignored. Keys resolve dotted/nested names like `app.name`, `port`, `stockbit.ws_url`, `redis.url`, `kafka.brokers`, `kafka.group`, `questdb.url`, `log.level`, and `http.read_timeout`; see the `.example` files for the full schema and defaults.
 
 - App metadata: `app.name`, `app.version` (default `dev`).
 - Build-time version can be set through ldflags:

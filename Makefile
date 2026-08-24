@@ -1,6 +1,6 @@
-.PHONY: help run-api run-ws run-ingest build test test-race vet fmt fmt-check install-hooks mock tidy
+.PHONY: help run-api run-ws run-ingest run-stream build test test-race vet fmt fmt-check install-hooks mock tidy
 
-MODULES := apps/api apps/ws apps/ingest libs/pkg libs/proto libs/stockbit
+MODULES := apps/api apps/ws apps/ingest apps/stream libs/pkg libs/marketdata libs/proto libs/stockbit
 
 GO_FILES := $(shell find apps libs -name '*.go')
 
@@ -16,11 +16,15 @@ run-ws: ## Run the datafeed websocket publisher
 run-ingest: ## Run the questdb ingester
 	go run ./apps/ingest/cmd/ingest
 
+run-stream: ## Run the websocket fan-out stream service
+	go run ./apps/stream/cmd/stream
+
 build: ## Build every binary into bin/
 	mkdir -p bin
 	go build -o bin/sbterm-api ./apps/api/cmd/server
 	go build -o bin/sbterm-ws ./apps/ws/cmd/ws
 	go build -o bin/sbterm-ingest ./apps/ingest/cmd/ingest
+	go build -o bin/sbterm-stream ./apps/stream/cmd/stream
 
 test: ## Run all tests in the workspace
 	@for d in $(MODULES); do \

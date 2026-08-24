@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	qdb "github.com/questdb/go-questdb-client/v4"
 
+	"github.com/nofendian17/sbterm/libs/marketdata"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
 
@@ -51,47 +51,24 @@ func (s *runningTradeBatchSink) Close(ctx context.Context) error {
 }
 
 // write appends one trade row. Column order follows the QWP constraint: Table,
-// then Symbols, then columns, then the row finalizer (At).
+// then Symbols, then columns, then the row finalizer (At). The projection
+// comes from marketdata.NewTrade — the same mapper apps/stream serializes into
+// WebSocket envelopes, so a row and a client frame can never drift.
 func (s *runningTradeBatchSink) write(ctx context.Context, t *datafeedv1.RunningTrade) error {
+	row := marketdata.NewTrade(t)
 	s.sender.Table(s.client.table)
-	s.sender.Symbol("stock", t.GetStock())
-	s.sender.Symbol("action", t.GetAction().String())
-	s.sender.Symbol("market_board", t.GetMarketBoard().String())
-	s.sender.Float64Column("price", t.GetPrice())
-	s.sender.Int64Column("volume", int64(t.GetVolume()))
-	s.sender.BoolColumn("is_global", t.GetIsGlobal())
-	s.sender.Float64Column("change_value", changeValue(t))
-	s.sender.Float64Column("change_percentage", changePercentage(t))
-	s.sender.Int64Column("trade_number", int64(t.GetTradeNumber()))
-	s.sender.Float64Column("value", t.GetValue())
-	if ws := t.GetWebsocketTime(); ws != nil && ws.IsValid() {
-		s.sender.TimestampColumn("websocket_ts", ws.AsTime())
+	s.sender.Symbol("stock", row.Stock)
+	s.sender.Symbol("action", row.Action)
+	s.sender.Symbol("market_board", row.MarketBoard)
+	s.sender.Float64Column("price", row.Price)
+	s.sender.Int64Column("volume", row.Volume)
+	s.sender.BoolColumn("is_global", row.IsGlobal)
+	s.sender.Float64Column("change_value", row.ChangeValue)
+	s.sender.Float64Column("change_percentage", row.ChangePercentage)
+	s.sender.Int64Column("trade_number", row.TradeNumber)
+	s.sender.Float64Column("value", row.Value)
+	if row.WebsocketTS != nil {
+		s.sender.TimestampColumn("websocket_ts", *row.WebsocketTS)
 	}
-	return s.sender.At(ctx, tradeTimestamp(t))
-}
-
-// tradeTimestamp picks the row's designated timestamp: the trade time when
-// present, else the websocket receive time, else now.
-func tradeTimestamp(t *datafeedv1.RunningTrade) time.Time {
-	if ts := t.GetTime(); ts != nil && ts.IsValid() {
-		return ts.AsTime()
-	}
-	if ws := t.GetWebsocketTime(); ws != nil && ws.IsValid() {
-		return ws.AsTime()
-	}
-	return time.Now()
-}
-
-func changeValue(t *datafeedv1.RunningTrade) float64 {
-	if c := t.GetChange(); c != nil {
-		return c.GetValue()
-	}
-	return 0
-}
-
-func changePercentage(t *datafeedv1.RunningTrade) float64 {
-	if c := t.GetChange(); c != nil {
-		return c.GetPercentage()
-	}
-	return 0
+	return s.sender.At(ctx, row.TS)
 }

@@ -317,7 +317,11 @@ func (c *WSClient) readLoop(ctx context.Context, conn *websocket.Conn, handler W
 
 		msg := &datafeedv1.WebsocketWrapMessageChannel{}
 		if err := proto.Unmarshal(payload, msg); err != nil {
-			c.logDebug("stockbit ws: undecodable frame", "error", err, "raw", truncate(string(payload)))
+			// Guard before building args: string(payload)+truncate must not
+			// run per frame unless debug output is actually enabled.
+			if c.opts.logger != nil && c.opts.logger.Enabled(ctx, log.LevelDebug) {
+				c.logDebug("stockbit ws: undecodable frame", "error", err, "raw", truncate(string(payload)))
+			}
 			continue
 		}
 

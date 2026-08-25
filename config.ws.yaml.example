@@ -16,15 +16,13 @@ stockbit:
     - name: running_trade_batch_all
       channels:
         running_trade_batch: ["*"]
-    # Order book frames only stream when the order_book channel is subscribed
-    # together with liveprice, iepiev, and best_bid_offer on one connection,
-    # and the order_book channel does not accept "*" — list explicit symbols.
-    - name: microstructure_selected
-      channels:
-        order_book: ["BBCA", "BBRI"]
-        liveprice: ["BBCA", "BBRI"]
-        iepiev: ["BBCA", "BBRI"]
-        best_bid_offer: ["BBCA", "BBRI"]
+    # Dynamic microstructure subscription: symbols are resolved from
+    # GET {symbols.base_url}/api/v1/stocks on every (re)connect, and the
+    # connection is kicked daily at symbols.refresh_time (WIB) so reconnects
+    # pick up the freshest IHSG universe. Supported channels: order_book,
+    # liveprice, iepiev, best_bid_offer.
+    - name: microstructure_ihsg
+      dynamic_channels: [order_book, liveprice, iepiev, best_bid_offer]
   ws_ping_interval: 30s
   ws_reconnect_backoff_initial: 1s
   ws_reconnect_backoff_max: 30s
@@ -44,6 +42,14 @@ kafka:
   best_bid_offer_topic: datafeed.best_bid_offer
   iepiev_topic: datafeed.iepiev
   liveprice_topic: datafeed.liveprice
+
+# Dynamic symbol universe (used by subscriptions with dynamic_channels).
+# In Docker Compose, use host "api". refresh_time is WIB.
+symbols:
+  base_url: http://api:8080
+  timeout: 10s
+  cache_ttl: 10m
+  refresh_time: "08:45"
 
 # Logging settings.
 # format supports "text" and "json".

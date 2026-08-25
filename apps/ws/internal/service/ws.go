@@ -18,11 +18,15 @@ import (
 )
 
 // Subscription couples a dedicated datafeed websocket client with the channel
-// that the connection subscribes to on connect.
+// that the connection subscribes to on connect. When ChannelFn is set it wins
+// over Channel: every (re)connect re-resolves the symbols, and RefreshAt
+// schedules a daily kick (WIB) so reconnects pick up the freshest universe.
 type Subscription struct {
-	Name    string
-	Client  *stockbitws.WSClient
-	Channel *datafeedv1.WebsocketChannel
+	Name      string
+	Client    *stockbitws.WSClient
+	Channel   *datafeedv1.WebsocketChannel
+	ChannelFn stockbitws.ChannelProvider
+	RefreshAt string
 }
 
 // Service runs one Stockbit datafeed websocket client per subscription,
@@ -93,6 +97,13 @@ func (s *Service) Start() {
 			defer wg.Done()
 			s.run(sub, userID)
 		}()
+		if sub.ChannelFn != nil && sub.RefreshAt != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				s.refreshLoop(sub)
+			}()
+		}
 	}
 	go func() {
 		wg.Wait()
@@ -100,10 +111,39 @@ func (s *Service) Start() {
 	}()
 }
 
+// refreshLoop kicks the subscription's client at the configured daily WIB
+// time: closing the connection makes Run reconnect, and the reconnect resolves
+// a fresh symbol set through ChannelFn.
+func (s *Service) refreshLoop(sub *Subscription) {
+	for {
+		target, err := NextRefreshAt(time.Now(), sub.RefreshAt, wib)
+		if err != nil {
+			s.logger.Warn("ws: refresh schedule disabled", "subscription", sub.Name, "error", err)
+			return
+		}
+		timer := time.NewTimer(time.Until(target))
+		select {
+		case <-s.ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+			if sub.Client != nil {
+				sub.Client.Close()
+			}
+			s.logger.Info("ws: subscription refresh kicked", "subscription", sub.Name)
+		}
+	}
+}
+
 // run drives one subscription's connection until the shared context is
 // cancelled.
 func (s *Service) run(sub *Subscription, userID int64) {
-	request := stockbitws.WSSubscription{UserID: userID, Channel: sub.Channel}
+	request := stockbitws.WSSubscription{UserID: userID}
+	if sub.ChannelFn != nil {
+		request.ChannelFn = sub.ChannelFn
+	} else {
+		request.Channel = sub.Channel
+	}
 
 	err := sub.Client.Run(s.ctx, request, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {
 		return s.handleFrame(ctx, sub, m)

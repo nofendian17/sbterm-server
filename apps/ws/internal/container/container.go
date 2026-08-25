@@ -5,6 +5,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,8 +16,10 @@ import (
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/kafka"
 	stockbitws "github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/stockbit"
+	"github.com/nofendian17/sbterm/apps/ws/internal/infrastructure/symbols"
 	service "github.com/nofendian17/sbterm/apps/ws/internal/service"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
+	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 	"github.com/nofendian17/sbterm/libs/stockbit"
 )
 
@@ -67,6 +70,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		}
 
 		subs := make([]*service.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
+		var provider *symbols.Provider
 		for _, sub := range cfg.Stockbit.WSSubscriptions {
 			ws := stockbitws.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
 				key, err := refresher.Client().GetWebSocketKey(ctx)
@@ -82,11 +86,28 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 				stockbitws.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
 				stockbitws.WithWSLogger(logger),
 			)
-			subs = append(subs, &service.Subscription{
-				Name:    sub.Name,
-				Client:  ws,
-				Channel: service.BuildChannel(sub.Channels),
-			})
+
+			entry := &service.Subscription{
+				Name:   sub.Name,
+				Client: ws,
+			}
+			if len(sub.DynamicChannels) > 0 {
+				if provider == nil {
+					provider = symbols.New(cfg.Symbols.BaseURL, &http.Client{Timeout: cfg.Symbols.Timeout}, cfg.Symbols.CacheTTL)
+				}
+				dynamic := sub
+				entry.ChannelFn = func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
+					universe, err := provider.Symbols(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("ws: resolve dynamic symbols: %w", err)
+					}
+					return service.BuildMicrostructureChannel(dynamic.DynamicChannels, universe)
+				}
+				entry.RefreshAt = cfg.Symbols.RefreshTime
+			} else {
+				entry.Channel = service.BuildChannel(sub.Channels)
+			}
+			subs = append(subs, entry)
 		}
 
 		router := service.NewFrameRouter(publisher, service.Topics{

@@ -21,6 +21,7 @@ type Config struct {
 	Stockbit StockbitConfig `mapstructure:"stockbit"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Kafka    KafkaConfig    `mapstructure:"kafka"`
+	Symbols  SymbolsConfig  `mapstructure:"symbols"`
 	Log      LogConfig      `mapstructure:"log"`
 }
 
@@ -41,6 +42,10 @@ type StockbitConfig struct {
 type WSSubscriptionConfig struct {
 	Name     string          `mapstructure:"name"`
 	Channels WSChannelConfig `mapstructure:"channels"`
+	// DynamicChannels replaces the static symbol arrays with a per-connect
+	// symbol universe resolved from the sbterm api (/api/v1/stocks). Names
+	// accepted: order_book, liveprice, iepiev, best_bid_offer.
+	DynamicChannels []string `mapstructure:"dynamic_channels"`
 }
 
 type WSChannelConfig struct {
@@ -59,6 +64,16 @@ type WSChannelConfig struct {
 
 type RedisConfig struct {
 	URL string `mapstructure:"url"`
+}
+
+// SymbolsConfig tunes the dynamic symbol universe: where the sbterm api
+// lives, how long its list is trusted, and when (WIB) the microstructure
+// connections are kicked so reconnects pick up the freshest list.
+type SymbolsConfig struct {
+	BaseURL     string        `mapstructure:"base_url"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	CacheTTL    time.Duration `mapstructure:"cache_ttl"`
+	RefreshTime string        `mapstructure:"refresh_time"`
 }
 
 type KafkaConfig struct {
@@ -107,6 +122,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("stockbit.ws_reconnect_backoff_initial", time.Second)
 	v.SetDefault("stockbit.ws_reconnect_backoff_max", 30*time.Second)
 	v.SetDefault("redis.url", "redis://localhost:6379/0")
+	v.SetDefault("symbols.base_url", "http://localhost:8080")
+	v.SetDefault("symbols.timeout", 10*time.Second)
+	v.SetDefault("symbols.cache_ttl", 10*time.Minute)
+	v.SetDefault("symbols.refresh_time", "08:45")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")
 	v.SetDefault("kafka.order_book_topic", "datafeed.order_book")

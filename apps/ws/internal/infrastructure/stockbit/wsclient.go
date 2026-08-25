@@ -23,11 +23,19 @@ type KeyProvider func(ctx context.Context) (string, error)
 // frame. Optional; some datafeed endpoints authorize on it.
 type AccessTokenProvider func(ctx context.Context) (string, error)
 
+// ChannelProvider resolves the channels to subscribe right before every
+// dial. Returning an error backs the connect loop off and retries, so a
+// provider outage never tears down an already-healthy connection.
+type ChannelProvider func(ctx context.Context) (*datafeedv1.WebsocketChannel, error)
+
 // WSSubscription describes one datafeed subscription: the account user id and
-// the channels to subscribe the connection to.
+// the channels to subscribe the connection to. ChannelFn wins over Channel
+// when set: it is re-invoked on every connect attempt so reconnects always
+// carry the freshest symbol set.
 type WSSubscription struct {
-	UserID  int64
-	Channel *datafeedv1.WebsocketChannel
+	UserID    int64
+	Channel   *datafeedv1.WebsocketChannel
+	ChannelFn ChannelProvider
 }
 
 // WSHandler receives each decoded server frame. Returning an error is logged
@@ -159,6 +167,20 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			return nil
 		}
 
+		resolved := sub
+		if sub.ChannelFn != nil {
+			channel, err := sub.ChannelFn(ctx)
+			if err != nil {
+				c.logWarn("stockbit ws: resolve channel failed", "error", err)
+				if !sleepCtx(ctx, backoff) {
+					return nil
+				}
+				backoff = c.nextBackoff(backoff)
+				continue
+			}
+			resolved.Channel = channel
+		}
+
 		key, err := c.key(ctx)
 		if err != nil {
 			c.logWarn("stockbit ws: fetch key failed", "error", err)
@@ -193,7 +215,7 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 		}
 		// The frontend authenticates the connection with a channel-less frame,
 		// then subscribes to channels (verified live on stockbit.com).
-		if err := c.authenticate(conn, key, sub, access); err != nil {
+		if err := c.authenticate(conn, key, resolved, access); err != nil {
 			conn.Close()
 			c.logWarn("stockbit ws: authenticate failed", "error", err)
 			if !sleepCtx(ctx, backoff) {
@@ -202,7 +224,7 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			backoff = c.nextBackoff(backoff)
 			continue
 		}
-		if err := c.subscribe(conn, key, sub, access); err != nil {
+		if err := c.subscribe(conn, key, resolved, access); err != nil {
 			conn.Close()
 			c.logWarn("stockbit ws: subscribe failed", "error", err)
 			if !sleepCtx(ctx, backoff) {

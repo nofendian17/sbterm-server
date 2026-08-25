@@ -443,3 +443,97 @@ func TestWSClientSubscribeFrameRoundTrips(t *testing.T) {
 	assert.Equal(t, "667557", back.GetUserId())
 	assert.Equal(t, "wskey-session", back.GetKey())
 }
+
+// TestWSClientResolvesChannelOnEveryConnect asserts that a ChannelFn-backed
+// subscription re-resolves the channel before every dial, so a reconnect
+// always carries the freshest symbol set.
+func TestWSClientResolvesChannelOnEveryConnect(t *testing.T) {
+	const wskey = "l8IDNJKcalsaSZZCOR6A9K5BlPEpeuu542B4Fp6J4vA="
+
+	subscribed := make(chan []string, 2)
+	var conns atomic.Int32
+	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
+		_, req := readAuthThenSubscribe(t, c)
+		subscribed <- req.GetChannel().GetOrderBook()
+		if conns.Add(1) == 1 {
+			// Force the first connection closed so the client reconnects.
+			c.Close()
+			return
+		}
+		drain(c)
+	})
+
+	var calls atomic.Int32
+	fn := func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
+		if calls.Add(1) == 1 {
+			return WSChannelOrderBook("BBCA"), nil
+		}
+		return WSChannelOrderBook("BBRI", "BMRI"), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewWSClient(wsURL(srv), func(ctx context.Context) (string, error) { return wskey, nil },
+		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Run(ctx, WSSubscription{UserID: 42, ChannelFn: fn},
+			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
+	}()
+
+	select {
+	case first := <-subscribed:
+		assert.Equal(t, []string{"BBCA"}, first)
+	case <-time.After(2 * time.Second):
+		t.Fatal("first subscribe frame never arrived")
+	}
+	select {
+	case second := <-subscribed:
+		assert.Equal(t, []string{"BBRI", "BMRI"}, second, "reconnect must carry the freshly resolved channel")
+	case <-time.After(2 * time.Second):
+		t.Fatal("second subscribe frame never arrived")
+	}
+	cancel()
+	require.NoError(t, <-done)
+	assert.GreaterOrEqual(t, calls.Load(), int32(2), "channel must be resolved at least once per connect")
+}
+
+// TestWSClientRetriesWhenChannelProviderFails asserts a failing ChannelFn
+// backs off and retries without dialing, then connects once it recovers.
+func TestWSClientRetriesWhenChannelProviderFails(t *testing.T) {
+	const wskey = "k"
+
+	subscribed := make(chan []string, 1)
+	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
+		_, req := readAuthThenSubscribe(t, c)
+		subscribed <- req.GetChannel().GetOrderBook()
+		drain(c)
+	})
+
+	var calls atomic.Int32
+	fn := func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
+		if calls.Add(1) == 1 {
+			return nil, assert.AnError
+		}
+		return WSChannelOrderBook("BBCA"), nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewWSClient(wsURL(srv), func(ctx context.Context) (string, error) { return wskey, nil },
+		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Run(ctx, WSSubscription{UserID: 42, ChannelFn: fn},
+			func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
+	}()
+
+	select {
+	case symbols := <-subscribed:
+		assert.Equal(t, []string{"BBCA"}, symbols, "client must subscribe once the provider recovers")
+	case <-time.After(2 * time.Second):
+		t.Fatal("client never subscribed after provider recovery")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}

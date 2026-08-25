@@ -49,6 +49,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 37 | `GET /api/v1/notifications` | [Notifications](#get-apiv1notifications) |
 | 38 | `GET /api/v1/stream/conversation/{stream_id}` | [Stream](#get-apiv1streamconversationstream_id) |
 | 39 | `GET /api/v1/order-trade/broker/distribution` | [Broker distribution](#get-apiv1order-tradebrokerdistribution) |
+| 40 | `GET /api/v1/corp-actions` | [Corporate action calendar](#get-apiv1corp-actions) |
 
 All routes registered in `internal/delivery/http/router.go` are covered by the
 sections below.
@@ -673,6 +674,58 @@ curl 'http://localhost:8080/api/v1/company/BBCA/corp-actions'
       }
     }
   ]
+}
+```
+
+### `GET /api/v1/corp-actions`
+Corporate action calendar for a date: `data` groups events by action kind.
+Kinds whose upstream shape is not yet observed (`bonus`, `economic`, `ipo`,
+`pubex`, `stock_reverse`, `stock_dividend`) are passed through verbatim.
+
+| param | required | notes |
+|---|---|---|
+| `date` | yes | `YYYY-MM-DD` |
+
+`data: { bonus, dividend, economic, ipo, pubex, rightissue, rups, stock_reverse, stocksplit, tender, warrant, stock_dividend, today }`
+
+#### Example: request / response
+
+```bash
+curl 'http://localhost:8080/api/v1/corp-actions?date=2026-08-26'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "dividend": [
+      {
+        "company_id": "0",
+        "company_symbol": "BPII",
+        "corp_action_active": false,
+        "dividend_cumdate": "2026-08-26",
+        "dividend_exdate": "2026-08-27",
+        "dividend_id": "118072",
+        "dividend_paydate": "2026-09-11",
+        "dividend_recdate": "2026-08-28",
+        "dividend_value": "3.54",
+        "event_note": "Cum Date",
+        "dividend_value_formatted": "Rp 3.54",
+        "dividend_currency": "CURRENCY_IDR"
+      }
+    ],
+    "rups": [
+      { "company_symbol": "NICE", "rups_date": "2026-08-26", "rups_time": "15:00" }
+    ],
+    "tender": [
+      { "company_symbol": "KETR", "tender_end": "2026-08-26", "tender_price": "523", "event_note": "Offering End" }
+    ],
+    "warrant": [
+      { "company_symbol": "BRPTBQCQ6A", "wrant_trading_end": "2026-08-26", "wrant_exc_price": "2078", "event_note": "Trading End" }
+    ],
+    "bonus": [],
+    "today": ["105", "143"]
+  }
 }
 ```
 

@@ -41,6 +41,45 @@ func (m *MockCorpActionUsecase) EXPECT() *MockCorpActionUsecaseMockRecorder {
 	return m.recorder
 }
 
+// GetCorpActionCalendar mocks base method.
+func (m *MockCorpActionUsecase) GetCorpActionCalendar(ctx context.Context, date string) (*domain.CorpActionCalendar, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCorpActionCalendar", ctx, date)
+	ret0, _ := ret[0].(*domain.CorpActionCalendar)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCorpActionCalendar indicates an expected call of GetCorpActionCalendar.
+func (mr *MockCorpActionUsecaseMockRecorder) GetCorpActionCalendar(ctx, date any) *MockCorpActionUsecaseGetCorpActionCalendarCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCorpActionCalendar", reflect.TypeOf((*MockCorpActionUsecase)(nil).GetCorpActionCalendar), ctx, date)
+	return &MockCorpActionUsecaseGetCorpActionCalendarCall{Call: call}
+}
+
+// MockCorpActionUsecaseGetCorpActionCalendarCall wrap *gomock.Call
+type MockCorpActionUsecaseGetCorpActionCalendarCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockCorpActionUsecaseGetCorpActionCalendarCall) Return(arg0 *domain.CorpActionCalendar, arg1 error) *MockCorpActionUsecaseGetCorpActionCalendarCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockCorpActionUsecaseGetCorpActionCalendarCall) Do(f func(context.Context, string) (*domain.CorpActionCalendar, error)) *MockCorpActionUsecaseGetCorpActionCalendarCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockCorpActionUsecaseGetCorpActionCalendarCall) DoAndReturn(f func(context.Context, string) (*domain.CorpActionCalendar, error)) *MockCorpActionUsecaseGetCorpActionCalendarCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetCorpActions mocks base method.
 func (m *MockCorpActionUsecase) GetCorpActions(ctx context.Context, symbol string, limit int) ([]domain.CompanyCorpAction, error) {
 	m.ctrl.T.Helper()

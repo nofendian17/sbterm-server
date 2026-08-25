@@ -9,4 +9,5 @@ import (
 //go:generate go run go.uber.org/mock/mockgen -source=corpaction.go -destination=../mocks/mock_corpaction_repository.go -package=mocks -typed
 type CorpActionRepository interface {
 	GetCorpActions(ctx context.Context, symbol string, limit int) ([]domain.CompanyCorpAction, error)
+	GetCorpActionCalendar(ctx context.Context, date string) (*domain.CorpActionCalendar, error)
 }

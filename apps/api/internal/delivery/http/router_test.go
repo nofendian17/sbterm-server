@@ -175,6 +175,15 @@ func TestRouter(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "get corp action calendar returns 200",
+			method: http.MethodGet,
+			path:   "/api/v1/corp-actions?date=2026-08-26",
+			setupCorpAction: func(uc *mocks.MockCorpActionUsecase) {
+				uc.EXPECT().GetCorpActionCalendar(gomock.Any(), "2026-08-26").Return(&domain.CorpActionCalendar{Today: []string{"101"}}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:   "get keystats returns 200",
 			method: http.MethodGet,
 			path:   "/api/v1/company/BUVA/keystats",

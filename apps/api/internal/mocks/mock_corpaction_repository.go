@@ -41,6 +41,45 @@ func (m *MockCorpActionRepository) EXPECT() *MockCorpActionRepositoryMockRecorde
 	return m.recorder
 }
 
+// GetCorpActionCalendar mocks base method.
+func (m *MockCorpActionRepository) GetCorpActionCalendar(ctx context.Context, date string) (*domain.CorpActionCalendar, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCorpActionCalendar", ctx, date)
+	ret0, _ := ret[0].(*domain.CorpActionCalendar)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCorpActionCalendar indicates an expected call of GetCorpActionCalendar.
+func (mr *MockCorpActionRepositoryMockRecorder) GetCorpActionCalendar(ctx, date any) *MockCorpActionRepositoryGetCorpActionCalendarCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCorpActionCalendar", reflect.TypeOf((*MockCorpActionRepository)(nil).GetCorpActionCalendar), ctx, date)
+	return &MockCorpActionRepositoryGetCorpActionCalendarCall{Call: call}
+}
+
+// MockCorpActionRepositoryGetCorpActionCalendarCall wrap *gomock.Call
+type MockCorpActionRepositoryGetCorpActionCalendarCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockCorpActionRepositoryGetCorpActionCalendarCall) Return(arg0 *domain.CorpActionCalendar, arg1 error) *MockCorpActionRepositoryGetCorpActionCalendarCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockCorpActionRepositoryGetCorpActionCalendarCall) Do(f func(context.Context, string) (*domain.CorpActionCalendar, error)) *MockCorpActionRepositoryGetCorpActionCalendarCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockCorpActionRepositoryGetCorpActionCalendarCall) DoAndReturn(f func(context.Context, string) (*domain.CorpActionCalendar, error)) *MockCorpActionRepositoryGetCorpActionCalendarCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetCorpActions mocks base method.
 func (m *MockCorpActionRepository) GetCorpActions(ctx context.Context, symbol string, limit int) ([]domain.CompanyCorpAction, error) {
 	m.ctrl.T.Helper()

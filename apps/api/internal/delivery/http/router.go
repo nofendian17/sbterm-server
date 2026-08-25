@@ -137,6 +137,7 @@ func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router 
 			r.Get("/insider/majorholder", hs.MajorHolder.MajorHolder)
 			r.Get("/market-detector/{symbol}", hs.MarketDetector.MarketDetector)
 			r.Get("/top-stock", hs.TopStock.TopStock)
+			r.Get("/corp-actions", hs.CorpAction.CorpActionsByDate)
 			r.Get("/company/{symbol}/corp-actions", hs.CorpAction.CorpActions)
 			r.Get("/company/{symbol}/keystats", hs.Keystats.Keystats)
 			r.Get("/company/{symbol}/price-performance", hs.PricePerformance.PricePerformance)

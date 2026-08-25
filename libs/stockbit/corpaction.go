@@ -10,10 +10,104 @@ import (
 
 const corpActionPath = "/corpaction/%s"
 
+const corpActionCalendarPath = "/corpaction"
+
 // CorpActionResponse is the corp action response: data is the action list.
 type CorpActionResponse struct {
 	Message string              `json:"message"`
 	Data    []CompanyCorpAction `json:"data"`
+}
+
+// CorpActionCalendarResponse is the date-based corp action response: data
+// groups events by action kind.
+type CorpActionCalendarResponse struct {
+	Message string                 `json:"message"`
+	Data    CorpActionCalendarData `json:"data"`
+}
+
+// CorpActionCalendarData groups a day's corporate action events by kind. Kinds
+// whose upstream shape has not been observed are kept verbatim as raw JSON so
+// nothing is dropped; Today lists the company ids that have any event.
+type CorpActionCalendarData struct {
+	Bonus         []json.RawMessage `json:"bonus"`
+	Dividend      []DividendInfo    `json:"dividend"`
+	Economic      []json.RawMessage `json:"economic"`
+	Ipo           []json.RawMessage `json:"ipo"`
+	Pubex         []json.RawMessage `json:"pubex"`
+	RightIssue    []RightIssueInfo  `json:"rightissue"`
+	Rups          []RupsInfo        `json:"rups"`
+	StockReverse  []json.RawMessage `json:"stock_reverse"`
+	StockSplit    []StockSplitInfo  `json:"stocksplit"`
+	Tender        []TenderInfo      `json:"tender"`
+	Warrant       []WarrantInfo     `json:"warrant"`
+	StockDividend []json.RawMessage `json:"stock_dividend"`
+	Today         []string          `json:"today"`
+}
+
+type DividendInfo struct {
+	CompanyID              string `json:"company_id"`
+	CompanySymbol          string `json:"company_symbol"`
+	CorpActionActive       bool   `json:"corp_action_active"`
+	DividendCreated        string `json:"dividend_created"`
+	DividendCumdate        string `json:"dividend_cumdate"`
+	DividendDatahash       string `json:"dividend_datahash"`
+	DividendExdate         string `json:"dividend_exdate"`
+	DividendID             string `json:"dividend_id"`
+	DividendIqpID          string `json:"dividend_iqp_id"`
+	DividendLastupdate     string `json:"dividend_lastupdate"`
+	DividendLock           int    `json:"dividend_lock"`
+	DividendPaydate        string `json:"dividend_paydate"`
+	DividendRecdate        string `json:"dividend_recdate"`
+	DividendValue          string `json:"dividend_value"`
+	Lastprice              string `json:"lastprice"`
+	EventNote              string `json:"event_note"`
+	DividendValueFormatted string `json:"dividend_value_formatted"`
+	LastpriceFormatted     string `json:"lastprice_formatted"`
+	DividendCurrency       string `json:"dividend_currency"`
+	DividendFiscalYear     int    `json:"dividend_fiscal_year"`
+	DividendValueAdjusted  int    `json:"dividend_value_adjusted"`
+}
+
+type TenderInfo struct {
+	CompanyID            string `json:"company_id"`
+	CompanyName          string `json:"company_name"`
+	CompanySymbol        string `json:"company_symbol"`
+	CorpActionActive     bool   `json:"corp_action_active"`
+	TenderCreated        string `json:"tender_created"`
+	TenderDatahash       string `json:"tender_datahash"`
+	TenderEnd            string `json:"tender_end"`
+	TenderID             string `json:"tender_id"`
+	TenderPaydate        string `json:"tender_paydate"`
+	TenderPercentage     string `json:"tender_percentage"`
+	TenderPrice          string `json:"tender_price"`
+	TenderShares         string `json:"tender_shares"`
+	TenderStart          string `json:"tender_start"`
+	EventNote            string `json:"event_note"`
+	TenderPriceFormatted string `json:"tender_price_formatted"`
+}
+
+// WarrantInfo mirrors the upstream payload, including its "wrant_" field
+// prefix spelling.
+type WarrantInfo struct {
+	CompanyID               string `json:"company_id"`
+	CompanySymbol           string `json:"company_symbol"`
+	CorpActionActive        bool   `json:"corp_action_active"`
+	WrantExcEnd             string `json:"wrant_exc_end"`
+	WrantExcFrom            string `json:"wrant_exc_from"`
+	WrantExcPrice           string `json:"wrant_exc_price"`
+	WrantID                 string `json:"wrant_id"`
+	WrantIqpID              string `json:"wrant_iqp_id"`
+	WrantLastupdate         string `json:"wrant_lastupdate"`
+	WrantSerie              string `json:"wrant_serie"`
+	WrantTotal              string `json:"wrant_total"`
+	WrantTradingEnd         string `json:"wrant_trading_end"`
+	WrantTradingFrom        string `json:"wrant_trading_from"`
+	EventNote               string `json:"event_note"`
+	WrantExcPriceFormatted  string `json:"wrant_exc_price_formatted"`
+	WrantForeignPercentage  int    `json:"wrant_foreign_percentage"`
+	WrantLocalPercentage    int    `json:"wrant_local_percentage"`
+	WrantNumberOfSecurities int    `json:"wrant_number_of_securities"`
+	WrantCompanyID          string `json:"wrant_company_id"`
 }
 
 // CompanyCorpAction is one corp action entry: the common action_type plus a typed
@@ -175,6 +269,17 @@ func (c *Client) GetCorpActions(ctx context.Context, symbol string, limit int) (
 	}
 	var out CorpActionResponse
 	if err := c.Get(ctx, fmt.Sprintf(corpActionPath, symbol), q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetCorpActionCalendar returns the corporate action events for a date
+// (YYYY-MM-DD). The access token is attached automatically.
+func (c *Client) GetCorpActionCalendar(ctx context.Context, date string) (*CorpActionCalendarResponse, error) {
+	q := url.Values{"date": []string{date}}
+	var out CorpActionCalendarResponse
+	if err := c.Get(ctx, corpActionCalendarPath, q, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -117,7 +117,7 @@ func decode(t *testing.T, raw []byte) wireEnvelope {
 // mirroring service.runningTradeEnvelope.
 func envelope(symbol string) []byte {
 	raw, _ := json.Marshal(map[string]any{
-		"type":   "running_trade",
+		"type":   "trade",
 		"symbol": symbol,
 		"data":   []any{map[string]any{"price": 8250}},
 	})
@@ -127,32 +127,54 @@ func envelope(symbol string) []byte {
 func TestSubscribeFiltersBySymbol(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA"]}`)
 
 	broadcast := func() {
 		hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA"))
 		hub.Broadcast(service.ChannelRunningTrade, "ANTM", envelope("ANTM"))
 	}
-	frames := fr.pumpBroadcasts(broadcast, func(got [][]byte) bool { return len(got) > 0 }, 3*time.Second)
+	// Converge: while the subscribe is still in flight the client is in
+	// default broadcast and ANTM passes; once applied, only BBCA does.
+	frames := fr.pumpBroadcasts(broadcast, func(got [][]byte) bool {
+		sawANTM := false
+		sawBBCAAfter := false
+		for _, raw := range got {
+			sym := decode(t, raw).Symbol
+			if sym == "ANTM" {
+				sawANTM = true
+			}
+			if sym == "BBCA" && sawANTM {
+				sawBBCAAfter = true
+			}
+		}
+		return sawANTM && sawBBCAAfter
+	}, 3*time.Second)
 
 	require.NotEmpty(t, frames, "expected at least one delivered frame")
-	for _, raw := range frames {
+	// Only frames after the last ANTM are guaranteed post-subscribe.
+	lastANTM := -1
+	for i, raw := range frames {
+		if decode(t, raw).Symbol == "ANTM" {
+			lastANTM = i
+		}
+	}
+	for _, raw := range frames[lastANTM+1:] {
 		env := decode(t, raw)
-		assert.Equal(t, "running_trade", env.Type)
-		assert.Equal(t, "BBCA", env.Symbol, "only subscribed symbols may pass")
+		assert.Equal(t, "trade", env.Type)
+		assert.Equal(t, "BBCA", env.Symbol, "only subscribed symbols may pass after filter applied")
 	}
 }
 
-func TestNoDataWithoutSubscription(t *testing.T) {
+func TestUnsubscribedClientReceivesEverything(t *testing.T) {
+	// Spec: "Broadcast semua batch secara default".
 	_, hub, _, fr := newTestServer(t)
 
-	deadline := time.Now().Add(400 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		hub.Broadcast(service.ChannelRunningTrade, "BBCA", []byte(`{"k":1}`))
-		time.Sleep(50 * time.Millisecond)
-	}
-
-	assert.Empty(t, fr.window(200*time.Millisecond), "unsubscribed clients receive nothing")
+	frames := fr.pumpBroadcasts(
+		func() { hub.Broadcast(service.ChannelRunningTrade, "BBCA", []byte(`{"k":1}`)) },
+		func(f [][]byte) bool { return len(f) > 0 },
+		3*time.Second,
+	)
+	assert.NotEmpty(t, frames, "clients that never subscribed receive all batches")
 }
 
 func TestUnknownChannelRepliesErrorAndConnectionSurvives(t *testing.T) {
@@ -163,7 +185,7 @@ func TestUnknownChannelRepliesErrorAndConnectionSurvives(t *testing.T) {
 	require.NotEmpty(t, frames)
 	assertErrorEnvelope(t, decode(t, frames[0]), "unknown channel")
 
-	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA"]}`)
 	got := fr.pumpBroadcasts(
 		func() { hub.Broadcast(service.ChannelRunningTrade, "BBCA", []byte(`{"k":1}`)) },
 		func(f [][]byte) bool { return len(f) > 0 },
@@ -184,7 +206,7 @@ func TestMalformedJSONRepliesError(t *testing.T) {
 func TestUnknownActionRepliesError(t *testing.T) {
 	_, _, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"dance","channel":"running_trade"}`)
+	send(t, conn, `{"action":"dance","channel":"trade"}`)
 	frames := fr.window(2 * time.Second)
 	require.NotEmpty(t, frames)
 	assertErrorEnvelope(t, decode(t, frames[0]), "unknown action")
@@ -193,7 +215,7 @@ func TestUnknownActionRepliesError(t *testing.T) {
 func TestBroadcastModeWithEmptySymbols(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":[]}`)
+	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":[]}`)
 
 	seen := map[string]bool{}
 	frames := fr.pumpBroadcasts(
@@ -213,23 +235,40 @@ func TestBroadcastModeWithEmptySymbols(t *testing.T) {
 	_ = frames
 }
 
-func TestUnsubscribeStopsDelivery(t *testing.T) {
+func TestUnsubscribeShrinksFilter(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA"]}`)
-	broadcast := func() { hub.Broadcast(service.ChannelRunningTrade, "BBCA", []byte(`{"k":1}`)) }
-
-	before := fr.pumpBroadcasts(broadcast, func(got [][]byte) bool { return len(got) > 0 }, 3*time.Second)
+	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA","ANTM"]}`)
+	broadcast := func() {
+		hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA"))
+		hub.Broadcast(service.ChannelRunningTrade, "ANTM", envelope("ANTM"))
+	}
+	before := fr.pumpBroadcasts(broadcast, func(got [][]byte) bool {
+		syms := map[string]bool{}
+		for _, raw := range got {
+			syms[decode(t, raw).Symbol] = true
+		}
+		return syms["BBCA"] && syms["ANTM"]
+	}, 3*time.Second)
 	require.NotEmpty(t, before)
 
-	send(t, conn, `{"action":"unsubscribe","channel":"running_trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"unsubscribe","channel":"trade","symbols":["BBCA"]}`)
 	time.Sleep(100 * time.Millisecond) // let the read pump apply it
 
+	seen := map[string]int{}
 	for i := 0; i < 5; i++ {
 		broadcast()
 		time.Sleep(20 * time.Millisecond)
+		for _, raw := range fr.window(50 * time.Millisecond) {
+			seen[decode(t, raw).Symbol]++
+		}
 	}
-	assert.Empty(t, fr.window(300*time.Millisecond), "no delivery after unsubscribe")
+	time.Sleep(200 * time.Millisecond)
+	for _, raw := range fr.window(300 * time.Millisecond) {
+		seen[decode(t, raw).Symbol]++
+	}
+	assert.Zero(t, seen["BBCA"], "unsubscribed symbol no longer delivered")
+	assert.NotZero(t, seen["ANTM"], "remaining symbol still delivered")
 }
 
 func assertErrorEnvelope(t *testing.T, env wireEnvelope, wantIn string) {
@@ -249,4 +288,71 @@ func TestHealthz(t *testing.T) {
 	var body map[string]string
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, "ok", body["status"])
+}
+
+// Spec protocol: {"action":"subscribe","symbols":["BBCA","BBRI"]} — no
+// "channel" key exists in the spec, and the data envelope is
+// {"type":"trade","symbol":"BBCA","data":[…]}.
+func TestSpecConformantSubscribeWithoutChannel(t *testing.T) {
+	_, hub, conn, fr := newTestServer(t)
+
+	send(t, conn, `{"action":"subscribe","symbols":["BBCA"]}`)
+	// Wait until the read pump has applied the control frame: keep
+	// broadcasting; while the client is still in default-broadcast every
+	// symbol passes, once applied only BBCA does. Assert only on the tail
+	// after the last ANTM (pre-apply frame).
+	frames := fr.pumpBroadcasts(
+		func() {
+			hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA"))
+			hub.Broadcast(service.ChannelRunningTrade, "ANTM", envelope("ANTM"))
+		},
+		func(f [][]byte) bool { return len(f) >= 4 },
+		3*time.Second,
+	)
+	require.NotEmpty(t, frames, "spec-conformant subscribe must be accepted")
+	lastANTM := -1
+	for i, raw := range frames {
+		if decode(t, raw).Symbol == "ANTM" {
+			lastANTM = i
+		}
+	}
+	require.Less(t, lastANTM, len(frames)-1, "expected at least one post-subscribe BBCA frame")
+	for _, raw := range frames[lastANTM+1:] {
+		assert.Equal(t, "BBCA", decode(t, raw).Symbol, "only the subscribed symbol may pass")
+	}
+}
+
+func TestDataEnvelopeTypeIsTrade(t *testing.T) {
+	// The envelope type is owned by the service layer's serializer; the
+	// canonical assertion lives in service/ingest_test.go (env.Type=="trade"
+	// through the real decode path). Here we assert the delivery-layer
+	// contract: frames pass through untouched, so clients see exactly the
+	// spec shape {"type":"trade","symbol":...,"data":[...]}.
+	_, hub, conn, fr := newTestServer(t)
+
+	send(t, conn, `{"action":"subscribe","symbols":["BBCA"]}`)
+	time.Sleep(100 * time.Millisecond)
+
+	frames := fr.pumpBroadcasts(
+		func() { hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA")) },
+		func(f [][]byte) bool { return len(f) > 0 },
+		3*time.Second,
+	)
+	require.NotEmpty(t, frames)
+	env := decode(t, frames[0])
+	assert.Equal(t, "trade", env.Type)
+	assert.Equal(t, "BBCA", env.Symbol)
+}
+
+// Spec testing note: "ping/pong keepalive". The server pings every 45s and
+// renews the read deadline on pong. Waiting 45s in a test is unreasonable, so
+// assert the timing contract on the exported constants instead: the ping
+// period must sit inside the read deadline so a live connection never times
+// out, with margin for one missed ping.
+func TestKeepaliveTimingContract(t *testing.T) {
+	assert.Equal(t, 45*time.Second, service.PingPeriod(), "spec fixes the ping ticker at ±45s")
+	assert.Less(t, service.PingPeriod(), service.PongWait,
+		"ping must fire strictly inside the read deadline")
+	assert.GreaterOrEqual(t, service.PongWait-service.PingPeriod(), 10*time.Second,
+		"enough margin to survive one lost ping")
 }

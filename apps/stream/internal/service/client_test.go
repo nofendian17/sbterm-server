@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -141,4 +142,10 @@ func TestDeliverOverflowWithoutHubReleasesWriter(t *testing.T) {
 func TestKnownChannelRegistry(t *testing.T) {
 	assert.True(t, KnownChannel(ChannelRunningTrade))
 	assert.False(t, KnownChannel(Channel("liveprice")))
+}
+
+// Spec: "ping ticker ±45 detik" — the ping ticker must fire around 45s, not
+// the current PongWait*9/10 = 54s.
+func TestPingPeriodIs45Seconds(t *testing.T) {
+	assert.Equal(t, 45*time.Second, pingPeriod)
 }

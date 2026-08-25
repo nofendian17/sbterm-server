@@ -89,7 +89,7 @@ func TestHandleRecordBroadcastsDecodedBatch(t *testing.T) {
 
 	var env capturedEnvelope
 	require.NoError(t, json.Unmarshal(received[0], &env))
-	assert.Equal(t, "running_trade", env.Type)
+	assert.Equal(t, "trade", env.Type)
 	assert.Equal(t, "BBCA", env.Symbol)
 	require.Len(t, env.Data, 2)
 
@@ -102,7 +102,8 @@ func TestHandleRecordBroadcastsDecodedBatch(t *testing.T) {
 	assert.NotZero(t, trade.TS)
 	assert.Empty(t, trade.WebsocketTS, "frame without websocket_time omits the field")
 
-	assert.Empty(t, receiveAll(outsider), "client without subscription receives nothing")
+	// Spec default: clients without a subscription receive everything.
+	assert.Len(t, receiveAll(outsider), 1, "client without subscription receives the batch")
 }
 
 func TestHandleRecordSkipsBadRecords(t *testing.T) {
@@ -141,12 +142,12 @@ func TestStartShutdownLifecycle(t *testing.T) {
 	svc.Start()
 	svc.Start() // idempotent
 
-	require.NoError(t, svc.Shutdown())
+	require.NoError(t, svc.Shutdown(context.Background()))
 	select {
 	case <-svc.done:
 	default:
 		t.Fatal("expected poll loop to have stopped")
 	}
 
-	assert.NoError(t, svc.Shutdown()) // second shutdown stays safe
+	assert.NoError(t, svc.Shutdown(context.Background())) // second shutdown stays safe
 }

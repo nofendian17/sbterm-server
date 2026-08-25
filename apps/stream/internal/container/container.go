@@ -116,11 +116,13 @@ func Run() error {
 	if err := waitInterruptOrServeFailure(logger, serveErr); err != nil {
 		return err
 	}
-	if err := svc.Shutdown(); err != nil {
-		logger.Warn("stream: fan-out loop shutdown", "error", err)
-	}
+	// One shared deadline covers loop stop + HTTP drain + hub close: the
+	// spec bounds TOTAL shutdown at ≤5 seconds, not per step.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	if err := svc.Shutdown(ctx); err != nil {
+		logger.Warn("stream: fan-out loop shutdown", "error", err)
+	}
 	if err := httpSrv.Shutdown(ctx); err != nil {
 		logger.Warn("stream: http server shutdown", "error", err)
 	}

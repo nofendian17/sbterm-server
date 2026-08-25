@@ -12,9 +12,12 @@ const (
 	// PongWait bounds how long the connection may stay silent between pongs;
 	// the read side renews it through its pong handler.
 	PongWait       = 60 * time.Second
-	pingPeriod     = (PongWait * 9) / 10
+	pingPeriod     = 45 * time.Second
 	sendBufferSize = 256
 )
+
+// PingPeriod reports the keepalive ping ticker interval (spec: ±45s).
+func PingPeriod() time.Duration { return pingPeriod }
 
 // Client is one connected WebSocket consumer: its subscription state, its
 // outbound buffer, and its write pump. Subscription state changes come from
@@ -70,38 +73,39 @@ func (c *Client) Subscribe(ch Channel, symbols []string) {
 }
 
 // Unsubscribe removes symbols from one channel. Removing the final symbol
-// deactivates the channel entirely; unsubscribing from a broadcast-mode or
-// inactive channel is a no-op.
+// returns the channel to broadcast (receive-all) mode, per the design spec;
+// unsubscribing from an inactive channel or with no symbols is a no-op.
 func (c *Client) Unsubscribe(ch Channel, symbols []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	set, ok := c.subs[ch]
-	if !ok || set == nil || len(symbols) == 0 {
-		return
+	if !ok || len(symbols) == 0 {
+		return // inactive channel or nothing to remove: no-op
+	}
+	if set == nil {
+		return // already broadcast mode: no-op
 	}
 	for _, s := range symbols {
 		delete(set, s)
 	}
 	if len(set) == 0 {
-		delete(c.subs, ch)
+		c.subs[ch] = nil // last symbol gone: back to receive-all
 	}
 }
 
 // wants reports whether a record on channel/symbol matches the subscription.
+// Clients that never subscribed receive everything: the spec's default is
+// broadcast-all ("klien tanpa subscribe terima semua batch").
 func (c *Client) wants(channel Channel, symbol string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	set, ok := c.subs[channel]
-	if !ok {
-		return false // never subscribed to this channel
+	if set, ok := c.subs[channel]; ok && set != nil {
+		_, wants := set[symbol]
+		return wants
 	}
-	if set == nil {
-		return true // broadcast mode
-	}
-	_, ok = set[symbol]
-	return ok
+	return true // never subscribed, or explicit broadcast mode
 }
 
 // Deliver enqueues one pre-marshaled payload without blocking. A full buffer

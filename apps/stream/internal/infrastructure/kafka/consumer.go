@@ -24,6 +24,9 @@ func NewConsumer(brokers []string, group string, topics []string) (*Consumer, er
 		kgo.ConsumerGroup(group),
 		kgo.ConsumeTopics(topics...),
 		kgo.ConsumeStartOffset(kgo.NewOffset().AtEnd()),
+		// Fan-out never commits: durability is apps/ingest's job. Without
+		// this, franz-go auto-commits every 5s by default.
+		kgo.DisableAutoCommit(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("kafka: new consumer: %w", err)

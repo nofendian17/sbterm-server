@@ -95,10 +95,15 @@ func (s *Server) handleControl(client *service.Client, raw []byte) {
 		return
 	}
 
-	channel := service.Channel(msg.Channel)
-	if !service.KnownChannel(channel) {
-		client.Deliver(marshalError(fmt.Sprintf("unknown channel %q", msg.Channel)))
-		return
+	// The spec's control frames carry no channel key; an omitted channel
+	// targets the running-trade stream. An explicit channel must be known.
+	channel := service.ChannelRunningTrade
+	if msg.Channel != "" {
+		channel = service.Channel(msg.Channel)
+		if !service.KnownChannel(channel) {
+			client.Deliver(marshalError(fmt.Sprintf("unknown channel %q", msg.Channel)))
+			return
+		}
 	}
 
 	if msg.Action == actionSubscribe {

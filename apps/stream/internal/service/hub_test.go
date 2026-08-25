@@ -49,10 +49,10 @@ func TestBroadcastFilter(t *testing.T) {
 		want    int
 	}{
 		{
-			name:    "no subscription receives nothing",
+			name:    "no subscription receives everything (spec default)",
 			channel: ChannelRunningTrade,
 			symbol:  "BBCA",
-			want:    0,
+			want:    1,
 		},
 		{
 			name:    "matching symbol receives",
@@ -76,8 +76,15 @@ func TestBroadcastFilter(t *testing.T) {
 			want:    1,
 		},
 		{
-			name:    "channel never subscribed filtered even when other channel subscribed",
+			name:    "other channel with explicit symbols filters unknown channel",
 			subs:    map[Channel][]string{ChannelRunningTrade: {"BBCA"}},
+			channel: Channel("liveprice"),
+			symbol:  "BBCA",
+			want:    1, // never-subscribed channel = receive-all default
+		},
+		{
+			name:    "subscribed other channel filters its non-matching symbols",
+			subs:    map[Channel][]string{ChannelRunningTrade: {"BBCA"}, Channel("liveprice"): {"LIVE"}},
 			channel: Channel("liveprice"),
 			symbol:  "BBCA",
 			want:    0,
@@ -96,13 +103,14 @@ func TestBroadcastFilter(t *testing.T) {
 	}
 }
 
-func TestUnsubscribeLastSymbolDeactivatesChannel(t *testing.T) {
+func TestHubUnsubscribeLastSymbolRevertsToBroadcast(t *testing.T) {
 	hub := NewHub(discardLogger())
 	c := newRegisteredClient(hub, map[Channel][]string{ChannelRunningTrade: {"BBCA"}})
 
 	c.Unsubscribe(ChannelRunningTrade, []string{"BBCA"})
 
-	assert.False(t, c.wants(ChannelRunningTrade, "BBCA"))
+	assert.True(t, c.wants(ChannelRunningTrade, "BBCA"), "last unsubscribe reverts to receive-all")
+	assert.True(t, c.wants(ChannelRunningTrade, "ANY"))
 }
 
 func TestUnsubscribeBroadcastModeIsNoop(t *testing.T) {

@@ -9,8 +9,9 @@ package service
 type Channel string
 
 // ChannelRunningTrade streams running trade batches from
-// datafeed.running_trade_batch.
-const ChannelRunningTrade Channel = "running_trade"
+// datafeed.running_trade_batch. Its string value doubles as the envelope
+// "type": the spec fixes it to "trade".
+const ChannelRunningTrade Channel = "trade"
 
 // channels lists every channel this instance serves; delivery validates
 // inbound subscriptions against it.

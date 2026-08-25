@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
@@ -115,16 +114,18 @@ func (s *Service) handleRecord(_ context.Context, topic string, value []byte) {
 	s.hub.Broadcast(ChannelRunningTrade, symbol, payload)
 }
 
-// Shutdown stops the poll loop and waits for it to exit.
-func (s *Service) Shutdown() error {
+// Shutdown stops the poll loop and waits for it to exit. The wait yields to
+// ctx so the container can enforce the spec's total shutdown budget (≤5s)
+// across loop, HTTP drain, and hub close combined.
+func (s *Service) Shutdown(ctx context.Context) error {
 	if s.cancel != nil {
 		s.cancel()
 	}
 	if s.done != nil {
 		select {
 		case <-s.done:
-		case <-time.After(5 * time.Second):
-			s.logger.Warn("stream: poll loop did not stop within 5s")
+		case <-ctx.Done():
+			s.logger.Warn("stream: poll loop did not stop within shutdown budget")
 		}
 	}
 	return nil

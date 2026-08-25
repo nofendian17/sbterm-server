@@ -101,17 +101,30 @@ func (s *Service) handleRecord(_ context.Context, topic string, value []byte) {
 	if len(trades) == 0 {
 		return // nothing observable for clients
 	}
-	symbol := trades[0].GetStock()
-	payload, err := json.Marshal(runningTradeEnvelope{
-		Type:   string(ChannelRunningTrade),
-		Symbol: symbol,
-		Data:   marketdata.NewTrades(trades),
-	})
-	if err != nil {
-		s.logger.Warn("stream: marshal running trade envelope", "error", err)
-		return
+	// One upstream record mixes many stocks, but an envelope is scoped to a
+	// single symbol — clients filter on it. Group the batch per stock so each
+	// envelope's data matches its label, keeping first-seen order.
+	bySymbol := make(map[string][]*datafeedv1.RunningTrade, len(trades))
+	order := make([]string, 0, len(trades))
+	for _, tr := range trades {
+		symbol := tr.GetStock()
+		if _, seen := bySymbol[symbol]; !seen {
+			order = append(order, symbol)
+		}
+		bySymbol[symbol] = append(bySymbol[symbol], tr)
 	}
-	s.hub.Broadcast(ChannelRunningTrade, symbol, payload)
+	for _, symbol := range order {
+		payload, err := json.Marshal(runningTradeEnvelope{
+			Type:   string(ChannelRunningTrade),
+			Symbol: symbol,
+			Data:   marketdata.NewTrades(bySymbol[symbol]),
+		})
+		if err != nil {
+			s.logger.Warn("stream: marshal running trade envelope", "error", err)
+			continue
+		}
+		s.hub.Broadcast(ChannelRunningTrade, symbol, payload)
+	}
 }
 
 // Shutdown stops the poll loop and waits for it to exit. The wait yields to

@@ -106,6 +106,56 @@ func TestHandleRecordBroadcastsDecodedBatch(t *testing.T) {
 	assert.Len(t, receiveAll(outsider), 1, "client without subscription receives the batch")
 }
 
+// mixedBatchRecord mirrors a real upstream batch: one record carries trades
+// for many stocks.
+func mixedBatchRecord(t *testing.T) []byte {
+	t.Helper()
+	batch := &datafeedv1.RunningTradeBatch{Batch: []*datafeedv1.RunningTrade{
+		{Stock: "DMAS", Price: 177, Volume: 100},
+		{Stock: "PSAB", Price: 640, Volume: 800},
+		{Stock: "DMAS", Price: 177, Volume: 700},
+	}}
+	value, err := proto.Marshal(batch)
+	require.NoError(t, err)
+	return value
+}
+
+func TestHandleRecordSplitsBatchBySymbol(t *testing.T) {
+	hub := NewHub(discardLogger())
+	dmas := NewClient(hub, nil)
+	dmas.Subscribe(ChannelRunningTrade, []string{"DMAS"})
+	hub.Register(dmas)
+	outsider := NewClient(hub, nil)
+	hub.Register(outsider)
+	svc := NewService(&fakePoller{}, hub, "datafeed.running_trade_batch", discardLogger())
+
+	svc.handleRecord(context.Background(), "datafeed.running_trade_batch", mixedBatchRecord(t))
+
+	// A client subscribed to DMAS must receive exactly the DMAS trades.
+	received := receiveAll(dmas)
+	require.Len(t, received, 1)
+
+	var env capturedEnvelope
+	require.NoError(t, json.Unmarshal(received[0], &env))
+	assert.Equal(t, "running_trade", env.Type)
+	assert.Equal(t, "DMAS", env.Symbol)
+	require.Len(t, env.Data, 2)
+	for _, raw := range env.Data {
+		var trade wireTrade
+		require.NoError(t, json.Unmarshal(raw, &trade))
+		assert.Equal(t, "DMAS", trade.Stock, "envelope data rows must match the envelope symbol")
+	}
+
+	// Broadcast-all clients still see every symbol, one envelope per symbol.
+	var symbols []string
+	for _, raw := range receiveAll(outsider) {
+		var env capturedEnvelope
+		require.NoError(t, json.Unmarshal(raw, &env))
+		symbols = append(symbols, env.Symbol)
+	}
+	assert.ElementsMatch(t, []string{"DMAS", "PSAB"}, symbols)
+}
+
 func TestHandleRecordSkipsBadRecords(t *testing.T) {
 	tests := []struct {
 		name  string

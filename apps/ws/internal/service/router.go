@@ -17,8 +17,8 @@ type FrameRouter struct {
 	topics    Topics
 }
 
-// NewFrameRouter builds a router that publishes running trade batches to the
-// configured topic.
+// NewFrameRouter builds a router that publishes ingested datafeed frames to
+// the configured topics.
 func NewFrameRouter(publisher Publisher, topics Topics) *FrameRouter {
 	return &FrameRouter{publisher: publisher, topics: topics}
 }
@@ -38,6 +38,34 @@ func (r *FrameRouter) Route(ctx context.Context, m *datafeedv1.WebsocketWrapMess
 			symbol = trades[0].GetStock()
 		}
 		return r.publisher.Publish(ctx, r.topics.RunningTradeBatch, symbol, value)
+	}
+	if ob := m.GetOrderbook(); ob != nil {
+		value, err := proto.Marshal(ob)
+		if err != nil {
+			return fmt.Errorf("ws: marshal order book: %w", err)
+		}
+		return r.publisher.Publish(ctx, r.topics.OrderBook, ob.GetStockCode(), value)
+	}
+	if bbo := m.GetBestBidOffer(); bbo != nil {
+		value, err := proto.Marshal(bbo)
+		if err != nil {
+			return fmt.Errorf("ws: marshal best bid offer: %w", err)
+		}
+		return r.publisher.Publish(ctx, r.topics.BestBidOffer, bbo.GetStockCode(), value)
+	}
+	if iep := m.GetIepiev(); iep != nil {
+		value, err := proto.Marshal(iep)
+		if err != nil {
+			return fmt.Errorf("ws: marshal iep iev: %w", err)
+		}
+		return r.publisher.Publish(ctx, r.topics.IepIev, iep.GetStockCode(), value)
+	}
+	if lp := m.GetLiveprice(); lp != nil {
+		value, err := proto.Marshal(lp)
+		if err != nil {
+			return fmt.Errorf("ws: marshal live price: %w", err)
+		}
+		return r.publisher.Publish(ctx, r.topics.LivePrice, lp.GetStockCode(), value)
 	}
 	return nil
 }

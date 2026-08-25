@@ -16,6 +16,15 @@ stockbit:
     - name: running_trade_batch_all
       channels:
         running_trade_batch: ["*"]
+    # Order book frames only stream when the order_book channel is subscribed
+    # together with liveprice, iepiev, and best_bid_offer on one connection,
+    # and the order_book channel does not accept "*" — list explicit symbols.
+    - name: microstructure_selected
+      channels:
+        order_book: ["BBCA", "BBRI"]
+        liveprice: ["BBCA", "BBRI"]
+        iepiev: ["BBCA", "BBRI"]
+        best_bid_offer: ["BBCA", "BBRI"]
   ws_ping_interval: 30s
   ws_reconnect_backoff_initial: 1s
   ws_reconnect_backoff_max: 30s
@@ -31,6 +40,10 @@ redis:
 kafka:
   brokers: ["redpanda:29092"]
   running_trade_batch_topic: datafeed.running_trade_batch
+  order_book_topic: datafeed.order_book
+  best_bid_offer_topic: datafeed.best_bid_offer
+  iepiev_topic: datafeed.iepiev
+  liveprice_topic: datafeed.liveprice
 
 # Logging settings.
 # format supports "text" and "json".

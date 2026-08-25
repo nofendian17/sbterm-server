@@ -91,6 +91,10 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 
 		router := service.NewFrameRouter(publisher, service.Topics{
 			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
+			OrderBook:         cfg.Kafka.OrderBookTopic,
+			BestBidOffer:      cfg.Kafka.BestBidOfferTopic,
+			IepIev:            cfg.Kafka.IepIevTopic,
+			LivePrice:         cfg.Kafka.LivePriceTopic,
 		})
 		return service.New(subs, refresher, router, logger), nil
 	})

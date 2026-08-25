@@ -64,6 +64,10 @@ type RedisConfig struct {
 type KafkaConfig struct {
 	Brokers                []string `mapstructure:"brokers"`
 	RunningTradeBatchTopic string   `mapstructure:"running_trade_batch_topic"`
+	OrderBookTopic         string   `mapstructure:"order_book_topic"`
+	BestBidOfferTopic      string   `mapstructure:"best_bid_offer_topic"`
+	IepIevTopic            string   `mapstructure:"iepiev_topic"`
+	LivePriceTopic         string   `mapstructure:"liveprice_topic"`
 }
 
 type LogConfig struct {
@@ -105,6 +109,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.url", "redis://localhost:6379/0")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")
+	v.SetDefault("kafka.order_book_topic", "datafeed.order_book")
+	v.SetDefault("kafka.best_bid_offer_topic", "datafeed.best_bid_offer")
+	v.SetDefault("kafka.iepiev_topic", "datafeed.iepiev")
+	v.SetDefault("kafka.liveprice_topic", "datafeed.liveprice")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

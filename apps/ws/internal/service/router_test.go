@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	datapricefeedv1 "github.com/nofendian17/sbterm/libs/proto/financial/company_price_feed/entity/v1"
+	datapricefeedv2 "github.com/nofendian17/sbterm/libs/proto/financial/company_price_feed/entity/v2"
 	consumerv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/consumer/entity/v1"
 	datafeedv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/v1"
 )
@@ -30,7 +32,13 @@ func (f *fakePublisher) Publish(_ context.Context, topic string, key string, val
 func (f *fakePublisher) Close() { f.closed = true }
 
 func TestFrameRouter(t *testing.T) {
-	topics := Topics{RunningTradeBatch: "datafeed.running_trade_batch"}
+	topics := Topics{
+		RunningTradeBatch: "datafeed.running_trade_batch",
+		OrderBook:         "datafeed.order_book",
+		BestBidOffer:      "datafeed.best_bid_offer",
+		IepIev:            "datafeed.iepiev",
+		LivePrice:         "datafeed.liveprice",
+	}
 
 	t.Run("running trade batch publishes to its topic keyed by first symbol", func(t *testing.T) {
 		pub := &fakePublisher{}
@@ -49,10 +57,63 @@ func TestFrameRouter(t *testing.T) {
 		assert.Equal(t, "BBRI", got.GetBatch()[0].GetStock())
 	})
 
+	t.Run("microstructure channels publish to their own topics keyed by symbol", func(t *testing.T) {
+		cases := []struct {
+			name    string
+			msg     *datafeedv1.WebsocketWrapMessageChannel
+			wantMsg proto.Message
+			topic   string
+			key     string
+		}{
+			{
+				name:    "order book snapshot",
+				msg:     &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Orderbook{Orderbook: &consumerv1.Orderbook{StockCode: "BBCA"}}},
+				wantMsg: &consumerv1.Orderbook{},
+				topic:   topics.OrderBook,
+				key:     "BBCA",
+			},
+			{
+				name:    "best bid offer",
+				msg:     &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_BestBidOffer{BestBidOffer: &datapricefeedv1.BestBidOfferWS{StockCode: "BBCA"}}},
+				wantMsg: &datapricefeedv1.BestBidOfferWS{},
+				topic:   topics.BestBidOffer,
+				key:     "BBCA",
+			},
+			{
+				name:    "iep iev auction state",
+				msg:     &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Iepiev{Iepiev: &datapricefeedv2.IEPIEV{StockCode: "BBCA"}}},
+				wantMsg: &datapricefeedv2.IEPIEV{},
+				topic:   topics.IepIev,
+				key:     "BBCA",
+			},
+			{
+				name:    "live price quote",
+				msg:     &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Liveprice{Liveprice: &consumerv1.LivePrice{StockCode: "BBCA"}}},
+				wantMsg: &consumerv1.LivePrice{},
+				topic:   topics.LivePrice,
+				key:     "BBCA",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				pub := &fakePublisher{}
+				router := NewFrameRouter(pub, topics)
+
+				require.NoError(t, router.Route(context.Background(), tc.msg))
+				require.Len(t, pub.topics, 1)
+				assert.Equal(t, tc.topic, pub.topics[0].topic)
+				assert.Equal(t, tc.key, pub.topics[0].key)
+
+				require.NoError(t, proto.Unmarshal(pub.topics[0].value, tc.wantMsg))
+			})
+		}
+	})
+
 	t.Run("frames without an ingested channel publish nothing", func(t *testing.T) {
 		pub := &fakePublisher{}
 		router := NewFrameRouter(pub, topics)
-		msg := &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Liveprice{Liveprice: &consumerv1.LivePrice{}}}
+		msg := &datafeedv1.WebsocketWrapMessageChannel{MessageChannel: &datafeedv1.WebsocketWrapMessageChannel_Watchlist{Watchlist: &datafeedv1.Watchlist{}}}
 		require.NoError(t, router.Route(context.Background(), msg))
 		assert.Empty(t, pub.topics)
 	})

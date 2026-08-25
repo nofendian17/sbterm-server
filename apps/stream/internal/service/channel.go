@@ -10,8 +10,7 @@ type Channel string
 
 // ChannelRunningTrade streams running trade batches from
 // datafeed.running_trade_batch. Its string value doubles as the envelope
-// "type": the spec fixes it to "trade".
-const ChannelRunningTrade Channel = "trade"
+const ChannelRunningTrade Channel = "running_trade"
 
 // channels lists every channel this instance serves; delivery validates
 // inbound subscriptions against it.

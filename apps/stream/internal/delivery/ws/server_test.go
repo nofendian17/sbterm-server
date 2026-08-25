@@ -117,7 +117,7 @@ func decode(t *testing.T, raw []byte) wireEnvelope {
 // mirroring service.runningTradeEnvelope.
 func envelope(symbol string) []byte {
 	raw, _ := json.Marshal(map[string]any{
-		"type":   "trade",
+		"type":   "running_trade",
 		"symbol": symbol,
 		"data":   []any{map[string]any{"price": 8250}},
 	})
@@ -127,7 +127,7 @@ func envelope(symbol string) []byte {
 func TestSubscribeFiltersBySymbol(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA"]}`)
 
 	broadcast := func() {
 		hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA"))
@@ -160,7 +160,7 @@ func TestSubscribeFiltersBySymbol(t *testing.T) {
 	}
 	for _, raw := range frames[lastANTM+1:] {
 		env := decode(t, raw)
-		assert.Equal(t, "trade", env.Type)
+		assert.Equal(t, "running_trade", env.Type)
 		assert.Equal(t, "BBCA", env.Symbol, "only subscribed symbols may pass after filter applied")
 	}
 }
@@ -185,7 +185,7 @@ func TestUnknownChannelRepliesErrorAndConnectionSurvives(t *testing.T) {
 	require.NotEmpty(t, frames)
 	assertErrorEnvelope(t, decode(t, frames[0]), "unknown channel")
 
-	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA"]}`)
 	got := fr.pumpBroadcasts(
 		func() { hub.Broadcast(service.ChannelRunningTrade, "BBCA", []byte(`{"k":1}`)) },
 		func(f [][]byte) bool { return len(f) > 0 },
@@ -206,7 +206,7 @@ func TestMalformedJSONRepliesError(t *testing.T) {
 func TestUnknownActionRepliesError(t *testing.T) {
 	_, _, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"dance","channel":"trade"}`)
+	send(t, conn, `{"action":"dance","channel":"running_trade"}`)
 	frames := fr.window(2 * time.Second)
 	require.NotEmpty(t, frames)
 	assertErrorEnvelope(t, decode(t, frames[0]), "unknown action")
@@ -215,7 +215,7 @@ func TestUnknownActionRepliesError(t *testing.T) {
 func TestBroadcastModeWithEmptySymbols(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":[]}`)
+	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":[]}`)
 
 	seen := map[string]bool{}
 	frames := fr.pumpBroadcasts(
@@ -238,7 +238,7 @@ func TestBroadcastModeWithEmptySymbols(t *testing.T) {
 func TestUnsubscribeShrinksFilter(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
-	send(t, conn, `{"action":"subscribe","channel":"trade","symbols":["BBCA","ANTM"]}`)
+	send(t, conn, `{"action":"subscribe","channel":"running_trade","symbols":["BBCA","ANTM"]}`)
 	broadcast := func() {
 		hub.Broadcast(service.ChannelRunningTrade, "BBCA", envelope("BBCA"))
 		hub.Broadcast(service.ChannelRunningTrade, "ANTM", envelope("ANTM"))
@@ -252,11 +252,11 @@ func TestUnsubscribeShrinksFilter(t *testing.T) {
 	}, 3*time.Second)
 	require.NotEmpty(t, before)
 
-	send(t, conn, `{"action":"unsubscribe","channel":"trade","symbols":["BBCA"]}`)
+	send(t, conn, `{"action":"unsubscribe","channel":"running_trade","symbols":["BBCA"]}`)
 	time.Sleep(100 * time.Millisecond) // let the read pump apply it
 
 	seen := map[string]int{}
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		broadcast()
 		time.Sleep(20 * time.Millisecond)
 		for _, raw := range fr.window(50 * time.Millisecond) {
@@ -292,7 +292,7 @@ func TestHealthz(t *testing.T) {
 
 // Spec protocol: {"action":"subscribe","symbols":["BBCA","BBRI"]} — no
 // "channel" key exists in the spec, and the data envelope is
-// {"type":"trade","symbol":"BBCA","data":[…]}.
+// {"type":"running_trade","symbol":"BBCA","data":[…]}.
 func TestSpecConformantSubscribeWithoutChannel(t *testing.T) {
 	_, hub, conn, fr := newTestServer(t)
 
@@ -322,12 +322,12 @@ func TestSpecConformantSubscribeWithoutChannel(t *testing.T) {
 	}
 }
 
-func TestDataEnvelopeTypeIsTrade(t *testing.T) {
+func TestDataEnvelopeTypeIsRunningTrade(t *testing.T) {
 	// The envelope type is owned by the service layer's serializer; the
-	// canonical assertion lives in service/ingest_test.go (env.Type=="trade"
+	// canonical assertion lives in service/ingest_test.go (env.Type=="running_trade"
 	// through the real decode path). Here we assert the delivery-layer
 	// contract: frames pass through untouched, so clients see exactly the
-	// spec shape {"type":"trade","symbol":...,"data":[...]}.
+	// spec shape {"type":"running_trade","symbol":...,"data":[...]}.
 	_, hub, conn, fr := newTestServer(t)
 
 	send(t, conn, `{"action":"subscribe","symbols":["BBCA"]}`)
@@ -340,7 +340,7 @@ func TestDataEnvelopeTypeIsTrade(t *testing.T) {
 	)
 	require.NotEmpty(t, frames)
 	env := decode(t, frames[0])
-	assert.Equal(t, "trade", env.Type)
+	assert.Equal(t, "running_trade", env.Type)
 	assert.Equal(t, "BBCA", env.Symbol)
 }
 

@@ -89,7 +89,7 @@ func TestHandleRecordBroadcastsDecodedBatch(t *testing.T) {
 
 	var env capturedEnvelope
 	require.NoError(t, json.Unmarshal(received[0], &env))
-	assert.Equal(t, "trade", env.Type)
+	assert.Equal(t, "running_trade", env.Type)
 	assert.Equal(t, "BBCA", env.Symbol)
 	require.Len(t, env.Data, 2)
 

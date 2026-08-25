@@ -27,7 +27,7 @@ type runningTradeBatchSink struct {
 // debug) instead of buffered, so the first data written always lands in the
 // partitioned, deduplicated table.
 func (s *runningTradeBatchSink) Store(ctx context.Context, batch *datafeedv1.RunningTradeBatch) error {
-	if err := s.client.ensureSchema(ctx, s.client.table, errSchemaPending); err != nil {
+	if err := s.client.ensureSchema(ctx, s.client.table, errSchemaPending, s.client.createTradeTable); err != nil {
 		if errors.Is(err, errSchemaPending) {
 			s.client.logger.Debug("questdb: running trade table schema pending; skipping batch")
 			return nil

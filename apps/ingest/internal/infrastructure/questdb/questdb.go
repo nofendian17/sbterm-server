@@ -42,6 +42,9 @@ type Client struct {
 	table  string
 	logger log.Logger
 
+	orderBookTable string
+	bookTTLDays    int
+
 	mu           sync.Mutex
 	schemaOK     map[string]bool
 	lastSchemaAt map[string]time.Time
@@ -84,7 +87,7 @@ func New(ctx context.Context, conf, table string, logger log.Logger) (*Client, e
 		schemaOK:     make(map[string]bool),
 		lastSchemaAt: make(map[string]time.Time),
 	}
-	if err := c.ensureSchema(ctx, c.table, errSchemaPending); err != nil && !errors.Is(err, errSchemaPending) {
+	if err := c.ensureSchema(ctx, c.table, errSchemaPending, c.createTradeTable); err != nil && !errors.Is(err, errSchemaPending) {
 		logger.Warn("questdb: create running trade table failed; will retry", "error", err)
 	}
 	return c, nil
@@ -138,7 +141,7 @@ func (c *Client) Shutdown() error {
 // ensureSchema creates a table once the server is reachable. Concurrent
 // callers share the result; failed attempts are throttled to at most one per
 // schemaRetryInterval. pending is returned while the retry is throttled.
-func (c *Client) ensureSchema(ctx context.Context, table string, pending error) error {
+func (c *Client) ensureSchema(ctx context.Context, table string, pending error, create func(context.Context) error) error {
 	c.mu.Lock()
 	if c.schemaOK[table] {
 		c.mu.Unlock()
@@ -151,7 +154,7 @@ func (c *Client) ensureSchema(ctx context.Context, table string, pending error) 
 	c.lastSchemaAt[table] = time.Now()
 	c.mu.Unlock()
 
-	err := c.createTradeTable(ctx)
+	err := create(ctx)
 	c.mu.Lock()
 	if err == nil {
 		c.schemaOK[table] = true
@@ -187,6 +190,38 @@ func (c *Client) createTradeTable(ctx context.Context) error {
 ) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS (ts, stock, trade_number)`, c.table)
 	if _, err := q.Exec(ctx, ddl); err != nil {
 		return fmt.Errorf("questdb: create table %s: %w", c.table, err)
+	}
+	return nil
+}
+
+// createBookTable creates the order book snapshot table: one row per accepted
+// snapshot with both sides' depth as 1-D arrays (article-compatible layout:
+// bid_px[1] is the best bid). DEDUP keys collapse reconnect replays.
+func (c *Client) createBookTable(ctx context.Context) error {
+	q, err := c.db.BorrowQuery(ctx)
+	if err != nil {
+		return fmt.Errorf("questdb: borrow query: %w", err)
+	}
+	defer q.Close()
+
+	ttl := c.bookTTLDays
+	if ttl <= 0 {
+		ttl = 30
+	}
+	ddl := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+  ts TIMESTAMP,
+  receive_ts TIMESTAMP,
+  symbol SYMBOL,
+  board SYMBOL,
+  bid_seq LONG,
+  ask_seq LONG,
+  bid_px DOUBLE[],
+  bid_qty LONG[],
+  ask_px DOUBLE[],
+  ask_qty LONG[]
+) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS(ts, symbol, bid_seq, ask_seq) TTL %d DAYS`, c.orderBookTable, ttl)
+	if _, err := q.Exec(ctx, ddl); err != nil {
+		return fmt.Errorf("questdb: create table %s: %w", c.orderBookTable, err)
 	}
 	return nil
 }

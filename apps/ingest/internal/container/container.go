@@ -29,7 +29,11 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	do.Provide(injector, func(i do.Injector) (*questdb.Client, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.RunningTradesTable, logger)
+		client, err := questdb.New(ctx, cfg.QuestDB.URL, cfg.QuestDB.RunningTradesTable, logger)
+		if err != nil {
+			return nil, err
+		}
+		return client.UseOrderBookTable(cfg.QuestDB.OrderBookTable, cfg.QuestDB.BookTTLDays), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*kafka.Consumer, error) {

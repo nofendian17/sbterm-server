@@ -25,6 +25,8 @@ type Config struct {
 type QuestDBConfig struct {
 	URL                string `mapstructure:"url"`
 	RunningTradesTable string `mapstructure:"running_trades_table"`
+	OrderBookTable     string `mapstructure:"order_book_table"`
+	BookTTLDays        int    `mapstructure:"book_ttl_days"`
 }
 
 // KafkaConfig names the Kafka topic for each pipeline explicitly, so the
@@ -69,6 +71,8 @@ func Load() (*Config, error) {
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("questdb.url", "ws::addr=localhost:9000;auto_flush_rows=100;")
 	v.SetDefault("questdb.running_trades_table", "running_trades")
+	v.SetDefault("questdb.order_book_table", "ob_book")
+	v.SetDefault("questdb.book_ttl_days", 30)
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")

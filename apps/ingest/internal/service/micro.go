@@ -102,8 +102,9 @@ type bookPipeline struct {
 }
 
 type shardJob struct {
-	ob   *consumerv1.Orderbook
-	recv time.Time
+	ob    *consumerv1.Orderbook
+	trade *detection.Trade
+	recv  time.Time
 }
 
 // NewBookPipeline wires the production order book pipeline.
@@ -154,11 +155,24 @@ func (p *bookPipeline) Process(_ context.Context, ob *consumerv1.Orderbook) erro
 	return nil
 }
 
-// ObserveTrade feeds one execution to the trade's symbol shard.
-func (p *bookPipeline) ObserveTrade(ctx context.Context, t detection.Trade) error {
+// ObserveTrade feeds one execution to the trade's symbol shard. Like book
+// frames it is enqueued rather than applied inline: the shard worker owns the
+// engine exclusively, so trades and books for one symbol are serialized and
+// share the same bounded-queue backpressure.
+func (p *bookPipeline) ObserveTrade(_ context.Context, t detection.Trade) error {
+	if t.Symbol == "" {
+		return nil
+	}
 	idx := shardIndex(t.Symbol, len(p.shards))
-	sh := &p.shards[idx]
-	return sh.engine.ObserveTrade(ctx, t)
+	select {
+	case p.shards[idx].ch <- shardJob{trade: &t}:
+	default:
+		p.drops++
+		if p.drops%1000 == 1 {
+			p.logger.Warn("book shard queue full; dropping frames", "dropped", p.drops, "shard", idx)
+		}
+	}
+	return nil
 }
 
 func shardIndex(symbol string, n int) int {
@@ -176,6 +190,13 @@ func (p *bookPipeline) shardLoop(sh *bookShard) {
 }
 
 func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
+	if job.trade != nil {
+		if err := sh.engine.ObserveTrade(ctxBackground(), *job.trade); err != nil {
+			p.logger.Warn("detection: trade observation failed", "symbol", job.trade.Symbol, "error", err)
+		}
+		return
+	}
+
 	ob := job.ob
 	symbol := ob.GetStockCode()
 

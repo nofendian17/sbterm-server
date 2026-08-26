@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,10 +53,10 @@ func (f *fakeTradeObs) ObserveTrade(_ context.Context, t TradeFeed) error {
 }
 
 type fakeStore struct {
-	updates int
+	updates atomic.Int64
 }
 
-func (f *fakeStore) SetBook(context.Context, hotstate.BookUpdate) error { f.updates++; return nil }
+func (f *fakeStore) SetBook(context.Context, hotstate.BookUpdate) error { f.updates.Add(1); return nil }
 func (f *fakeStore) TouchBook(context.Context, string, time.Time) error { return nil }
 func (f *fakeStore) DedupBook(context.Context, string, string) (bool, error) {
 	return false, nil
@@ -128,10 +130,10 @@ func TestHandlerLivenessTopicsTouchProvider(t *testing.T) {
 }
 
 type countingPersister struct {
-	n int
+	n atomic.Int64
 }
 
-func (c *countingPersister) Store(context.Context, *questdb.BookPair) error { c.n++; return nil }
+func (c *countingPersister) Store(context.Context, *questdb.BookPair) error { c.n.Add(1); return nil }
 func (c *countingPersister) Close(context.Context) error                    { return nil }
 
 // TestPipelineRateCapsPersistence asserts the durable sink is throttled per
@@ -168,12 +170,55 @@ func TestPipelineRateCapsPersistence(t *testing.T) {
 	// Shards own their queues: Process only enqueues, so wait until every
 	// completed pair reached hot state before judging the throttle.
 	deadline := time.Now().Add(2 * time.Second)
-	for store.updates < 2 && time.Now().Before(deadline) {
+	for store.updates.Load() < 2 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	assert.Equal(t, 2, store.updates, "hot state tracks every paired snapshot")
+	assert.EqualValues(t, 2, store.updates.Load(), "hot state tracks every paired snapshot")
 	assert.Equal(t, 0, pipe.Pending())
 
-	assert.Equal(t, 1, pers.n, "only the uncapped snapshot reaches questdb")
+	assert.EqualValues(t, 1, pers.n.Load(), "only the uncapped snapshot reaches questdb")
+}
+
+// TestPipelineConcurrentTradesAndBooksRaceFree pins the ownership rule: the
+// shard worker is the only goroutine touching a detection engine. Trades used
+// to bypass the shard queue and race ObserveBook; run with -race to enforce.
+func TestPipelineConcurrentTradesAndBooksRaceFree(t *testing.T) {
+	pipe, err := NewBookPipeline(BookDeps{
+		Store:     &fakeStore{},
+		Persister: nil,
+		Logger:    nopLogger{},
+		EngineFactory: func() *detection.Engine {
+			return detection.NewEngine(detection.DefaultConfig(), nopAlertSink{})
+		},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 4; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				assert.NoError(t, pipe.ObserveTrade(context.Background(), detection.Trade{
+					Symbol: "BBCA", TS: time.Now(), Price: 7750, Volume: 10, Value: 77500, Buy: true,
+				}))
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				assert.NoError(t, pipe.Process(context.Background(), &consumerv1.Orderbook{
+					StockCode: "BBCA", Body: "#O|BBCA|BID|7750;1;100",
+				}))
+			}
+		}()
+	}
+	wg.Wait()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for pipe.Pending() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, 0, pipe.Pending())
 }

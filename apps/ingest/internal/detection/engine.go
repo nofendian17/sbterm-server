@@ -32,8 +32,8 @@ const (
 	SignalPullBid      SignalType = "PULL_BID"
 	SignalPullAsk      SignalType = "PULL_ASK"
 	SignalIceberg      SignalType = "ICEBERG"
-	SignalAccumulation SignalType = "ACCUMULASI"
-	SignalDistribution SignalType = "DISTRIBUSI"
+	SignalAccumulation SignalType = "ACCUMULATION"
+	SignalDistribution SignalType = "DISTRIBUTION"
 )
 
 // BookSide is one side of a snapshot: best-first price/quantity arrays.

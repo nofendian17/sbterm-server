@@ -162,7 +162,6 @@ type flowPt struct {
 // let one side's instability rewrite the other's reference and reset its
 // confirmation progress.
 type biasTracker struct {
-	active      bool
 	baselineSet bool
 	baseMid     float64 // reference mid when the quiet stretch began
 	baseDep     float64 // reference depth on this signal's support side
@@ -215,6 +214,9 @@ func pxKey(p float64) string { return strconv.FormatFloat(p, 'f', -1, 64) }
 // ObserveBook ingests one snapshot: pull detection, iceberg tracking, and
 // accumulation/distribution evaluation all hang off it.
 func (e *Engine) ObserveBook(ctx context.Context, b Book) error {
+	if ctx.Err() != nil {
+		return nil
+	}
 	if b.Symbol == "" || b.Bid == nil || b.Ask == nil {
 		return nil
 	}
@@ -225,8 +227,8 @@ func (e *Engine) ObserveBook(ctx context.Context, b Book) error {
 		e.reset(st)
 	}
 
-	e.detectPull(st, b)
-	e.trackIceberg(st, b, now)
+	e.detectPull(ctx, st, b)
+	e.trackIceberg(ctx, st, b, now)
 	e.evaluateBias(ctx, st, b, now)
 
 	st.prevBid, st.prevAsk = cloneSide(b.Bid), cloneSide(b.Ask)
@@ -249,6 +251,9 @@ func (e *Engine) reset(st *symState) {
 // ObserveTrade ingests one execution into the buffers and re-evaluates the
 // bias signals.
 func (e *Engine) ObserveTrade(ctx context.Context, t Trade) error {
+	if ctx.Err() != nil {
+		return nil
+	}
 	if t.Symbol == "" {
 		return nil
 	}
@@ -268,7 +273,7 @@ func (e *Engine) ObserveTrade(ctx context.Context, t Trade) error {
 
 // detectPull diffs the previous and current book per side, logging unexecuted
 // fat-level removals and firing once the window holds enough of them.
-func (e *Engine) detectPull(st *symState, b Book) {
+func (e *Engine) detectPull(ctx context.Context, st *symState, b Book) {
 	pairs := []struct {
 		side   string
 		typ    SignalType
@@ -318,7 +323,7 @@ func (e *Engine) detectPull(st *symState, b Book) {
 				"events": len(*p.logRef), "window": e.cfg.Pull.Window.String(),
 				"min_qty": e.cfg.Pull.MinQty,
 			}
-			e.emit(st, p.typ, b.Symbol, p.side, b.ExchangeTS, detail)
+			e.emit(ctx, st, p.typ, b.Symbol, p.side, b.ExchangeTS, detail)
 			*p.logRef = (*p.logRef)[:0]
 		}
 	}
@@ -327,7 +332,7 @@ func (e *Engine) detectPull(st *symState, b Book) {
 // trackIceberg watches aggregated-level dynamics per side. A refill is
 // counted when the aggregate quantity at a price drops sharply (real
 // consumption evidenced by trades), then restores toward its pre-drop size.
-func (e *Engine) trackIceberg(st *symState, b Book, now time.Time) {
+func (e *Engine) trackIceberg(ctx context.Context, st *symState, b Book, now time.Time) {
 	sides := []struct {
 		name      string
 		cur, prev *BookSide
@@ -381,7 +386,7 @@ func (e *Engine) trackIceberg(st *symState, b Book, now time.Time) {
 				tr.consumed = false
 				tr.base = cq
 				if tr.refills >= e.cfg.Iceberg.N && e.cooldownOK(st, s.typ, b.ExchangeTS) {
-					e.emit(st, s.typ, b.Symbol, s.name, b.ExchangeTS, map[string]any{
+					e.emit(ctx, st, s.typ, b.Symbol, s.name, b.ExchangeTS, map[string]any{
 						"price": key, "refills": tr.refills, "base_qty": tr.base,
 					})
 					tr.refills = 0
@@ -454,7 +459,6 @@ func (e *Engine) evaluateBias(ctx context.Context, st *symState, b Book, now tim
 			}
 		} else {
 			tr.holdSince = time.Time{}
-			tr.active = false
 			// Re-baseline THIS signal only, so one side's instability never
 			// rewrites the other side's reference or resets its confirm timer.
 			tr.baseMid, tr.baseDep = mid, sp.depth
@@ -464,16 +468,13 @@ func (e *Engine) evaluateBias(ctx context.Context, st *symState, b Book, now tim
 		pressure := net >= sp.netMin
 		if held && pressure {
 			if e.cooldownOK(st, sp.typ, now) {
-				e.emit(st, sp.typ, b.Symbol, sp.side, now, map[string]any{
+				e.emit(ctx, st, sp.typ, b.Symbol, sp.side, now, map[string]any{
 					"net": net, "mid": mid, "drift": drift,
 					"held_for": now.Sub(tr.holdSince).String(),
 				})
-				tr.active = true
 			}
 		}
-		if net < sp.netMin {
-			tr.active = false
-		}
+		// pressure below threshold — no signal, no further action
 	}
 }
 
@@ -532,9 +533,12 @@ func (e *Engine) cooldownOK(st *symState, typ SignalType, now time.Time) bool {
 	return true
 }
 
-func (e *Engine) emit(st *symState, typ SignalType, symbol, side string, ts time.Time, detail map[string]any) {
+func (e *Engine) emit(ctx context.Context, st *symState, typ SignalType, symbol, side string, ts time.Time, detail map[string]any) {
+	if ctx.Err() != nil {
+		return // do not stamp cooldown: caller bailed, no signal was published
+	}
 	st.lastEmit[typ] = ts
-	_ = e.sink.Emit(context.Background(), Alert{
+	_ = e.sink.Emit(ctx, Alert{
 		Symbol: symbol, Type: typ, Side: side, TS: ts, Detail: detail,
 	})
 }

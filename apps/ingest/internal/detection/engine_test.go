@@ -507,3 +507,35 @@ func TestPullSurvivesExchangeClockLag(t *testing.T) {
 	}
 	assert.True(t, fired, "pull detection must work under exchange-clock lag")
 }
+
+// TestObserveBookHonorsContext pins that the caller's context can short-
+// circuit a snapshot before any of the three detectors touch state. A
+// cancelled ctx must be the same as a no-op call: no alert, no state change.
+func TestObserveBookHonorsContext(t *testing.T) {
+	sink := &captureSink{}
+	e := NewEngine(defaultCfg(), sink)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before the call
+
+	require.NoError(t, e.ObserveBook(ctx, book("BBCA",
+		side(1, [2]int64{7750, 1000}),
+		side(2, [2]int64{7800, 1000}), base)))
+
+	assert.Empty(t, sink.alerts, "cancelled ctx must not produce alerts")
+	// state() must not run for a cancelled ctx; symState stays absent.
+	assert.Nil(t, e.syms["BBCA"], "cancelled ctx must not allocate per-symbol state")
+}
+
+func TestObserveTradeHonorsContext(t *testing.T) {
+	sink := &captureSink{}
+	e := NewEngine(defaultCfg(), sink)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	require.NoError(t, e.ObserveTrade(ctx, Trade{
+		Symbol: "BBCA", TS: base, Price: 7750, Volume: 100, Value: 775_000, Buy: true,
+	}))
+	assert.Empty(t, sink.alerts)
+	assert.Nil(t, e.syms["BBCA"], "cancelled ctx must not allocate per-symbol state")
+}

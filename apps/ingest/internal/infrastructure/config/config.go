@@ -19,11 +19,51 @@ const (
 var version = "dev"
 
 type Config struct {
-	QuestDB  QuestDBConfig  `mapstructure:"questdb"`
-	Redis    RedisConfig    `mapstructure:"redis"`
-	HotState HotStateConfig `mapstructure:"hot_state"`
-	Kafka    KafkaConfig    `mapstructure:"kafka"`
-	Log      LogConfig      `mapstructure:"log"`
+	QuestDB   QuestDBConfig   `mapstructure:"questdb"`
+	Redis     RedisConfig     `mapstructure:"redis"`
+	HotState  HotStateConfig  `mapstructure:"hot_state"`
+	Kafka     KafkaConfig     `mapstructure:"kafka"`
+	Detection DetectionConfig `mapstructure:"detection"`
+	Log       LogConfig       `mapstructure:"log"`
+}
+
+// DetectionConfig tunes the bandarmology signal evaluator. Every field is
+// optional: a zero value falls back to the engine's DefaultConfig so the
+// wiring layer only overrides what it needs. Durations are plain strings
+// ("5m", "90s") parsed by time.Duration; an empty string means "use default".
+type DetectionConfig struct {
+	TopLevels      int           `mapstructure:"top_levels"`
+	TradeBufferTTL time.Duration `mapstructure:"trade_buffer_ttl"`
+	SessionGap     time.Duration `mapstructure:"session_gap"`
+	Cooldown       time.Duration `mapstructure:"cooldown"`
+
+	Pull struct {
+		MinQty  int64         `mapstructure:"min_qty"`
+		RepeatK int           `mapstructure:"repeat_k"`
+		Window  time.Duration `mapstructure:"window"`
+	} `mapstructure:"pull"`
+
+	Iceberg struct {
+		MinQty        int64   `mapstructure:"min_qty"`
+		N             int     `mapstructure:"n"`
+		UniformityPct float64 `mapstructure:"uniformity_pct"`
+	} `mapstructure:"iceberg"`
+
+	Accum struct {
+		NetMin       float64       `mapstructure:"net_min"`
+		Window       time.Duration `mapstructure:"window"`
+		MidDriftMax  float64       `mapstructure:"mid_drift_max"`
+		ConfirmFor   time.Duration `mapstructure:"confirm_for"`
+		SupportGamma float64       `mapstructure:"support_gamma"`
+	} `mapstructure:"accum"`
+
+	Distrib struct {
+		NetMin       float64       `mapstructure:"net_min"`
+		Window       time.Duration `mapstructure:"window"`
+		MidDriftMax  float64       `mapstructure:"mid_drift_max"`
+		ConfirmFor   time.Duration `mapstructure:"confirm_for"`
+		SupportGamma float64       `mapstructure:"support_gamma"`
+	} `mapstructure:"distrib"`
 }
 
 // RedisConfig points at the hot-state store.

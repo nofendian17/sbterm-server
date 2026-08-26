@@ -43,7 +43,7 @@ type fakeTradeObs struct {
 	sells int
 }
 
-func (f *fakeTradeObs) ObserveTrade(_ context.Context, t TradeFeed) error {
+func (f *fakeTradeObs) ObserveTrade(_ context.Context, t DetectorTrade) error {
 	if t.Buy {
 		f.buys++
 	} else {
@@ -127,6 +127,74 @@ func TestHandlerLivenessTopicsTouchProvider(t *testing.T) {
 	require.NoError(t, h.Handle(context.Background(), topics.LivePrice, raw))
 
 	assert.Equal(t, []string{"BBCA", "BBRI", "GULA"}, toucher.symbols)
+}
+
+// TestTradeToFeedExcludesUnspecifiedFromNetFlow confirms that UNSPECIFIED
+// trades on a NON-regular board (NG/TN/unknown) are zeroed so they cannot
+// fabricate distribution pressure in the bias evaluator, while UNSPECIFIED on
+// the regular board is preserved (there it is a closing-auction trade whose
+// side resolves upstream).
+func TestTradeToFeedExcludesUnspecifiedFromNetFlow(t *testing.T) {
+	now := time.Now()
+
+	// UNSPECIFIED + non-regular board (NG): zeroed, excluded from net-flow.
+	ng := protoTradeToDetectorTrade(&datafeedv1.RunningTrade{
+		Stock:       "BBCA",
+		Price:       7750,
+		Volume:      200,
+		Value:       1652000,
+		Action:      datafeedv1.TradeType_TRADE_TYPE_UNSPECIFIED,
+		MarketBoard: consumerv1.BoardType_BOARD_TYPE_NG,
+	}, now)
+	assert.Equal(t, "BBCA", ng.Symbol)
+	assert.Equal(t, 0.0, ng.Value) // zeroed: excluded from net-flow
+	assert.Equal(t, 0.0, detectorTradeNetFlow(ng))
+	assert.False(t, ng.Buy)
+
+	// UNSPECIFIED + regular board (RG): preserved (closing-auction trade whose
+	// side resolves upstream). Value is kept, but Buy stays false so net-flow
+	// still treats it as a sell until the side is known.
+	rg := protoTradeToDetectorTrade(&datafeedv1.RunningTrade{
+		Stock:       "BBCA",
+		Price:       7750,
+		Volume:      200,
+		Value:       1652000,
+		Action:      datafeedv1.TradeType_TRADE_TYPE_UNSPECIFIED,
+		MarketBoard: consumerv1.BoardType_BOARD_TYPE_RG,
+	}, now)
+	assert.Equal(t, 1652000.0, rg.Value) // kept, not zeroed
+	assert.False(t, rg.Buy)
+	assert.Equal(t, -1652000.0, detectorTradeNetFlow(rg))
+
+	buy := protoTradeToDetectorTrade(&datafeedv1.RunningTrade{
+		Stock:  "BBCA",
+		Price:  7750,
+		Volume: 200,
+		Value:  1652000,
+		Action: datafeedv1.TradeType_TRADE_TYPE_BUY,
+	}, now)
+	assert.True(t, buy.Buy)
+	assert.Equal(t, 1652000.0, buy.Value)
+
+	sell := protoTradeToDetectorTrade(&datafeedv1.RunningTrade{
+		Stock:  "BBCA",
+		Price:  7745,
+		Volume: 100,
+		Value:  774500,
+		Action: datafeedv1.TradeType_TRADE_TYPE_SELL,
+	}, now)
+	assert.False(t, sell.Buy)
+	assert.Equal(t, 774500.0, sell.Value)
+}
+
+// detectorTradeNetFlow mirrors how the engine folds a trade into the
+// signed net-flow: sign(-1 for sell) * Value, so a zeroed Value contributes 0.
+func detectorTradeNetFlow(t DetectorTrade) float64 {
+	sign := -1.0
+	if t.Buy {
+		sign = 1.0
+	}
+	return sign * t.Value
 }
 
 type countingPersister struct {

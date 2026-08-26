@@ -93,7 +93,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			Persister: bookSink,
 			Logger:    logger,
 			EngineFactory: func() *detection.Engine {
-				return detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
+				return detection.NewEngine(detectionConfig(cfg.Detection), alertSink(cfg, logger))
 			},
 			Workers:            6,
 			MinPersistInterval: 500 * time.Millisecond,
@@ -150,6 +150,78 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	return injector
+}
+
+// detectionConfig overlays the ingest YAML detection section onto the engine's
+// DefaultConfig. Every field is optional: a zero value (empty duration, 0,
+// 0.0, "") keeps the default, so operators tune only what they need.
+func detectionConfig(d config.DetectionConfig) detection.Config {
+	cfg := detection.DefaultConfig()
+	if d.TopLevels != 0 {
+		cfg.TopLevels = d.TopLevels
+	}
+	if d.TradeBufferTTL != 0 {
+		cfg.TradeBufferTTL = d.TradeBufferTTL
+	}
+	if d.SessionGap != 0 {
+		cfg.SessionGap = d.SessionGap
+	}
+	if d.Cooldown != 0 {
+		cfg.Cooldown = d.Cooldown
+	}
+
+	if d.Pull.MinQty != 0 {
+		cfg.Pull.MinQty = d.Pull.MinQty
+	}
+	if d.Pull.RepeatK != 0 {
+		cfg.Pull.RepeatK = d.Pull.RepeatK
+	}
+	if d.Pull.Window != 0 {
+		cfg.Pull.Window = d.Pull.Window
+	}
+
+	if d.Iceberg.MinQty != 0 {
+		cfg.Iceberg.MinQty = d.Iceberg.MinQty
+	}
+	if d.Iceberg.N != 0 {
+		cfg.Iceberg.N = d.Iceberg.N
+	}
+	if d.Iceberg.UniformityPct != 0 {
+		cfg.Iceberg.UniformityPct = d.Iceberg.UniformityPct
+	}
+
+	if d.Accum.NetMin != 0 {
+		cfg.Accum.NetMin = d.Accum.NetMin
+	}
+	if d.Accum.Window != 0 {
+		cfg.Accum.Window = d.Accum.Window
+	}
+	if d.Accum.MidDriftMax != 0 {
+		cfg.Accum.MidDriftMax = d.Accum.MidDriftMax
+	}
+	if d.Accum.ConfirmFor != 0 {
+		cfg.Accum.ConfirmFor = d.Accum.ConfirmFor
+	}
+	if d.Accum.SupportGamma != 0 {
+		cfg.Accum.SupportGamma = d.Accum.SupportGamma
+	}
+
+	if d.Distrib.NetMin != 0 {
+		cfg.Distrib.NetMin = d.Distrib.NetMin
+	}
+	if d.Distrib.Window != 0 {
+		cfg.Distrib.Window = d.Distrib.Window
+	}
+	if d.Distrib.MidDriftMax != 0 {
+		cfg.Distrib.MidDriftMax = d.Distrib.MidDriftMax
+	}
+	if d.Distrib.ConfirmFor != 0 {
+		cfg.Distrib.ConfirmFor = d.Distrib.ConfirmFor
+	}
+	if d.Distrib.SupportGamma != 0 {
+		cfg.Distrib.SupportGamma = d.Distrib.SupportGamma
+	}
+	return cfg
 }
 
 // alertSink returns the detector's output sink. When hot_state.alerts_topic

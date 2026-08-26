@@ -19,8 +19,8 @@ import (
 	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/questdb"
 )
 
-// TradeFeed is one execution fed into the detector.
-type TradeFeed = detection.Trade
+// DetectorTrade is one execution fed into the detector.
+type DetectorTrade = detection.Trade
 
 // BookPipeline consumes decoded order book frames end-to-end: dedup, side
 // combining, hot-state mirroring, persistence, and signal evaluation.
@@ -32,7 +32,7 @@ type BookPipeline interface {
 
 // TradeObserver receives every decoded running trade.
 type TradeObserver interface {
-	ObserveTrade(ctx context.Context, t TradeFeed) error
+	ObserveTrade(ctx context.Context, t DetectorTrade) error
 }
 
 // LivenessToucher refreshes per-symbol presence without rewriting state.
@@ -355,13 +355,32 @@ var (
 	_ BookPipeline = (*bookPipeline)(nil)
 )
 
-// tradeToFeed converts a decoded proto trade into the detector input.
-func tradeToFeed(tr *datafeedv1.RunningTrade, fallback time.Time) TradeFeed {
+// protoTradeToDetectorTrade converts a decoded proto trade into the detector
+// input.
+func protoTradeToDetectorTrade(tr *datafeedv1.RunningTrade, fallback time.Time) DetectorTrade {
 	ts := fallback
 	if t := tr.GetTime(); t != nil {
 		ts = t.AsTime()
 	}
-	return TradeFeed{
+	// Trades with TRADE_TYPE_UNSPECIFIED but a non-regular board (NG/TN/unknown)
+	// carry no reliable buy/sell side, so they must not enter the bias
+	// net-flow. Feeding them as sells (the default when action != BUY) would
+	// fabricate spurious distribution pressure. Zeroing Value excludes them
+	// without dropping the row, since flowPt uses sign*Value and 0 contributes
+	// nothing. UNSPECIFIED on the regular board is left intact: there it means
+	// a closing-auction trade whose side is resolved upstream.
+	if tr.GetAction() == datafeedv1.TradeType_TRADE_TYPE_UNSPECIFIED &&
+		tr.GetMarketBoard() != consumerv1.BoardType_BOARD_TYPE_RG {
+		return DetectorTrade{
+			Symbol: tr.GetStock(),
+			TS:     ts,
+			Price:  tr.GetPrice(),
+			Volume: tr.GetVolume(),
+			Value:  0,
+			Buy:    false,
+		}
+	}
+	return DetectorTrade{
 		Symbol: tr.GetStock(),
 		TS:     ts,
 		Price:  tr.GetPrice(),

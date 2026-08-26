@@ -79,7 +79,7 @@ func (h *FrameHandler) Handle(ctx context.Context, topic string, value []byte) e
 		if h.tradeObserver != nil {
 			now := time.Now()
 			for _, tr := range batch.GetBatch() {
-				if err := h.tradeObserver.ObserveTrade(ctx, tradeToFeed(tr, now)); err != nil {
+				if err := h.tradeObserver.ObserveTrade(ctx, protoTradeToDetectorTrade(tr, now)); err != nil {
 					h.logger.Warn("detection: observe trade failed", "symbol", tr.GetStock(), "error", err)
 				}
 			}

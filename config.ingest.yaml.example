@@ -44,3 +44,64 @@ log:
   level: info
   format: text
   add_source: false
+
+# Bandarmology signal evaluator thresholds. Every key is OPTIONAL: omit it to
+# keep the engine's built-in default. Only override what you need to tune per
+# market. All durations are Go duration strings (e.g. "90s", "5m", "15m").
+#
+# These drive the four signals:
+#   PULL_BID / PULL_ASK — a fat level disappears without executions at its price,
+#                          repeatedly inside pull.window.
+#   ICEBERG             — a level is consumed by real trades and refilled to near
+#                          its reference size, iceberg.n times.
+#   ACCUMULATION        — sustained net buying while passive bid support holds
+#                          and the mid barely moves.
+#   DISTRIBUTION        — the mirror image of accumulation for quiet selling.
+detection:
+  # Number of best price levels scanned per side by the pull/iceberg rules.
+  top_levels: 5
+  # How long an execution is kept for the temporal join (proves real demand).
+  trade_buffer_ttl: 90s
+  # Silence longer than this resets per-symbol detector state (not cooldowns).
+  session_gap: 5m
+  # Per symbol+signal anti-spam gate: minimum gap between two emissions.
+  cooldown: 15m
+
+  pull:
+    # Minimum level size (shares) worth treating as a "fat" level.
+    min_qty: 500
+    # How many unexecuted removals are required inside window before firing.
+    repeat_k: 2
+    # Lookback window for repeated removals.
+    window: 10m
+
+  iceberg:
+    # Minimum refill size (shares) that counts as a restoration.
+    min_qty: 300
+    # Refills required before the signal fires.
+    n: 3
+    # Refill must match the reference size within this percent (100 - value).
+    # 80 means the restored size must land between 80% and 120% of the base.
+    uniformity_pct: 80
+
+  # Net-buy configuration for ACCUMULATION.
+  accum:
+    # Minimum net bought value (price * volume) over the window.
+    net_min: 100000000
+    # Net-flow window.
+    window: 20m
+    # Maximum relative mid drift (|mid - baseline| / baseline) while held.
+    mid_drift_max: 0.01
+    # How long price-support must hold before the signal fires.
+    confirm_for: 5m
+    # Current bid depth must stay >= gamma * baseline depth (1.0 = no decay).
+    support_gamma: 1.0
+
+  # Net-sell configuration for DISTRIBUTION. Mirrors accum; defaults copy
+  # accum's values when omitted, so you rarely need to set both.
+  distrib:
+    net_min: 100000000
+    window: 20m
+    mid_drift_max: 0.01
+    confirm_for: 5m
+    support_gamma: 1.0

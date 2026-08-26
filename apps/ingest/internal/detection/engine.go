@@ -427,10 +427,7 @@ func (e *Engine) evaluateBias(ctx context.Context, st *symState, b Book, now tim
 
 	// Flow samples outlive the longest configured window only; every spec
 	// then sums over its own window so independently tuned configs behave.
-	maxWin := specs[0].window
-	if specs[1].window > maxWin {
-		maxWin = specs[1].window
-	}
+	maxWin := max(specs[1].window, specs[0].window)
 	st.pruneFlowTo(now.Add(-maxWin))
 	for i := range specs {
 		sp := &specs[i]

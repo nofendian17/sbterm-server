@@ -26,6 +26,8 @@ type KafkaConfig struct {
 	Brokers                []string `mapstructure:"brokers"`
 	Group                  string   `mapstructure:"group"`
 	RunningTradeBatchTopic string   `mapstructure:"running_trade_batch_topic"`
+	OrderBookTopic         string   `mapstructure:"order_book_topic"`
+	AlertsTopic            string   `mapstructure:"alerts_topic"`
 }
 
 type LogConfig struct {
@@ -63,6 +65,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-stream")
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")
+	v.SetDefault("kafka.order_book_topic", "datafeed.order_book")
+	v.SetDefault("kafka.alerts_topic", "datafeed.alerts")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.format", "text")
 	v.SetDefault("log.add_source", false)

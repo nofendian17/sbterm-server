@@ -28,14 +28,14 @@ type runningTradeEnvelope struct {
 	Data   []marketdata.Trade `json:"data"`
 }
 
-// Service polls Kafka and fans every decodable running trade batch out to the
-// hub. A record that fails to decode is logged and skipped: fan-out is best
-// effort by design — durability belongs to apps/ingest, and one poisoned
-// record must not wedge live delivery for every connected client.
+// Service polls Kafka and fans every decodable record out to the hub through
+// its per-topic routes. A record that fails to decode is logged and skipped:
+// fan-out is best effort by design — durability belongs to apps/ingest, and
+// one poisoned record must not wedge live delivery for every connected client.
 type Service struct {
 	consumer poller
 	hub      *Hub
-	topic    string
+	routes   Routes
 	logger   log.Logger
 
 	ctx    context.Context
@@ -43,9 +43,16 @@ type Service struct {
 	done   chan struct{}
 }
 
-// NewService builds the fan-out loop bound to one topic.
+// NewService builds the service serving a single running-trade topic.
 func NewService(consumer poller, hub *Hub, topic string, logger log.Logger) *Service {
-	return &Service{consumer: consumer, hub: hub, topic: topic, logger: logger}
+	return NewServiceRoutes(consumer, hub, Routes{
+		topic: RunningTradeRoute(hub, logger),
+	}, logger)
+}
+
+// NewServiceRoutes builds the service over explicit per-topic routes.
+func NewServiceRoutes(consumer poller, hub *Hub, routes Routes, logger log.Logger) *Service {
+	return &Service{consumer: consumer, hub: hub, routes: routes, logger: logger}
 }
 
 // Start launches the poll loop. It is idempotent.
@@ -85,45 +92,53 @@ func (s *Service) processFetches(fetches kgo.Fetches) {
 	}
 }
 
-// handleRecord decodes one Kafka record and broadcasts it. Every failure path
-// logs and returns; none of them stops the loop or the batch.
-func (s *Service) handleRecord(_ context.Context, topic string, value []byte) {
-	if topic != s.topic {
+// handleRecord routes one Kafka record to its topic handler. Unknown topics
+// are dropped quietly: the consumer subscribes to a fixed list, so an unknown
+// topic means misconfigured deployment, not bad data.
+func (s *Service) handleRecord(ctx context.Context, topic string, value []byte) error {
+	route, ok := s.routes[topic]
+	if !ok {
 		s.logger.Warn("stream: unexpected topic", "topic", topic)
-		return
+		return nil
 	}
-	batch := &datafeedv1.RunningTradeBatch{}
-	if err := proto.Unmarshal(value, batch); err != nil {
-		s.logger.Warn("stream: decode running trade batch", "error", err)
-		return
-	}
-	trades := batch.GetBatch()
-	if len(trades) == 0 {
-		return // nothing observable for clients
-	}
-	// One upstream record mixes many stocks, but an envelope is scoped to a
-	// single symbol — clients filter on it. Group the batch per stock so each
-	// envelope's data matches its label, keeping first-seen order.
-	bySymbol := make(map[string][]*datafeedv1.RunningTrade, len(trades))
-	order := make([]string, 0, len(trades))
-	for _, tr := range trades {
-		symbol := tr.GetStock()
-		if _, seen := bySymbol[symbol]; !seen {
-			order = append(order, symbol)
+	return route(ctx, value)
+}
+
+// RunningTradeRoute fans one decoded batch out per symbol, keeping first-seen
+// order so each envelope's data matches its label.
+func RunningTradeRoute(hub *Hub, logger log.Logger) RouteFn {
+	return func(_ context.Context, value []byte) error {
+		batch := &datafeedv1.RunningTradeBatch{}
+		if err := proto.Unmarshal(value, batch); err != nil {
+			logger.Warn("stream: decode running trade batch", "error", err)
+			return nil
 		}
-		bySymbol[symbol] = append(bySymbol[symbol], tr)
-	}
-	for _, symbol := range order {
-		payload, err := json.Marshal(runningTradeEnvelope{
-			Type:   string(ChannelRunningTrade),
-			Symbol: symbol,
-			Data:   marketdata.NewTrades(bySymbol[symbol]),
-		})
-		if err != nil {
-			s.logger.Warn("stream: marshal running trade envelope", "error", err)
-			continue
+		trades := batch.GetBatch()
+		if len(trades) == 0 {
+			return nil // nothing observable for clients
 		}
-		s.hub.Broadcast(ChannelRunningTrade, symbol, payload)
+		bySymbol := make(map[string][]*datafeedv1.RunningTrade, len(trades))
+		order := make([]string, 0, len(trades))
+		for _, tr := range trades {
+			symbol := tr.GetStock()
+			if _, seen := bySymbol[symbol]; !seen {
+				order = append(order, symbol)
+			}
+			bySymbol[symbol] = append(bySymbol[symbol], tr)
+		}
+		for _, symbol := range order {
+			payload, err := json.Marshal(runningTradeEnvelope{
+				Type:   string(ChannelRunningTrade),
+				Symbol: symbol,
+				Data:   marketdata.NewTrades(bySymbol[symbol]),
+			})
+			if err != nil {
+				logger.Warn("stream: marshal running trade envelope", "error", err)
+				continue
+			}
+			hub.Broadcast(ChannelRunningTrade, symbol, payload)
+		}
+		return nil
 	}
 }
 
@@ -138,7 +153,7 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		select {
 		case <-s.done:
 		case <-ctx.Done():
-			s.logger.Warn("stream: poll loop did not stop within shutdown budget")
+			s.logger.Warn("stream: fan-out loop did not stop within shutdown budget")
 		}
 	}
 	return nil

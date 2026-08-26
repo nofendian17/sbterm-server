@@ -16,3 +16,9 @@ log:
   level: info
   format: text
   add_source: false
+
+# Fan-out channels for the bandarmology pipeline. Topics must match
+# config.ingest.yaml / config.ws.yaml.
+kafka:
+  order_book_topic: datafeed.order_book
+  alerts_topic: datafeed.alerts

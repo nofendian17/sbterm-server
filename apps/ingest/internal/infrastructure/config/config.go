@@ -34,9 +34,10 @@ type RedisConfig struct {
 // HotStateConfig gates the live order book mirror in Redis. Disabled by
 // default so the rollout can be staged (writer first, evaluator later).
 type HotStateConfig struct {
-	Enabled bool          `mapstructure:"enabled"`
-	Prefix  string        `mapstructure:"prefix"`
-	TTL     time.Duration `mapstructure:"ttl"`
+	Enabled     bool          `mapstructure:"enabled"`
+	Prefix      string        `mapstructure:"prefix"`
+	TTL         time.Duration `mapstructure:"ttl"`
+	AlertsTopic string        `mapstructure:"alerts_topic"`
 }
 
 type QuestDBConfig struct {
@@ -97,7 +98,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.url", "redis://localhost:6379/0")
 	v.SetDefault("hot_state.enabled", false)
 	v.SetDefault("hot_state.prefix", "ob")
-	v.SetDefault("hot_state.ttl", 24*time.Hour)
+	v.SetDefault("hot_state.alerts_topic", "")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")

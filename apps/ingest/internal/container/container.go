@@ -4,6 +4,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -83,7 +84,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 				bookSink = persister
 			}
 
-			engine := detection.NewEngine(detection.DefaultConfig(), shadowSink{logger: logger})
+			engine := detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
 			pipe, err := service.NewBookPipeline(service.BookDeps{
 				Combiner:  questdb.NewCombiner(25),
 				Store:     store,
@@ -107,6 +108,41 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	return injector
+}
+
+// alertSink returns the detector's output sink. When hot_state.alerts_topic
+// is set, alerts are published to Kafka (for the stream fan-out) in addition
+// to the always-on shadow log; otherwise this is log-only observation mode.
+func alertSink(cfg *config.Config, logger log.Logger) detection.Sink {
+	shadow := shadowSink{logger: logger}
+	topic := cfg.HotState.AlertsTopic
+	if topic == "" {
+		return shadow
+	}
+	pub, err := kafka.NewPublisher(cfg.Kafka.Brokers, logger)
+	if err != nil {
+		logger.Error("container: alert publisher disabled, falling back to log-only", "error", err)
+		return shadow
+	}
+	return alertKafkaSink{pub: pub, topic: topic, inner: shadow}
+}
+
+// alertKafkaSink publishes each alert as JSON and keeps the shadow log.
+type alertKafkaSink struct {
+	pub   *kafka.Publisher
+	topic string
+	inner detection.Sink
+}
+
+func (s alertKafkaSink) Emit(ctx context.Context, a detection.Alert) error {
+	if err := s.inner.Emit(ctx, a); err != nil {
+		return err
+	}
+	value, err := json.Marshal(a)
+	if err != nil {
+		return fmt.Errorf("container: marshal alert: %w", err)
+	}
+	return s.pub.Publish(ctx, s.topic, a.Symbol, value)
 }
 
 // shadowSink logs every signal instead of publishing it: the evaluator runs

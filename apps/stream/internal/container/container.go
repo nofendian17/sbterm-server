@@ -30,8 +30,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 
 	do.Provide(injector, func(i do.Injector) (*kafka.Consumer, error) {
 		conf := do.MustInvoke[*config.Config](i)
-		topics := []string{conf.Kafka.RunningTradeBatchTopic}
-		return kafka.NewConsumer(conf.Kafka.Brokers, conf.Kafka.Group, topics)
+		return kafka.NewConsumer(conf.Kafka.Brokers, conf.Kafka.Group, enabledTopics(conf.Kafka))
 	})
 
 	do.Provide(injector, func(i do.Injector) (*service.Hub, error) {
@@ -45,7 +44,18 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			return nil, fmt.Errorf("container: construct consumer: %w", err)
 		}
 		hub := do.MustInvoke[*service.Hub](i)
-		return service.NewService(consumer, hub, conf.Kafka.RunningTradeBatchTopic, do.MustInvoke[log.Logger](i)), nil
+		logger := do.MustInvoke[log.Logger](i)
+		routes := service.Routes{}
+		if conf.Kafka.RunningTradeBatchTopic != "" {
+			routes[conf.Kafka.RunningTradeBatchTopic] = service.RunningTradeRoute(hub, logger)
+		}
+		if conf.Kafka.OrderBookTopic != "" {
+			routes[conf.Kafka.OrderBookTopic] = service.OrderBookRoute(hub, logger)
+		}
+		if conf.Kafka.AlertsTopic != "" {
+			routes[conf.Kafka.AlertsTopic] = service.AlertsRoute(hub, logger)
+		}
+		return service.NewServiceRoutes(consumer, hub, routes, logger), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*http.Server, error) {
@@ -158,4 +168,21 @@ func waitInterruptOrServeFailure(logger log.Logger, serveErr <-chan error) error
 		logger.Error("stream: http server failed", "error", err)
 		return err
 	}
+}
+
+// enabledTopics collects the configured topic names, dropping empty ones so
+// an unset channel is disabled rather than an invalid empty subscription.
+func enabledTopics(kafkaCfg config.KafkaConfig) []string {
+	candidates := []string{
+		kafkaCfg.RunningTradeBatchTopic,
+		kafkaCfg.OrderBookTopic,
+		kafkaCfg.AlertsTopic,
+	}
+	topics := make([]string, 0, len(candidates))
+	for _, t := range candidates {
+		if t != "" {
+			topics = append(topics, t)
+		}
+	}
+	return topics
 }

@@ -5,6 +5,21 @@
 questdb:
   url: ws::addr=localhost:9000;username=questdb;password=questdb;auto_flush_rows=100;
   running_trades_table: running_trades
+  # Order book snapshots land here as one row per snapshot with 1-D arrays
+  # per side (bid_px[1] = best bid). Retention is bounded by TTL days.
+  order_book_table: ob_book
+  book_ttl_days: 30
+
+# Redis backs the hot-state mirror of the live book (ob:book:<SYM>,
+# ob:hash:<SYM>). hot_state.enabled gates the whole bandarmology pipeline:
+# when off, microstructure frames are dropped at the handler.
+redis:
+  url: redis://localhost:6379/0
+
+hot_state:
+  enabled: false   # flip to true to run the detector (shadow mode: signals log only)
+  prefix: ob
+  ttl: 24h
 
 # Kafka consumer settings.
 # In Docker Compose, use broker host "redpanda" (redpanda:29092).
@@ -15,6 +30,10 @@ kafka:
   # Name of the topic for the running trade pipeline. This can be any Kafka
   # topic name; it must match the same setting in config.ws.yaml.
   running_trade_batch_topic: datafeed.running_trade_batch
+  order_book_topic: datafeed.order_book
+  best_bid_offer_topic: datafeed.best_bid_offer
+  iepiev_topic: datafeed.iepiev
+  liveprice_topic: datafeed.liveprice
 
 # Logging settings.
 # format supports "text" and "json".

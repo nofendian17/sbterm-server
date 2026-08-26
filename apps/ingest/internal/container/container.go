@@ -10,9 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/samber/do/v2"
 
+	"github.com/nofendian17/sbterm/apps/ingest/internal/detection"
 	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/config"
+	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/hotstate"
 	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/kafka"
 	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/questdb"
 	"github.com/nofendian17/sbterm/apps/ingest/internal/service"
@@ -57,18 +60,88 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 
 		topics := service.Topics{
 			RunningTradeBatch: cfg.Kafka.RunningTradeBatchTopic,
+			OrderBook:         cfg.Kafka.OrderBookTopic,
+			BestBidOffer:      cfg.Kafka.BestBidOfferTopic,
+			IepIev:            cfg.Kafka.IepIevTopic,
+			LivePrice:         cfg.Kafka.LivePriceTopic,
 		}
-		handler := service.NewFrameHandler(runningSink, topics, logger)
+
+		var opts []service.HandlerOption
+		if cfg.HotState.Enabled {
+			rdb, err := redisClient(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("container: hot state redis: %w", err)
+			}
+			store := hotstate.NewStore(rdb, cfg.HotState.Prefix, cfg.HotState.TTL)
+
+			var bookSink service.BookPersister
+			if cfg.QuestDB.OrderBookTable != "" {
+				persister, err := qdbClient.NewOrderBookSink(context.Background())
+				if err != nil {
+					return nil, fmt.Errorf("container: borrow order book sink: %w", err)
+				}
+				bookSink = persister
+			}
+
+			engine := detection.NewEngine(detection.DefaultConfig(), shadowSink{logger: logger})
+			pipe, err := service.NewBookPipeline(service.BookDeps{
+				Combiner:  questdb.NewCombiner(25),
+				Store:     store,
+				Persister: bookSink,
+				Engine:    engine,
+				Logger:    logger,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("container: construct book pipeline: %w", err)
+			}
+			opts = append(opts,
+				service.WithBookPipeline(pipe),
+				service.WithLiveness(store),
+				service.WithTradeObserver(engine),
+			)
+			logger.Info("bandarmology pipeline enabled (shadow mode)", "prefix", cfg.HotState.Prefix)
+		}
+
+		handler := service.NewFrameHandler(runningSink, topics, logger, opts...)
 		return service.NewService(consumer, handler, logger), nil
 	})
 
 	return injector
 }
 
+// shadowSink logs every signal instead of publishing it: the evaluator runs
+// in observation mode until its thresholds are calibrated on real sessions.
+type shadowSink struct {
+	logger log.Logger
+}
+
+func (s shadowSink) Emit(_ context.Context, a detection.Alert) error {
+	s.logger.Info("bandarmology signal",
+		"symbol", a.Symbol, "type", string(a.Type), "side", a.Side,
+		"ts", a.TS.Format(time.RFC3339Nano), "detail", a.Detail)
+	return nil
+}
+
 // kafkaTopicList collects the configured topic names into the slice the
-// Kafka consumer subscribes to.
+// Kafka consumer subscribes to. Auxiliary topics are always subscribed: when
+// the hot state is disabled their frames are dropped at the handler.
 func kafkaTopicList(kafkaCfg config.KafkaConfig) []string {
-	return []string{kafkaCfg.RunningTradeBatchTopic}
+	return []string{
+		kafkaCfg.RunningTradeBatchTopic,
+		kafkaCfg.OrderBookTopic,
+		kafkaCfg.BestBidOfferTopic,
+		kafkaCfg.IepIevTopic,
+		kafkaCfg.LivePriceTopic,
+	}
+}
+
+// redisClient builds the go-redis client backing the hot-state store.
+func redisClient(cfg *config.Config) (*redis.Client, error) {
+	opt, err := redis.ParseURL(cfg.Redis.URL)
+	if err != nil {
+		return nil, fmt.Errorf("container: parse redis url: %w", err)
+	}
+	return redis.NewClient(opt), nil
 }
 
 // Run loads the config, wires the container, starts the ingest loop, and

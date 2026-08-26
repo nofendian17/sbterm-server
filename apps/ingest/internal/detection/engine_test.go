@@ -140,39 +140,85 @@ func TestIcebergDetectedOnUniformRefills(t *testing.T) {
 	e := NewEngine(defaultCfg(), sink)
 	ctx := context.Background()
 
-	// step advances one minute per call; bid levels describe the full bid
-	// side after each snapshot (a missing 7750 means the level was consumed).
-	step := func(n int, bids ...[2]int64) {
+	n := int64(0)
+	step := func(bidQty int64, execVol float64) {
+		n++
+		prevQty := bidQty
+		if n == 1 {
+			// Establish baseline first without any consumption.
+			require.NoError(t, e.ObserveBook(ctx, book("BBCA",
+				side(n, [2]int64{7750, bidQty}),
+				side(900000+n, [2]int64{7760, 400}), base.Add(time.Duration(n)*time.Minute))))
+			if st := e.syms["BBCA"]; st != nil {
+				t.Logf("n=%d bidLv=%d", n, len(st.bidLv))
+			}
+			return
+		}
+		if execVol > 0 {
+			require.NoError(t, e.ObserveTrade(ctx, trade("BBCA",
+				base.Add(time.Duration(n)*time.Minute-time.Second), 7750, execVol, true)))
+		}
 		require.NoError(t, e.ObserveBook(ctx, book("BBCA",
-			side(int64(n), bids...),
-			side(900000+int64(n), [2]int64{7760, 400}), base.Add(time.Duration(n)*time.Minute))))
+			side(n, [2]int64{7750, bidQty}),
+			side(900000+n, [2]int64{7760, 400}), base.Add(time.Duration(n)*time.Minute))))
+		if st := e.syms["BBCA"]; st != nil {
+			t.Logf("n=%d bidLv=%d consumed=%v", n, len(st.bidLv), func() bool { tr, ok := st.bidLv["7750"]; return ok && tr.consumed }())
+		}
+		_ = prevQty
 	}
 
-	// Cycle 1: level sits at 500, gets bought away, comes back at ~500.
-	step(1, [2]int64{7750, 500})
-	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(90*time.Second), 7750, 500, true)))
-	step(2, [2]int64{7745, 100}) // 7750 consumed and gone
-	step(3, [2]int64{7750, 495}, [2]int64{7745, 100})
+	// Baseline 500 lot.
+	step(500, 0)
+	// Cycle 1: aggregate crushed to 40% with real prints, restored in-band.
+	step(180, 320)
+	step(495, 0) // refill 1
+	// Cycle 2.
+	step(190, 305)
+	step(505, 0) // refill 2
+	// Cycle 3 crosses iceberg.N.
+	step(170, 330)
+	step(498, 0) // refill 3 -> EMIT
 
-	// Cycle 2: consumed again, restored again.
-	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(4*time.Minute), 7750, 495, true)))
-	step(5, [2]int64{7745, 100})
-	step(6, [2]int64{7750, 505}, [2]int64{7745, 100})
-
-	// Cycle 3: third refill crosses iceberg.n and fires.
-	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(7*time.Minute), 7750, 505, true)))
-	step(8, [2]int64{7745, 100})
-	step(9, [2]int64{7750, 498}, [2]int64{7745, 100})
-
-	require.NotEmpty(t, sink.alerts)
-	var found bool
+	if st := e.syms["BBCA"]; st != nil {
+		for k, tr := range st.bidLv {
+			t.Logf("DEBUG lvl %v base=%.0f refills=%d consumed=%v", k, float64(tr.base), tr.refills, tr.consumed)
+		}
+	}
+	t.Logf("DEBUG alerts=%d", len(sink.alerts))
+	found := false
 	for _, a := range sink.alerts {
 		if a.Type == SignalIceberg {
 			found = true
 			assert.Equal(t, "BID", a.Side)
 		}
 	}
-	assert.True(t, found, "expected an ICEBERG alert, got %+v", sink.alerts)
+	assert.True(t, found, "expected ICEBERG after three consume/restore cycles")
+}
+
+// TestIcebergIgnoresAggregateNoise mirrors the live NICL case: an aggregated
+// level hovering around ~690k lots that only wiggles a few percent must never
+// count as consumption/refill cycles, even with constant small trades.
+func TestIcebergIgnoresAggregateNoise(t *testing.T) {
+	sink := &captureSink{}
+	e := NewEngine(defaultCfg(), sink)
+	ctx := context.Background()
+
+	qty := 680_000.0
+	for i := 1; i <= 12; i++ {
+		at := base.Add(time.Duration(i) * time.Minute)
+		wiggle := 5_000.0 * float64((i%3)-1) // -5k / 0 / +5k
+		require.NoError(t, e.ObserveTrade(ctx, trade("NICL", at, 482, 5_000, true)))
+		newQty := qty + wiggle
+		require.NoError(t, e.ObserveBook(ctx, book("NICL",
+			side(int64(i), [2]int64{482, int64(newQty)}),
+			side(int64(100+i), [2]int64{486, 30_000}), at)))
+		qty = newQty
+	}
+
+	for _, a := range sink.alerts {
+		assert.NotEqual(t, SignalIceberg, a.Type,
+			"sub-percent aggregate wiggles are not iceberg refills")
+	}
 }
 
 func TestAkumulasiRequiresStablePriceAndSupport(t *testing.T) {
@@ -290,5 +336,57 @@ func TestSessionGapResetsWindows(t *testing.T) {
 	for _, a := range sink.alerts {
 		assert.NotEqual(t, SignalAccumulation, a.Type,
 			"pre-gap volume must not leak across the session boundary")
+	}
+}
+
+// TestIcebergIgnoresDeepLevelFlicker guards the false-positive mode found on
+// live data: a deep level entering/leaving the scanned window must not count
+// as consumption+refill, and the reference size must itself clear MinQty.
+func TestIcebergIgnoresDeepLevelFlicker(t *testing.T) {
+	sink := &captureSink{}
+	cfg := defaultCfg()
+	cfg.Iceberg.MinQty = 300
+	e := NewEngine(cfg, sink)
+	ctx := context.Background()
+
+	t0 := base
+	// Level 482 first appears DEEP (position 11+) with a tiny 10k remainder.
+	deep := func(seq int64, pairs ...[2]int64) *BookSide {
+		s := &BookSide{Seq: seq}
+		for _, p := range pairs {
+			s.Prices = append(s.Prices, float64(p[0]))
+			s.Qtys = append(s.Qtys, p[1])
+		}
+		return s
+	}
+	bid := func(levels ...[2]int64) *BookSide { return deep(0, levels...) }
+
+	// Snapshot A: 10 fat levels above, 482 sits at position 11 (outside top-10
+	// scan) holding only 10_000.
+	a := make([][2]int64, 0, 11)
+	for i := 0; i < 10; i++ {
+		a = append(a, [2]int64{int64(500 - i), 1000})
+	}
+	a = append(a, [2]int64{482, 10_000})
+	require.NoError(t, e.ObserveBook(ctx, book("NICL", bid(a...),
+		side(99, [2]int64{510, 1000}), t0)))
+
+	// Trades at 482 (would satisfy the execution requirement if tracked).
+	require.NoError(t, e.ObserveTrade(ctx, trade("NICL", t0.Add(time.Second), 482, 5_000, true)))
+
+	// Snapshot B: the ten fat levels vanish; 482 now sits INSIDE the scan
+	// window having "refilled" three times worth of appearances.
+	for round := 0; round < 3; round++ {
+		b := append([][2]int64{{480, 900}}, [2]int64{482, 10_200})
+		require.NoError(t, e.ObserveBook(ctx, book("NICL", bid(b...),
+			side(98, [2]int64{510, 1000}), t0.Add(time.Duration(round+1)*time.Minute))))
+		c := append([][2]int64{{479, 900}}, [2]int64{482, 10_400})
+		require.NoError(t, e.ObserveBook(ctx, book("NICL", bid(c...),
+			side(97, [2]int64{510, 1000}), t0.Add(time.Duration(round+1)*time.Minute+30*time.Second))))
+	}
+
+	for _, a := range sink.alerts {
+		assert.NotEqual(t, SignalIceberg, a.Type,
+			"a deep flickering level must not produce an ICEBERG signal")
 	}
 }

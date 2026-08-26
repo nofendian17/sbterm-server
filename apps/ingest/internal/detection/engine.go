@@ -135,13 +135,15 @@ func DefaultConfig() Config {
 	return cfg
 }
 
-// lvl tracks one watched price level across snapshots (iceberg state).
+// lvl tracks one watched price level across snapshots using its AGGREGATED
+// quantity: an order refill is a large aggregate drop followed by a restore
+// toward the pre-drop size, with executions proving real consumption.
 type lvl struct {
-	base     int64     // reference quantity for uniformity comparison
-	refills  int       // confirmed restorations of this level
-	waiting  bool      // consumed since last seen, awaiting refill
-	lastSeen time.Time // last snapshot carrying this level
-	exec     float64   // traded volume at this price since lastSeen
+	base     int64     // pre-drop reference quantity
+	refills  int       // confirmed restorations
+	consumed bool      // significant drop observed, awaiting restore
+	execFrom time.Time // execution-evidence window starts here (pre-drop)
+	lastSeen time.Time // timestamp of the snapshot used for phase anchor
 }
 
 // flowPt is one signed net-flow sample.
@@ -312,7 +314,9 @@ func (e *Engine) detectPull(st *symState, b Book) {
 	}
 }
 
-// trackIceberg watches watched-level restorations after real consumption.
+// trackIceberg watches aggregated-level dynamics per side. A refill is
+// counted when the aggregate quantity at a price drops sharply (real
+// consumption evidenced by trades), then restores toward its pre-drop size.
 func (e *Engine) trackIceberg(st *symState, b Book, now time.Time) {
 	sides := []struct {
 		name      string
@@ -324,53 +328,68 @@ func (e *Engine) trackIceberg(st *symState, b Book, now time.Time) {
 		{"ASK", b.Ask, st.prevAsk, st.askLv, SignalIceberg},
 	}
 	for _, s := range sides {
-		if s.cur == nil {
+		if s.cur == nil || s.prev == nil {
 			continue
 		}
 		cur := levelMap(s.cur, e.cfg.TopLevels)
-		tolerance := (100 - e.cfg.Iceberg.UniformityPct) / 100
+		prev := levelMap(s.prev, e.cfg.TopLevels)
+		tolLow := 1 - e.cfg.Iceberg.UniformityPct/100
 
-		for key, qty := range cur {
+		seen := make(map[string]bool, len(cur))
+		for key, cq := range cur {
+			seen[key] = true // survivors of this snapshot are never cleaned up
+			pq := prev[key]  // 0 when newly appeared
 			tr := s.lv[key]
 			if tr == nil {
-				s.lv[key] = &lvl{base: qty, lastSeen: now}
+				tr = &lvl{lastSeen: now}
+				// Born mid-cycle: a fresh tracker that already shows a sharp
+				// aggregate drop must arm its consumed phase immediately.
+				if pq > 0 && float64(cq) <= float64(pq)*iceDropRatio {
+					tr.consumed = true
+					tr.base = pq
+					tr.execFrom = st.prevTS
+				} else {
+					tr.base = cq
+				}
+				s.lv[key] = tr
 				continue
 			}
-			if tr.waiting {
-				if st.executedBetween(pxKeyToFloat(key), tr.lastSeen, now) > 0 &&
-					qty >= e.cfg.Iceberg.MinQty &&
-					tolerance >= 0 && absFloat(float64(qty)-float64(tr.base)) <= float64(tr.base)*tolerance {
-					tr.refills++
-					tr.waiting = false
-					tr.exec = 0
-					if tr.refills >= e.cfg.Iceberg.N && e.cooldownOK(st, s.typ, b.ExchangeTS) {
-						e.emit(st, s.typ, b.Symbol, s.name, b.ExchangeTS, map[string]any{
-							"price": key, "refills": tr.refills, "base_qty": tr.base,
-						})
-						tr.refills = 0
-					}
+
+			switch {
+			case !tr.consumed && pq > 0 && float64(cq) <= float64(pq)*iceDropRatio:
+				// Significant consumption of the aggregate level.
+				tr.consumed = true
+				tr.base = pq
+				tr.execFrom = st.prevTS
+				tr.lastSeen = now
+			case tr.consumed && cq >= e.cfg.Iceberg.MinQty &&
+				float64(cq) >= float64(tr.base)*tolLow &&
+				float64(cq) <= float64(tr.base)*(1+tolLow) &&
+				st.executedBetween(pxKeyToFloat(key), tr.execFrom, now) > 0:
+				// Restored toward pre-drop size after real consumption.
+				tr.refills++
+				tr.consumed = false
+				tr.base = cq
+				if tr.refills >= e.cfg.Iceberg.N && e.cooldownOK(st, s.typ, b.ExchangeTS) {
+					e.emit(st, s.typ, b.Symbol, s.name, b.ExchangeTS, map[string]any{
+						"price": key, "refills": tr.refills, "base_qty": tr.base,
+					})
+					tr.refills = 0
 				}
-			}
-			if !tr.waiting {
+			default:
 				tr.lastSeen = now
 			}
 		}
-		// Levels gone from the current snapshot enter the waiting state,
-		// anchored at the last snapshot that still carried them so the
-		// consuming trades stay inside the execution lookback.
-		if s.prev != nil {
-			prev := levelMap(s.prev, e.cfg.TopLevels)
-			for key, tr := range s.lv {
-				if _, still := cur[key]; !still {
-					if _, wasPrev := prev[key]; wasPrev {
-						tr.waiting = true
-						tr.lastSeen = st.prevTS
-					}
-				}
+		// Prices absent from BOTH sides' current view age out of tracking.
+		for key := range s.lv {
+			if !seen[key] {
+				delete(s.lv, key)
 			}
 		}
 	}
 }
+
+const iceDropRatio = 0.5
 
 // evaluateBias runs the akumulasi/distribusi composite over the rolling flow
 // window using the current book (when present) for support and mid checks.

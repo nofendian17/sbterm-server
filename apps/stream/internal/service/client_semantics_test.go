@@ -53,5 +53,28 @@ func TestUnsubscribeEmptySymbolsIsNoop(t *testing.T) {
 	assert.False(t, c.wants(ChannelRunningTrade, "ANTM"), "empty-symbols unsubscribe changes nothing")
 
 	c.Unsubscribe(Channel("other"), []string{})
-	assert.True(t, c.wants(Channel("other"), "BBCA"), "an inactive channel falls back to receive-all default")
+	assert.False(t, c.wants(Channel("other"), "BBCA"),
+		"channels other than running_trade are strict opt-in")
+}
+
+// TestNewChannelsAreStrictOptIn locks the multi-channel rule: the legacy
+// running_trade feed stays broadcast-all for untouched clients (original
+// spec), but orderbook and alerts must NEVER leak into clients that did not
+// explicitly subscribe to them.
+func TestNewChannelsAreStrictOptIn(t *testing.T) {
+	hub := NewHub(discardLogger())
+	rtOnly := NewClient(hub, nil)
+	rtOnly.Subscribe(ChannelRunningTrade, []string{"BBCA"})
+	hub.Register(rtOnly)
+
+	untouched := NewClient(hub, nil)
+	hub.Register(untouched)
+
+	assert.True(t, rtOnly.wants(ChannelRunningTrade, "BBCA"))
+	assert.True(t, untouched.wants(ChannelRunningTrade, "BBCA"),
+		"legacy running_trade keeps its broadcast-all default")
+	assert.False(t, rtOnly.wants(ChannelOrderBook, "BBCA"),
+		"orderbook must not leak into a client that only asked for trades")
+	assert.False(t, untouched.wants(ChannelAlerts, "BBCA"),
+		"alerts are strictly opt-in")
 }

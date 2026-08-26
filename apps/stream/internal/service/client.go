@@ -95,17 +95,23 @@ func (c *Client) Unsubscribe(ch Channel, symbols []string) {
 }
 
 // wants reports whether a record on channel/symbol matches the subscription.
-// Clients that never subscribed receive everything: the spec's default is
-// broadcast-all ("klien tanpa subscribe terima semua batch").
+// The legacy running_trade feed keeps its spec default — clients that never
+// subscribed receive everything. Every newer channel (orderbook, alerts) is
+// strictly opt-in: an un-subscribed client must not have high-volume or
+// signal traffic leak into it.
 func (c *Client) wants(channel Channel, symbol string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if set, ok := c.subs[channel]; ok && set != nil {
-		_, wants := set[symbol]
-		return wants
+	set, ok := c.subs[channel]
+	if ok && set != nil {
+		_, wanted := set[symbol]
+		return wanted
 	}
-	return true // never subscribed, or explicit broadcast mode
+	if ok {
+		return true // explicit broadcast mode for this channel
+	}
+	return channel == ChannelRunningTrade
 }
 
 // Deliver enqueues one pre-marshaled payload without blocking. A full buffer

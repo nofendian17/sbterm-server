@@ -537,3 +537,51 @@ func TestWSClientRetriesWhenChannelProviderFails(t *testing.T) {
 	cancel()
 	require.NoError(t, <-done)
 }
+
+// TestWSClientSendsExtraSubscribeFrames asserts that extra channel providers
+// are resolved and subscribed sequentially on the same authenticated
+// connection — the stockbit.com frontend pattern (auth once, subscribe many).
+func TestWSClientSendsExtraSubscribeFrames(t *testing.T) {
+	const wskey = "k"
+	frames := make(chan *datafeedv1.WebsocketChannel, 4)
+	srv := newWSUpgradeServer(t, func(c *websocket.Conn, r *http.Request) {
+		readAuthThenSubscribe(t, c)
+		// Two more subscribe frames follow on the same connection.
+		frames <- decodeSubscribe(t, readBinary(t, c)).GetChannel()
+		frames <- decodeSubscribe(t, readBinary(t, c)).GetChannel()
+		drain(c)
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewWSClient(wsURL(srv), func(ctx context.Context) (string, error) { return wskey, nil },
+		WithWSReconnectBackoff(time.Millisecond, time.Millisecond))
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Run(ctx, WSSubscription{
+			UserID:  42,
+			Channel: WSChannelWatchlist("BBCA"),
+			ExtraChannels: []ChannelProvider{
+				func(context.Context) (*datafeedv1.WebsocketChannel, error) { return WSChannelOrderBook("BBRI"), nil },
+				func(context.Context) (*datafeedv1.WebsocketChannel, error) { return WSChannelIepiev("BMRI"), nil },
+			},
+		}, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error { return nil })
+	}()
+
+	select {
+	case ch := <-frames:
+		assert.Equal(t, []string{"BBRI"}, ch.GetOrderBook())
+		assert.Empty(t, ch.GetIepiev())
+	case <-time.After(2 * time.Second):
+		t.Fatal("first extra subscribe frame never arrived")
+	}
+	select {
+	case ch := <-frames:
+		assert.Equal(t, []string{"BMRI"}, ch.GetIepiev())
+		assert.Empty(t, ch.GetOrderBook())
+	case <-time.After(2 * time.Second):
+		t.Fatal("second extra subscribe frame never arrived")
+	}
+	cancel()
+	require.NoError(t, <-done)
+}

@@ -26,6 +26,9 @@ type Subscription struct {
 	Client    *stockbitws.WSClient
 	Channel   *datafeedv1.WebsocketChannel
 	ChannelFn stockbitws.ChannelProvider
+	// ExtraFns are resolved like ChannelFn and subscribed as additional
+	// frames on the same connection (auth once, subscribe many).
+	ExtraFns  []stockbitws.ChannelProvider
 	RefreshAt string
 }
 
@@ -143,6 +146,9 @@ func (s *Service) run(sub *Subscription, userID int64) {
 		request.ChannelFn = sub.ChannelFn
 	} else {
 		request.Channel = sub.Channel
+	}
+	for _, fn := range sub.ExtraFns {
+		request.ExtraChannels = append(request.ExtraChannels, fn)
 	}
 
 	err := sub.Client.Run(s.ctx, request, func(ctx context.Context, m *datafeedv1.WebsocketWrapMessageChannel) error {

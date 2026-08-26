@@ -76,11 +76,11 @@ func TestBroadcastFilter(t *testing.T) {
 			want:    1,
 		},
 		{
-			name:    "other channel with explicit symbols filters unknown channel",
+			name:    "other channel is strict opt-in even when another channel has symbols",
 			subs:    map[Channel][]string{ChannelRunningTrade: {"BBCA"}},
 			channel: Channel("liveprice"),
 			symbol:  "BBCA",
-			want:    1, // never-subscribed channel = receive-all default
+			want:    0, // only running_trade keeps the broadcast-all default
 		},
 		{
 			name:    "subscribed other channel filters its non-matching symbols",

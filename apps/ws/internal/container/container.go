@@ -71,43 +71,67 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 
 		subs := make([]*service.Subscription, 0, len(cfg.Stockbit.WSSubscriptions))
 		var provider *symbols.Provider
+		var staticChans []*datafeedv1.WebsocketChannel
+		type dynamicEntry struct {
+			sub     config.WSSubscriptionConfig
+			channel stockbitws.ChannelProvider
+		}
+		var dynamics []dynamicEntry
 		for _, sub := range cfg.Stockbit.WSSubscriptions {
-			ws := stockbitws.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
-				key, err := refresher.Client().GetWebSocketKey(ctx)
-				if err != nil {
-					return "", fmt.Errorf("ws: fetch websocket key: %w", err)
-				}
-				return key.Data.Key, nil
-			},
-				stockbitws.WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
-					return refresher.EnsureToken(ctx)
-				}),
-				stockbitws.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
-				stockbitws.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
-				stockbitws.WithWSLogger(logger),
-			)
-
-			entry := &service.Subscription{
-				Name:   sub.Name,
-				Client: ws,
-			}
 			if len(sub.DynamicChannels) > 0 {
 				if provider == nil {
 					provider = symbols.New(cfg.Symbols.BaseURL, &http.Client{Timeout: cfg.Symbols.Timeout}, cfg.Symbols.CacheTTL)
 				}
 				dynamic := sub
-				entry.ChannelFn = func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
-					universe, err := provider.Symbols(ctx)
-					if err != nil {
-						return nil, fmt.Errorf("ws: resolve dynamic symbols: %w", err)
-					}
-					return service.BuildMicrostructureChannel(dynamic.DynamicChannels, universe)
-				}
-				entry.RefreshAt = cfg.Symbols.RefreshTime
-			} else {
-				entry.Channel = service.BuildChannel(sub.Channels)
+				dynamics = append(dynamics, dynamicEntry{
+					sub: dynamic,
+					channel: func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
+						universe, err := provider.Symbols(ctx)
+						if err != nil {
+							return nil, fmt.Errorf("ws: resolve dynamic symbols: %w", err)
+						}
+						return service.BuildMicrostructureChannel(dynamic.DynamicChannels, universe)
+					},
+				})
+				continue
+			}
+			staticChans = append(staticChans, service.BuildChannel(sub.Channels))
+		}
+
+		// Upstream allows ONE datafeed connection per account: parallel
+		// connections kick each other off. All subscriptions therefore share
+		// a single client; each becomes its own subscribe frame (auth once,
+		// subscribe many — the frontend pattern), and the dynamic symbol set
+		// is re-resolved on every reconnect plus the daily refresh.
+		if len(dynamics) > 0 {
+			first := dynamics[0]
+			entry := &service.Subscription{
+				Name:      first.sub.Name,
+				Client:    wsClientFor(refresher, cfg, logger),
+				ChannelFn: first.channel,
+				RefreshAt: cfg.Symbols.RefreshTime,
+			}
+			if len(staticChans) > 0 {
+				base := stockbitws.MergeWSChannels(staticChans...)
+				entry.ExtraFns = append(entry.ExtraFns,
+					func(context.Context) (*datafeedv1.WebsocketChannel, error) { return base, nil })
+			}
+			for _, d := range dynamics[1:] {
+				entry.ExtraFns = append(entry.ExtraFns, d.channel)
 			}
 			subs = append(subs, entry)
+		} else {
+			for i, ch := range staticChans {
+				name := ""
+				if i < len(cfg.Stockbit.WSSubscriptions) {
+					name = cfg.Stockbit.WSSubscriptions[i].Name
+				}
+				subs = append(subs, &service.Subscription{
+					Name:    name,
+					Client:  wsClientFor(refresher, cfg, logger),
+					Channel: ch,
+				})
+			}
 		}
 
 		router := service.NewFrameRouter(publisher, service.Topics{
@@ -121,6 +145,25 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	})
 
 	return injector
+}
+
+// wsClientFor builds one datafeed websocket client with the standard
+// credential, keepalive, and backoff options.
+func wsClientFor(refresher *stockbit.Refresher, cfg *config.Config, logger log.Logger) *stockbitws.WSClient {
+	return stockbitws.NewWSClient(cfg.Stockbit.WSURL, func(ctx context.Context) (string, error) {
+		key, err := refresher.Client().GetWebSocketKey(ctx)
+		if err != nil {
+			return "", fmt.Errorf("ws: fetch websocket key: %w", err)
+		}
+		return key.Data.Key, nil
+	},
+		stockbitws.WithWSAccessTokenProvider(func(ctx context.Context) (string, error) {
+			return refresher.EnsureToken(ctx)
+		}),
+		stockbitws.WithWSPingInterval(cfg.Stockbit.WSPingInterval),
+		stockbitws.WithWSReconnectBackoff(cfg.Stockbit.WSReconnectBackoffInitial, cfg.Stockbit.WSReconnectBackoffMax),
+		stockbitws.WithWSLogger(logger),
+	)
 }
 
 // redisClient builds the go-redis client backing the token store. The store

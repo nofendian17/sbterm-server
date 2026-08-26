@@ -197,6 +197,10 @@ func (c *Client) createTradeTable(ctx context.Context) error {
 // createBookTable creates the order book snapshot table: one row per accepted
 // snapshot with both sides' depth as 1-D arrays (article-compatible layout:
 // bid_px[1] is the best bid). DEDUP keys collapse reconnect replays.
+//
+// Retention attaches separately via ALTER TABLE SET TTL: this QuestDB build
+// rejects an inline TTL clause at CREATE time. A failed ALTER keeps the
+// schema pending so the retry loop re-applies it once the server accepts.
 func (c *Client) createBookTable(ctx context.Context) error {
 	q, err := c.db.BorrowQuery(ctx)
 	if err != nil {
@@ -216,12 +220,16 @@ func (c *Client) createBookTable(ctx context.Context) error {
   bid_seq LONG,
   ask_seq LONG,
   bid_px DOUBLE[],
-  bid_qty LONG[],
+  bid_qty DOUBLE[],
   ask_px DOUBLE[],
-  ask_qty LONG[]
-) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS(ts, symbol, bid_seq, ask_seq) TTL %d DAYS`, c.orderBookTable, ttl)
+  ask_qty DOUBLE[]
+) TIMESTAMP(ts) PARTITION BY DAY WAL DEDUP UPSERT KEYS(ts, symbol, bid_seq, ask_seq)`, c.orderBookTable)
 	if _, err := q.Exec(ctx, ddl); err != nil {
 		return fmt.Errorf("questdb: create table %s: %w", c.orderBookTable, err)
+	}
+	alter := fmt.Sprintf(`ALTER TABLE %s SET TTL %d DAYS`, c.orderBookTable, ttl)
+	if _, err := q.Exec(ctx, alter); err != nil {
+		return fmt.Errorf("questdb: set ttl on %s: %w", c.orderBookTable, err)
 	}
 	return nil
 }

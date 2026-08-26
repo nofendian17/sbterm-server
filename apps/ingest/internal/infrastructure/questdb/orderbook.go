@@ -291,9 +291,9 @@ func (s *bookPairSink) Store(ctx context.Context, pair *BookPair) error {
 	// QWP column order: symbols first, then typed columns, then the row
 	// finalizer (At).
 	snd.Float64Array1DColumn("bid_px", pair.Bid.Prices)
-	snd.Int64Array1DColumn("bid_qty", pair.Bid.Qtys)
+	snd.Float64Array1DColumn("bid_qty", toFloat64(pair.Bid.Qtys))
 	snd.Float64Array1DColumn("ask_px", pair.Ask.Prices)
-	snd.Int64Array1DColumn("ask_qty", pair.Ask.Qtys)
+	snd.Float64Array1DColumn("ask_qty", toFloat64(pair.Ask.Qtys))
 	if !pair.ReceiveTS.IsZero() {
 		snd.TimestampColumn("receive_ts", pair.ReceiveTS)
 	}
@@ -307,4 +307,15 @@ func (s *bookPairSink) Store(ctx context.Context, pair *BookPair) error {
 // Close flushes buffered rows and returns the sender to the pool.
 func (s *bookPairSink) Close(ctx context.Context) error {
 	return s.sender.Close(ctx)
+}
+
+// toFloat64 widens lot counts for QuestDB arrays: the server's ARRAY type
+// does not accept LONG elements, and lot counts below 2^53 are exact in
+// float64.
+func toFloat64(in []int64) []float64 {
+	out := make([]float64, len(in))
+	for i, v := range in {
+		out[i] = float64(v)
+	}
+	return out
 }

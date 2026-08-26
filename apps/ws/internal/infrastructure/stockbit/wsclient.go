@@ -31,11 +31,15 @@ type ChannelProvider func(ctx context.Context) (*datafeedv1.WebsocketChannel, er
 // WSSubscription describes one datafeed subscription: the account user id and
 // the channels to subscribe the connection to. ChannelFn wins over Channel
 // when set: it is re-invoked on every connect attempt so reconnects always
-// carry the freshest symbol set.
+// carry the freshest symbol set. ExtraChannels are resolved the same way and
+// subscribed as ADDITIONAL frames on the same authenticated connection — the
+// stockbit.com frontend pattern (auth once, subscribe many) — which keeps a
+// wildcard feed and a large symbol bundle on one upstream slot.
 type WSSubscription struct {
-	UserID    int64
-	Channel   *datafeedv1.WebsocketChannel
-	ChannelFn ChannelProvider
+	UserID        int64
+	Channel       *datafeedv1.WebsocketChannel
+	ChannelFn     ChannelProvider
+	ExtraChannels []ChannelProvider
 }
 
 // WSHandler receives each decoded server frame. Returning an error is logged
@@ -180,6 +184,24 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			}
 			resolved.Channel = channel
 		}
+		extraChans := make([]*datafeedv1.WebsocketChannel, 0, len(sub.ExtraChannels))
+		resolveFailed := false
+		for _, fn := range sub.ExtraChannels {
+			ch2, err := fn(ctx)
+			if err != nil {
+				c.logWarn("stockbit ws: resolve extra channel failed", "error", err)
+				resolveFailed = true
+				break
+			}
+			extraChans = append(extraChans, ch2)
+		}
+		if resolveFailed {
+			if !sleepCtx(ctx, backoff) {
+				return nil
+			}
+			backoff = c.nextBackoff(backoff)
+			continue
+		}
 
 		key, err := c.key(ctx)
 		if err != nil {
@@ -224,7 +246,7 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			backoff = c.nextBackoff(backoff)
 			continue
 		}
-		if err := c.subscribe(conn, key, resolved, access); err != nil {
+		if err := c.subscribe(conn, key, resolved.UserID, resolved.Channel, access); err != nil {
 			conn.Close()
 			c.logWarn("stockbit ws: subscribe failed", "error", err)
 			if !sleepCtx(ctx, backoff) {
@@ -232,6 +254,17 @@ func (c *WSClient) Run(ctx context.Context, sub WSSubscription, handler WSHandle
 			}
 			backoff = c.nextBackoff(backoff)
 			continue
+		}
+		for _, ch2 := range extraChans {
+			if err := c.subscribe(conn, key, resolved.UserID, ch2, access); err != nil {
+				conn.Close()
+				c.logWarn("stockbit ws: extra subscribe failed", "error", err)
+				if !sleepCtx(ctx, backoff) {
+					return nil
+				}
+				backoff = c.nextBackoff(backoff)
+				continue
+			}
 		}
 		backoff = c.opts.backoffInit
 
@@ -310,10 +343,20 @@ func (c *WSClient) authenticate(conn *websocket.Conn, key string, sub WSSubscrip
 	return c.write(conn, frame)
 }
 
-func (c *WSClient) subscribe(conn *websocket.Conn, key string, sub WSSubscription, access string) error {
+func (c *WSClient) subscribe(conn *websocket.Conn, key string, userID int64, channel *datafeedv1.WebsocketChannel, access string) error {
+	if c.opts.logger != nil && c.opts.logger.Enabled(context.Background(), log.LevelDebug) {
+		c.logDebug("stockbit ws: subscribing",
+			"symbols", map[string][]string{
+				"running_trade_batch": channel.GetRunningTradeBatch(),
+				"order_book":          channel.GetOrderBook(),
+				"liveprice":           channel.GetLiveprice(),
+				"iepiev":              channel.GetIepiev(),
+				"best_bid_offer":      channel.GetBestBidOffer(),
+			})
+	}
 	frame, err := proto.Marshal(&datafeedv1.WebsocketRequest{
-		UserId:      strconv.FormatInt(sub.UserID, 10),
-		Channel:     sub.Channel,
+		UserId:      strconv.FormatInt(userID, 10),
+		Channel:     channel,
 		Key:         key,
 		AccessToken: access,
 	})

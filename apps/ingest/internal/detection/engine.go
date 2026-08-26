@@ -1,7 +1,12 @@
 // Package detection implements the bandarmology signal evaluator: four
 // deterministic rules over order book snapshots and the trade stream, with
-// evidence-bearing alerts. All timing derives from event timestamps so the
-// evaluator is deterministic and replayable against recorded data.
+// evidence-bearing alerts.
+//
+// Clock domain: every window, cooldown, and session gap operates on EXCHANGE
+// event time (Book.ExchangeTS, Trade.TS). ReceiveTS is transport metadata and
+// never enters the evaluator's arithmetic — mixing domains silently disables
+// signals whenever one clock drifts past a window boundary. The evaluator is
+// deterministic and replayable against recorded data.
 //
 // Signals:
 //
@@ -152,6 +157,18 @@ type flowPt struct {
 	val float64 // buy positive, sell negative
 }
 
+// biasTracker holds one bias signal's stability state. Accumulation and
+// distribution each own a private tracker: shared baselines or hold timers
+// let one side's instability rewrite the other's reference and reset its
+// confirmation progress.
+type biasTracker struct {
+	active      bool
+	baselineSet bool
+	baseMid     float64 // reference mid when the quiet stretch began
+	baseDep     float64 // reference depth on this signal's support side
+	holdSince   time.Time
+}
+
 type symState struct {
 	prevBid, prevAsk *BookSide
 	prevTS           time.Time
@@ -161,14 +178,7 @@ type symState struct {
 	trades []Trade
 	flow   []flowPt
 
-	baselineSet bool
-	baseMid     float64
-	baseBidDep  float64
-	baseAskDep  float64
-
-	holdSince   time.Time // price/support stability anchor
-	accumActive bool
-	distActive  bool
+	accum, dist biasTracker
 
 	pullLogBid, pullLogAsk []time.Time
 	lastEmit               map[SignalType]time.Time
@@ -209,7 +219,8 @@ func (e *Engine) ObserveBook(ctx context.Context, b Book) error {
 		return nil
 	}
 	st := e.state(b.Symbol)
-	now := b.ReceiveTS
+	// Single clock domain: exchange event time for every rule below.
+	now := b.ExchangeTS
 	if !st.prevTS.IsZero() && now.Sub(st.prevTS) > e.cfg.SessionGap {
 		e.reset(st, b.Symbol)
 	}
@@ -251,7 +262,6 @@ func (e *Engine) ObserveTrade(ctx context.Context, t Trade) error {
 		sign = 1.0
 	}
 	st.flow = append(st.flow, flowPt{ts: t.TS, val: sign * t.Value})
-	e.pruneFlow(st, t.TS)
 	e.evaluateBias(ctx, st, Book{Symbol: t.Symbol, ExchangeTS: t.TS, ReceiveTS: t.TS}, t.TS)
 	return nil
 }
@@ -273,7 +283,7 @@ func (e *Engine) detectPull(st *symState, b Book) {
 		if p.cur == nil || p.prev == nil {
 			continue
 		}
-		cut := b.ReceiveTS.Add(-e.cfg.Pull.Window)
+		cut := b.ExchangeTS.Add(-e.cfg.Pull.Window)
 		log := (*p.logRef)[:0]
 		for _, ts := range *p.logRef {
 			if ts.After(cut) {
@@ -397,75 +407,77 @@ func (e *Engine) evaluateBias(ctx context.Context, st *symState, b Book, now tim
 	mid, bidDepth, askDepth := currentBookShape(st, b)
 
 	specs := []struct {
-		active   *bool
+		tr       *biasTracker
 		netMin   float64
 		window   time.Duration
 		driftMax float64
 		confirm  time.Duration
 		gamma    float64
 		depth    float64
-		baseDep  *float64
-		support  bool // whether support-side check participates (accumulation: bids)
 		typ      SignalType
 		side     string
 	}{
-		{&st.accumActive, e.cfg.Accum.NetMin, e.cfg.Accum.Window, e.cfg.Accum.MidDriftMax,
-			e.cfg.Accum.ConfirmFor, e.cfg.Accum.SupportGamma, bidDepth, &st.baseBidDep, true,
+		{&st.accum, e.cfg.Accum.NetMin, e.cfg.Accum.Window, e.cfg.Accum.MidDriftMax,
+			e.cfg.Accum.ConfirmFor, e.cfg.Accum.SupportGamma, bidDepth,
 			SignalAccumulation, "BID"},
-		{&st.distActive, e.cfg.Distrib.NetMin, e.cfg.Distrib.Window, e.cfg.Distrib.MidDriftMax,
-			e.cfg.Distrib.ConfirmFor, e.cfg.Distrib.SupportGamma, askDepth, &st.baseAskDep, true,
+		{&st.dist, e.cfg.Distrib.NetMin, e.cfg.Distrib.Window, e.cfg.Distrib.MidDriftMax,
+			e.cfg.Distrib.ConfirmFor, e.cfg.Distrib.SupportGamma, askDepth,
 			SignalDistribution, "ASK"},
 	}
 
-	netBuy, netSell := st.netFlow(now, specs[0].window)
+	// Flow samples outlive the longest configured window only; every spec
+	// then sums over its own window so independently tuned configs behave.
+	maxWin := specs[0].window
+	if specs[1].window > maxWin {
+		maxWin = specs[1].window
+	}
+	st.pruneFlowTo(now.Add(-maxWin))
 	for i := range specs {
 		sp := &specs[i]
-		net := netBuy
+		tr := sp.tr
+		buy, sell := st.flowSum(now, sp.window)
+		net := buy
 		if i == 1 {
-			net = netSell
+			net = sell
 		}
 		if sp.depth <= 0 || mid <= 0 {
 			continue // need a live book to judge stability
 		}
-		base := sp.baseDep
-		if !st.baselineSet {
-			continue
+		if !tr.baselineSet {
+			tr.baseMid, tr.baseDep = mid, sp.depth
+			tr.baselineSet = true
 		}
-		if *base <= 0 {
-			*base = sp.depth // late baseline for this side
-		}
-		drift := absFloat(mid-st.baseMid) / st.baseMid
-		support := sp.depth >= sp.gamma**base
+		drift := absFloat(mid-tr.baseMid) / tr.baseMid
+		support := sp.depth >= sp.gamma*tr.baseDep
 		stable := drift <= sp.driftMax && support
 
 		if stable {
-			if st.holdSince.IsZero() {
-				st.holdSince = now
+			if tr.holdSince.IsZero() {
+				tr.holdSince = now
 			}
 		} else {
-			st.holdSince = time.Time{}
-			*sp.active = false
-			// Re-baseline after instability so the next quiet stretch is
-			// judged against fresh ground.
-			st.baseMid, st.baseBidDep, st.baseAskDep = mid, bidDepth, askDepth
+			tr.holdSince = time.Time{}
+			tr.active = false
+			// Re-baseline THIS signal only, so one side's instability never
+			// rewrites the other side's reference or resets its confirm timer.
+			tr.baseMid, tr.baseDep = mid, sp.depth
 		}
 
-		held := !st.holdSince.IsZero() && now.Sub(st.holdSince) >= sp.confirm
+		held := !tr.holdSince.IsZero() && now.Sub(tr.holdSince) >= sp.confirm
 		pressure := net >= sp.netMin
 		if held && pressure {
 			if e.cooldownOK(st, sp.typ, now) {
 				e.emit(st, sp.typ, b.Symbol, sp.side, now, map[string]any{
 					"net": net, "mid": mid, "drift": drift,
-					"held_for": now.Sub(st.holdSince).String(),
+					"held_for": now.Sub(tr.holdSince).String(),
 				})
-				*sp.active = true
+				tr.active = true
 			}
 		}
 		if net < sp.netMin {
-			*sp.active = false
+			tr.active = false
 		}
 	}
-	st.baselineSet = mid > 0
 }
 
 // executedBetween sums traded volume at an exact price inside [from,to].
@@ -479,11 +491,24 @@ func (s *symState) executedBetween(price float64, from, to time.Time) float64 {
 	return sum
 }
 
-func (s *symState) netFlow(now time.Time, window time.Duration) (buy, sell float64) {
-	cut := now.Add(-window)
-	keep := st_keep(s.flow, cut)
-	s.flow = keep
+// pruneFlowTo drops flow samples at or before cutoff.
+func (s *symState) pruneFlowTo(cutoff time.Time) {
+	out := s.flow[:0]
 	for _, pt := range s.flow {
+		if pt.ts.After(cutoff) {
+			out = append(out, pt)
+		}
+	}
+	s.flow = out
+}
+
+// flowSum sums signed net flow inside [now-window, now] without mutating.
+func (s *symState) flowSum(now time.Time, window time.Duration) (buy, sell float64) {
+	cut := now.Add(-window)
+	for _, pt := range s.flow {
+		if !pt.ts.After(cut) {
+			continue
+		}
 		if pt.val >= 0 {
 			buy += pt.val
 		} else {
@@ -491,16 +516,6 @@ func (s *symState) netFlow(now time.Time, window time.Duration) (buy, sell float
 		}
 	}
 	return buy, sell
-}
-
-func st_keep(flow []flowPt, cut time.Time) []flowPt {
-	out := flow[:0]
-	for _, pt := range flow {
-		if pt.ts.After(cut) {
-			out = append(out, pt)
-		}
-	}
-	return out
 }
 
 func pruneTrades(st *symState, cutoff time.Time) {
@@ -512,8 +527,6 @@ func pruneTrades(st *symState, cutoff time.Time) {
 	}
 	st.trades = out
 }
-
-func (e *Engine) pruneFlow(st *symState, _ time.Time) {}
 
 func (e *Engine) cooldownOK(st *symState, typ SignalType, now time.Time) bool {
 	if last, ok := st.lastEmit[typ]; ok && now.Sub(last) < e.cfg.Cooldown {

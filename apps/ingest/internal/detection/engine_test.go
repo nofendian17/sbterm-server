@@ -390,3 +390,121 @@ func TestIcebergIgnoresDeepLevelFlicker(t *testing.T) {
 			"a deep flickering level must not produce an ICEBERG signal")
 	}
 }
+
+// TestDistribWindowIsIndependent pins that distribution sums over its OWN
+// window: stale sells outside it must not fire the signal, fresh ones must.
+func TestDistribWindowIsIndependent(t *testing.T) {
+	sink := &captureSink{}
+	cfg := defaultCfg()
+	cfg.Accum.Window = 20 * time.Minute
+	cfg.Distrib.Window = 2 * time.Minute
+	e := NewEngine(cfg, sink)
+	ctx := context.Background()
+
+	start := base.Add(-12 * time.Minute)
+	stableBook := func(at time.Time) {
+		require.NoError(t, e.ObserveBook(ctx, book("BBCA",
+			side(1, [2]int64{7750, 1000}),
+			side(2, [2]int64{7800, 1000}), at)))
+	}
+
+	// Phase A: a big sell 10 minutes back sits inside the 20m accumulation
+	// window but outside the 2m distribution window. It must never fire.
+	stableBook(start)
+	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", start.Add(2*time.Minute), 7760, 51_546.4, false)))
+	for m := 1; m <= 24; m++ { // every 30s up to t0
+		stableBook(start.Add(time.Duration(m*30) * time.Second))
+	}
+	for _, a := range sink.alerts {
+		assert.NotEqual(t, SignalDistribution, a.Type,
+			"sells older than Distrib.Window must not fire")
+	}
+
+	// Phase B: fresh selling pressure inside the short window fires normally.
+	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(30*time.Second), 7760, 12_886.6, false)))
+	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(45*time.Second), 7760, 12_886.6, false)))
+	stableBook(base.Add(time.Minute))
+
+	fired := false
+	for _, a := range sink.alerts {
+		if a.Type == SignalDistribution {
+			fired = true
+		}
+	}
+	assert.True(t, fired, "distribution within its own window must fire")
+}
+
+// TestBiasTrackersAreIndependent pins that one side's instability must not
+// rewrite the other signal's baseline or reset its confirmation timer. Ask
+// depth collapses mid-hold; accumulation (bid side) still confirms on time.
+func TestBiasTrackersAreIndependent(t *testing.T) {
+	sink := &captureSink{}
+	cfg := defaultCfg()
+	cfg.Accum.ConfirmFor = 5 * time.Minute
+	e := NewEngine(cfg, sink)
+	ctx := context.Background()
+
+	stable := func(at time.Time, askQty int64) {
+		require.NoError(t, e.ObserveBook(ctx, book("BBCA",
+			side(1, [2]int64{7750, 1000}),
+			side(2, [2]int64{7800, askQty}), at)))
+	}
+
+	// Baseline + buying pressure early so the accumulation gate is armed.
+	stable(base, 1000)
+	require.NoError(t, e.ObserveTrade(ctx, trade("BBCA", base.Add(10*time.Second), 7775, 15_437, true)))
+
+	// Quiet stretch from t0; at t=4m45s the ASK side collapses, which under
+	// shared state would re-baseline and reset the shared hold timer.
+	for m := 1; m <= 9; m++ { // every 30s up to t=4m30s
+		stable(base.Add(time.Duration(m*30)*time.Second), 1000)
+	}
+	stable(base.Add(4*time.Minute+45*time.Second), 100) // ask collapse
+	stable(base.Add(5*time.Minute), 100)
+	stable(base.Add(5*time.Minute+30*time.Second), 100)
+
+	fired := false
+	for _, a := range sink.alerts {
+		if a.Type == SignalAccumulation {
+			fired = true
+		}
+		assert.NotEqual(t, SignalDistribution, a.Type, "no sell pressure exists")
+	}
+	assert.True(t, fired,
+		"accumulation must confirm despite ask-side instability")
+}
+
+// TestPullSurvivesExchangeClockLag pins the single clock domain: removal
+// events are stamped AND pruned on exchange time, so a large lag between the
+// exchange clock and arrival can no longer prune events before they
+// accumulate (which silently disabled PULL_BID/ASK).
+func TestPullSurvivesExchangeClockLag(t *testing.T) {
+	sink := &captureSink{}
+	cfg := defaultCfg()
+	e := NewEngine(cfg, sink)
+	ctx := context.Background()
+
+	lag := 45 * time.Minute // far beyond Pull.Window (10m)
+	lagged := func(seq int64, bidPx int64, bidQty int64, at time.Time) {
+		require.NoError(t, e.ObserveBook(ctx, Book{
+			Symbol: "BBCA",
+			Bid:    side(seq, [2]int64{bidPx, bidQty}),
+			Ask:    side(900_000+seq, [2]int64{7800, 400}),
+			// Exchange clock trails reception by `lag`.
+			ExchangeTS: at.Add(-lag), ReceiveTS: at,
+		}))
+	}
+
+	r0 := base.Add(time.Hour)
+	lagged(1, 7750, 1000, r0)
+	lagged(2, 7740, 800, r0.Add(time.Second)) // 7750 vanishes unexecuted -> event 1
+	lagged(3, 7730, 900, r0.Add(2*time.Second))
+
+	fired := false
+	for _, a := range sink.alerts {
+		if a.Type == SignalPullBid {
+			fired = true
+		}
+	}
+	assert.True(t, fired, "pull detection must work under exchange-clock lag")
+}

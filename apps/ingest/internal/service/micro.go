@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nofendian17/sbterm/libs/pkg/log"
@@ -98,7 +100,11 @@ type bookPipeline struct {
 	logger     log.Logger
 	minPersist time.Duration
 	shards     []bookShard
-	drops      uint64
+	drops      atomic.Uint64
+
+	done      chan struct{} // closed once by Shutdown
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 }
 
 type shardJob struct {
@@ -122,6 +128,7 @@ func NewBookPipeline(deps BookDeps) (BookPipeline, error) {
 		logger:     deps.Logger,
 		minPersist: deps.MinPersistInterval,
 	}
+	p.done = make(chan struct{})
 	for i := 0; i < w; i++ {
 		shard := bookShard{
 			combiner:    questdb.NewCombiner(25),
@@ -130,6 +137,7 @@ func NewBookPipeline(deps BookDeps) (BookPipeline, error) {
 			ch:          make(chan shardJob, 2048),
 		}
 		p.shards = append(p.shards, shard)
+		p.wg.Add(1)
 		go p.shardLoop(&p.shards[i])
 	}
 	return p, nil
@@ -145,11 +153,12 @@ func (p *bookPipeline) Process(_ context.Context, ob *consumerv1.Orderbook) erro
 	idx := shardIndex(symbol, len(p.shards))
 	job := shardJob{ob: ob, recv: time.Now()}
 	select {
+	case <-p.done:
+		return nil // shutting down: frame dropped like any overflow
 	case p.shards[idx].ch <- job:
 	default:
-		p.drops++
-		if p.drops%1000 == 1 {
-			p.logger.Warn("book shard queue full; dropping frames", "dropped", p.drops, "shard", idx)
+		if n := p.drops.Add(1); n%1000 == 1 {
+			p.logger.Warn("book shard queue full; dropping frames", "dropped", n, "shard", idx)
 		}
 	}
 	return nil
@@ -165,11 +174,12 @@ func (p *bookPipeline) ObserveTrade(_ context.Context, t detection.Trade) error 
 	}
 	idx := shardIndex(t.Symbol, len(p.shards))
 	select {
+	case <-p.done:
+		return nil // shutting down: trade dropped like any overflow
 	case p.shards[idx].ch <- shardJob{trade: &t}:
 	default:
-		p.drops++
-		if p.drops%1000 == 1 {
-			p.logger.Warn("book shard queue full; dropping frames", "dropped", p.drops, "shard", idx)
+		if n := p.drops.Add(1); n%1000 == 1 {
+			p.logger.Warn("book shard queue full; dropping frames", "dropped", n, "shard", idx)
 		}
 	}
 	return nil
@@ -184,9 +194,43 @@ func shardIndex(symbol string, n int) int {
 // shardLoop is one worker: dedup → combine → hot state → persist (throttled)
 // → evaluate. Everything here touches only this shard's symbols.
 func (p *bookPipeline) shardLoop(sh *bookShard) {
-	for job := range sh.ch {
-		p.processOne(sh, job)
+	defer p.wg.Done()
+	for {
+		select {
+		case <-p.done:
+			return
+		case job := <-sh.ch:
+			p.processOne(sh, job)
+		}
 	}
+}
+
+// Shutdown stops the shard workers and releases the durable sink. Workers
+// finish their in-flight job; queued frames are abandoned (market data is
+// worthless once stale). Implements do.ShutdownerWithContextAndError so a
+// samber/do scope calls it automatically. Nil pipelines (feature disabled)
+// and repeated calls are safe.
+func (p *bookPipeline) Shutdown(ctx context.Context) error {
+	if p == nil {
+		return nil
+	}
+	p.closeOnce.Do(func() { close(p.done) })
+
+	waited := make(chan struct{})
+	go func() {
+		p.wg.Wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+	case <-ctx.Done():
+		return fmt.Errorf("service: book pipeline shutdown timed out: %w", ctx.Err())
+	}
+
+	if p.persister != nil {
+		return p.persister.Close(ctx)
+	}
+	return nil
 }
 
 func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
@@ -233,8 +277,14 @@ func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
 	_ = sh.engine.ObserveBook(context.Background(), bk)
 }
 
-// Pending reports how many frames await processing across shards.
+// Pending reports how many frames await processing across shards. A shut
+// down pipeline always reports zero: its queues are abandoned by design.
 func (p *bookPipeline) Pending() int {
+	select {
+	case <-p.done:
+		return 0
+	default:
+	}
 	n := 0
 	for i := range p.shards {
 		n += len(p.shards[i].ch)

@@ -44,6 +44,66 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		return kafka.NewConsumer(cfg.Kafka.Brokers, cfg.Kafka.Group, kafkaTopicList(cfg.Kafka))
 	})
 
+	// Hot-state chain: redis client -> store -> book pipeline. Each layer is
+	// nil when bandarmology is disabled, and the pipeline implements
+	// do.ShutdownerWithContextAndError so injector.Shutdown() stops its
+	// workers automatically.
+	do.Provide(injector, func(i do.Injector) (*redis.Client, error) {
+		if !cfg.HotState.Enabled {
+			return nil, nil
+		}
+		return redisClient(cfg)
+	})
+
+	do.Provide(injector, func(i do.Injector) (*hotstate.Store, error) {
+		rdb, err := do.Invoke[*redis.Client](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: hot state redis: %w", err)
+		}
+		if rdb == nil {
+			return nil, nil
+		}
+		return hotstate.NewStore(rdb, cfg.HotState.Prefix, cfg.HotState.TTL), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (service.BookPipeline, error) {
+		store, err := do.Invoke[*hotstate.Store](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: hot state store: %w", err)
+		}
+		if store == nil {
+			return nil, nil
+		}
+		qdbClient, err := do.Invoke[*questdb.Client](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: construct questdb client: %w", err)
+		}
+
+		var bookSink service.BookPersister
+		if cfg.QuestDB.OrderBookTable != "" {
+			persister, err := qdbClient.NewOrderBookSink(context.Background())
+			if err != nil {
+				return nil, fmt.Errorf("container: borrow order book sink: %w", err)
+			}
+			bookSink = persister
+		}
+
+		pipe, err := service.NewBookPipeline(service.BookDeps{
+			Store:     store,
+			Persister: bookSink,
+			Logger:    logger,
+			EngineFactory: func() *detection.Engine {
+				return detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
+			},
+			Workers:            6,
+			MinPersistInterval: 500 * time.Millisecond,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("container: construct book pipeline: %w", err)
+		}
+		return pipe, nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (*service.Service, error) {
 		qdbClient, err := do.Invoke[*questdb.Client](i)
 		if err != nil {
@@ -68,35 +128,15 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 		}
 
 		var opts []service.HandlerOption
-		if cfg.HotState.Enabled {
-			rdb, err := redisClient(cfg)
-			if err != nil {
-				return nil, fmt.Errorf("container: hot state redis: %w", err)
-			}
-			store := hotstate.NewStore(rdb, cfg.HotState.Prefix, cfg.HotState.TTL)
-
-			var bookSink service.BookPersister
-			if cfg.QuestDB.OrderBookTable != "" {
-				persister, err := qdbClient.NewOrderBookSink(context.Background())
-				if err != nil {
-					return nil, fmt.Errorf("container: borrow order book sink: %w", err)
-				}
-				bookSink = persister
-			}
-
-			pipe, err := service.NewBookPipeline(service.BookDeps{
-				Store:     store,
-				Persister: bookSink,
-				Logger:    logger,
-				EngineFactory: func() *detection.Engine {
-					return detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
-				},
-				Workers:            6,
-				MinPersistInterval: 500 * time.Millisecond,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("container: construct book pipeline: %w", err)
-			}
+		store, err := do.Invoke[*hotstate.Store](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: resolve hot state store: %w", err)
+		}
+		pipe, err := do.Invoke[service.BookPipeline](i)
+		if err != nil {
+			return nil, fmt.Errorf("container: resolve book pipeline: %w", err)
+		}
+		if store != nil && pipe != nil {
 			opts = append(opts,
 				service.WithBookPipeline(pipe),
 				service.WithLiveness(store),

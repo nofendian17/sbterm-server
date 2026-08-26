@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"errors"
 
 	"github.com/spf13/viper"
@@ -17,9 +19,24 @@ const (
 var version = "dev"
 
 type Config struct {
-	QuestDB QuestDBConfig `mapstructure:"questdb"`
-	Kafka   KafkaConfig   `mapstructure:"kafka"`
-	Log     LogConfig     `mapstructure:"log"`
+	QuestDB  QuestDBConfig  `mapstructure:"questdb"`
+	Redis    RedisConfig    `mapstructure:"redis"`
+	HotState HotStateConfig `mapstructure:"hot_state"`
+	Kafka    KafkaConfig    `mapstructure:"kafka"`
+	Log      LogConfig      `mapstructure:"log"`
+}
+
+// RedisConfig points at the hot-state store.
+type RedisConfig struct {
+	URL string `mapstructure:"url"`
+}
+
+// HotStateConfig gates the live order book mirror in Redis. Disabled by
+// default so the rollout can be staged (writer first, evaluator later).
+type HotStateConfig struct {
+	Enabled bool          `mapstructure:"enabled"`
+	Prefix  string        `mapstructure:"prefix"`
+	TTL     time.Duration `mapstructure:"ttl"`
 }
 
 type QuestDBConfig struct {
@@ -73,6 +90,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("questdb.running_trades_table", "running_trades")
 	v.SetDefault("questdb.order_book_table", "ob_book")
 	v.SetDefault("questdb.book_ttl_days", 30)
+	v.SetDefault("redis.url", "redis://localhost:6379/0")
+	v.SetDefault("hot_state.enabled", false)
+	v.SetDefault("hot_state.prefix", "ob")
+	v.SetDefault("hot_state.ttl", 24*time.Hour)
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-ingest")
 	v.SetDefault("kafka.running_trade_batch_topic", "datafeed.running_trade_batch")

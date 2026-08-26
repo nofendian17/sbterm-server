@@ -111,13 +111,23 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 				ChannelFn: first.channel,
 				RefreshAt: cfg.Symbols.RefreshTime,
 			}
+			// One subscribe frame carrying EVERYTHING. The wildcard rtb feed
+			// cannot coexist with a large bundle on one frame (silently
+			// ignored upstream), so running_trade_batch is rewritten to the
+			// same explicit IHSG universe as the microstructure channels.
 			if len(staticChans) > 0 {
 				base := stockbitws.MergeWSChannels(staticChans...)
-				entry.ExtraFns = append(entry.ExtraFns,
-					func(context.Context) (*datafeedv1.WebsocketChannel, error) { return base, nil })
-			}
-			for _, d := range dynamics[1:] {
-				entry.ExtraFns = append(entry.ExtraFns, d.channel)
+				next := entry.ChannelFn
+				entry.ChannelFn = func(ctx context.Context) (*datafeedv1.WebsocketChannel, error) {
+					ch, err := next(ctx)
+					if err != nil {
+						return nil, err
+					}
+					if universe := ch.GetOrderBook(); len(universe) > 0 {
+						base.RunningTradeBatch = universe
+					}
+					return stockbitws.MergeWSChannels(base, ch), nil
+				}
 			}
 			subs = append(subs, entry)
 		} else {

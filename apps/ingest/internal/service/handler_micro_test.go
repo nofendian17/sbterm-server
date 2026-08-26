@@ -5,6 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nofendian17/sbterm/apps/ingest/internal/detection"
+	hotstate "github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/hotstate"
+	"github.com/nofendian17/sbterm/apps/ingest/internal/infrastructure/questdb"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -28,6 +32,8 @@ func (f *fakeBookPipe) Process(_ context.Context, ob *consumerv1.Orderbook) erro
 	return nil
 }
 
+func (f *fakeBookPipe) Pending() int { return 0 }
+
 type fakeTradeObs struct {
 	buys  int
 	sells int
@@ -41,6 +47,20 @@ func (f *fakeTradeObs) ObserveTrade(_ context.Context, t TradeFeed) error {
 	}
 	return nil
 }
+
+type fakeStore struct {
+	updates int
+}
+
+func (f *fakeStore) SetBook(context.Context, hotstate.BookUpdate) error { f.updates++; return nil }
+func (f *fakeStore) TouchBook(context.Context, string, time.Time) error { return nil }
+func (f *fakeStore) DedupBook(context.Context, string, string) (bool, error) {
+	return false, nil
+}
+
+type nopAlertSink struct{}
+
+func (nopAlertSink) Emit(context.Context, detection.Alert) error { return nil }
 
 type fakeLiveness struct {
 	symbols []string
@@ -103,4 +123,53 @@ func TestHandlerLivenessTopicsTouchProvider(t *testing.T) {
 	require.NoError(t, h.Handle(context.Background(), topics.LivePrice, raw))
 
 	assert.Equal(t, []string{"BBCA", "BBRI", "GULA"}, toucher.symbols)
+}
+
+type countingPersister struct {
+	n int
+}
+
+func (c *countingPersister) Store(context.Context, *questdb.BookPair) error { c.n++; return nil }
+func (c *countingPersister) Close(context.Context) error                    { return nil }
+
+// TestPipelineRateCapsPersistence asserts the durable sink is throttled per
+// symbol while the detector still observes every snapshot.
+func TestPipelineRateCapsPersistence(t *testing.T) {
+	store := &fakeStore{}
+	pers := &countingPersister{}
+	sinkCap := nopAlertSink{}
+	engine := detection.NewEngine(detection.DefaultConfig(), sinkCap)
+	pipe, err := NewBookPipeline(BookDeps{
+		Combiner:           questdb.NewCombiner(25),
+		Store:              store,
+		Persister:          pers,
+		Engine:             engine,
+		Logger:             nopLogger{},
+		MinPersistInterval: 600 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	mk := func(side string, px string, seq int64) *consumerv1.Orderbook {
+		return &consumerv1.Orderbook{
+			StockCode:      "BBCA",
+			Body:           "#O|BBCA|" + side + "|" + px + ";1;100",
+			SequenceNumber: seq,
+		}
+	}
+
+	// Bid half first: the combiner emits only once both sides exist.
+	require.NoError(t, pipe.Process(context.Background(), mk("BID", "770", 0)))
+	require.NoError(t, pipe.Process(context.Background(), mk("OFFER", "7801", 1)))
+	require.NoError(t, pipe.Process(context.Background(), mk("OFFER", "7802", 2))) // < interval
+
+	assert.Equal(t, 2, store.updates, "hot state still tracks every change synchronously")
+
+	// Exactly one pair was queued (the capped one never enqueued); the async
+	// writer must drain it.
+	deadline := time.Now().Add(2 * time.Second)
+	for pipe.Pending() > 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(t, 0, pipe.Pending())
+	assert.Equal(t, 1, pers.n, "only the uncapped snapshot reaches questdb")
 }

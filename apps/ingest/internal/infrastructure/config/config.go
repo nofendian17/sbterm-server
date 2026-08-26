@@ -91,7 +91,7 @@ func Load() (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("questdb.url", "ws::addr=localhost:9000;auto_flush_rows=100;")
+	v.SetDefault("questdb.url", "ws::addr=localhost:9000;auto_flush_rows=100;connect_timeout=10000;")
 	v.SetDefault("questdb.running_trades_table", "running_trades")
 	v.SetDefault("questdb.order_book_table", "ob_book")
 	v.SetDefault("questdb.book_ttl_days", 30)

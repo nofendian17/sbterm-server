@@ -1,9 +1,10 @@
 package service
 
 import (
+	"time"
+
 	"context"
 	"fmt"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -56,9 +57,19 @@ func NewFrameHandler(runningSink RunningTradeBatchSink, topics Topics, logger lo
 	return h
 }
 
+// handleTimeout bounds one record's full processing. A hung downstream write
+// (e.g. a QuestDB sender whose connection died while idle) must surface as an
+// error — which triggers redelivery — instead of freezing the poll loop.
+const handleTimeout = 10 * time.Second
+
 // Handle routes one record by topic, unmarshalling the protobuf payload and
 // storing it.
 func (h *FrameHandler) Handle(ctx context.Context, topic string, value []byte) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, handleTimeout)
+	defer cancel()
 	switch topic {
 	case h.topics.RunningTradeBatch:
 		batch := &datafeedv1.RunningTradeBatch{}

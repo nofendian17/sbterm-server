@@ -111,7 +111,14 @@ func (c *Client) wants(channel Channel, symbol string) bool {
 	if ok {
 		return true // explicit broadcast mode for this channel
 	}
-	return channel == ChannelRunningTrade
+	// Channel absent from subscriptions. The legacy broadcast-all default
+	// applies ONLY to the original running_trade feed AND only to clients
+	// with no subscription at all — one explicit opt-in elsewhere must not
+	// drag in the firehose.
+	if channel == ChannelRunningTrade && len(c.subs) == 0 {
+		return true
+	}
+	return false
 }
 
 // Deliver enqueues one pre-marshaled payload without blocking. A full buffer

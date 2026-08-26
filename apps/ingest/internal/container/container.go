@@ -84,13 +84,15 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 				bookSink = persister
 			}
 
-			engine := detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
 			pipe, err := service.NewBookPipeline(service.BookDeps{
-				Combiner:  questdb.NewCombiner(25),
 				Store:     store,
 				Persister: bookSink,
-				Engine:    engine,
 				Logger:    logger,
+				EngineFactory: func() *detection.Engine {
+					return detection.NewEngine(detection.DefaultConfig(), alertSink(cfg, logger))
+				},
+				Workers:            6,
+				MinPersistInterval: 500 * time.Millisecond,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("container: construct book pipeline: %w", err)
@@ -98,7 +100,7 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 			opts = append(opts,
 				service.WithBookPipeline(pipe),
 				service.WithLiveness(store),
-				service.WithTradeObserver(engine),
+				service.WithTradeObserver(pipe),
 			)
 			logger.Info("bandarmology pipeline enabled (shadow mode)", "prefix", cfg.HotState.Prefix)
 		}

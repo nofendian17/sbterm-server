@@ -77,4 +77,14 @@ func TestNewChannelsAreStrictOptIn(t *testing.T) {
 		"orderbook must not leak into a client that only asked for trades")
 	assert.False(t, untouched.wants(ChannelAlerts, "BBCA"),
 		"alerts are strictly opt-in")
+
+	// A client that subscribed to another channel must not receive the
+	// running_trade flood either — legacy default belongs to untouched
+	// clients only, otherwise high-volume book frames drown every channel.
+	obOnly := NewClient(hub, nil)
+	obOnly.Subscribe(ChannelOrderBook, []string{"BBCA"})
+	hub.Register(obOnly)
+	assert.True(t, obOnly.wants(ChannelOrderBook, "BBCA"))
+	assert.False(t, obOnly.wants(ChannelRunningTrade, "GTSI"),
+		"subscribing one channel opts you out of the running_trade flood")
 }

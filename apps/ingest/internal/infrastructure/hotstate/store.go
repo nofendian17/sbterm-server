@@ -121,3 +121,27 @@ func (s *Store) SeenBefore(ctx context.Context, symbol, bodyHash string) (bool, 
 func (s *Store) MarkSeen(ctx context.Context, symbol, bodyHash string) error {
 	return s.rdb.Set(ctx, s.hashKey(symbol), bodyHash, 0).Err()
 }
+
+// dedupScript atomically swaps the body hash and refreshes the book key's
+// liveness, reporting whether the previous hash matched. One round trip
+// replaces the previous GET + SET + TOUCH trio on the hot path.
+var dedupScript = redis.NewScript(`
+local prev = redis.call('GET', KEYS[1])
+redis.call('SET', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[2], ARGV[2])
+if prev == ARGV[1] then return 1 end
+return 0
+`)
+
+// DedupBook fingerprints the incoming body and refreshes liveness in one
+// atomic step. It reports true when this exact body was the last one seen.
+func (s *Store) DedupBook(ctx context.Context, symbol, bodyHash string) (bool, error) {
+	res, err := dedupScript.Run(ctx, s.rdb,
+		[]string{s.hashKey(symbol), s.bookKey(symbol)},
+		bodyHash, strconv.FormatInt(int64(s.ttl.Seconds()), 10),
+	).Int()
+	if err != nil {
+		return false, err
+	}
+	return res == 1, nil
+}

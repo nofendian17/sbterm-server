@@ -117,7 +117,7 @@ func Run() error {
 			serveErr <- fmt.Errorf("container: http server: %w", err)
 		}
 	}()
-	logger.Info("stream started",
+	logger.Info("stream started (strict-opt-in v2)",
 		"port", cfg.Port,
 		"group", cfg.Kafka.Group,
 		"topic", cfg.Kafka.RunningTradeBatchTopic,

@@ -24,6 +24,8 @@ type TradeFeed = detection.Trade
 // combining, hot-state mirroring, persistence, and signal evaluation.
 type BookPipeline interface {
 	Process(ctx context.Context, ob *consumerv1.Orderbook) error
+	ObserveTrade(ctx context.Context, t detection.Trade) error
+	Pending() int
 }
 
 // TradeObserver receives every decoded running trade.
@@ -56,19 +58,24 @@ func WithLiveness(l LivenessToucher) HandlerOption {
 
 // BookDeps bundles the collaborators the default pipeline needs.
 type BookDeps struct {
-	Combiner  *questdb.Combiner
 	Store     BookStorer
 	Persister BookPersister
-	Engine    *detection.Engine
 	Logger    log.Logger
+	// EngineFactory builds one detector per shard worker.
+	EngineFactory func() *detection.Engine
+	// Workers adalah jumlah shard; 0 berarti 1. Simbol dipetakan stabil ke
+	// shard via hash sehingga urutan antar-frame satu simbol terjaga.
+	Workers int
+	// MinPersistInterval throttles durable writes per symbol; zero disables
+	// the cap. The detector and hot state still observe every snapshot.
+	MinPersistInterval time.Duration
 }
 
 // BookStorer is the hot-state slice used by the pipeline.
 type BookStorer interface {
 	SetBook(context.Context, hotstate.BookUpdate) error
 	TouchBook(context.Context, string, time.Time) error
-	SeenBefore(context.Context, string, string) (bool, error)
-	MarkSeen(context.Context, string, string) error
+	DedupBook(context.Context, string, string) (bool, error)
 }
 
 // BookPersister is the durable slice used by the pipeline.
@@ -78,72 +85,155 @@ type BookPersister interface {
 }
 
 // BookPipeline is the production pipeline over the given deps.
+type bookShard struct {
+	combiner    *questdb.Combiner
+	engine      *detection.Engine
+	lastPersist map[string]time.Time
+	ch          chan shardJob
+}
+
 type bookPipeline struct {
-	combiner *questdb.Combiner
-	store    BookStorer
-	sink     BookPersister
-	engine   *detection.Engine
-	logger   log.Logger
+	store      BookStorer
+	persister  BookPersister
+	logger     log.Logger
+	minPersist time.Duration
+	shards     []bookShard
+	drops      uint64
+}
+
+type shardJob struct {
+	ob   *consumerv1.Orderbook
+	recv time.Time
 }
 
 // NewBookPipeline wires the production order book pipeline.
 func NewBookPipeline(deps BookDeps) (BookPipeline, error) {
-	if deps.Combiner == nil || deps.Store == nil || deps.Engine == nil || deps.Logger == nil {
-		return nil, fmt.Errorf("service: book pipeline requires combiner, store, engine, and logger")
+	if deps.EngineFactory == nil || deps.Store == nil || deps.Logger == nil {
+		return nil, fmt.Errorf("service: book pipeline requires engine factory, store, and logger")
 	}
-	return &bookPipeline{
-		combiner: deps.Combiner,
-		store:    deps.Store,
-		sink:     deps.Persister,
-		engine:   deps.Engine,
-		logger:   deps.Logger,
-	}, nil
+	w := deps.Workers
+	if w <= 0 {
+		w = 1
+	}
+	p := &bookPipeline{
+		store:      deps.Store,
+		persister:  deps.Persister,
+		logger:     deps.Logger,
+		minPersist: deps.MinPersistInterval,
+	}
+	for i := 0; i < w; i++ {
+		shard := bookShard{
+			combiner:    questdb.NewCombiner(25),
+			engine:      deps.EngineFactory(),
+			lastPersist: make(map[string]time.Time),
+			ch:          make(chan shardJob, 2048),
+		}
+		p.shards = append(p.shards, shard)
+		go p.shardLoop(&p.shards[i])
+	}
+	return p, nil
 }
 
-// Process runs one order book frame through the chain. QuestDB persistence
-// errors propagate (the consumer redelivers); hot-state errors are logged and
-// swallowed so a Redis outage never stalls durable ingestion.
-func (p *bookPipeline) Process(ctx context.Context, ob *consumerv1.Orderbook) error {
+// Process dispatches one order book frame to its symbol's shard. It never
+// blocks on downstream work: shards own their queues and drop on overflow.
+func (p *bookPipeline) Process(_ context.Context, ob *consumerv1.Orderbook) error {
 	symbol := ob.GetStockCode()
-	body := ob.GetBody()
-	receiveTS := time.Now()
-
-	seen, err := p.store.SeenBefore(ctx, symbol, bodyHash(body))
-	if err != nil {
-		p.logger.Warn("hotstate: seen check failed", "symbol", symbol, "error", err)
-	} else if seen {
-		return p.store.TouchBook(ctx, symbol, receiveTS)
+	if symbol == "" {
+		return nil
 	}
-
-	pair, _ := p.combiner.Observe(ob, receiveTS)
-	if terr := p.store.TouchBook(ctx, symbol, receiveTS); terr != nil {
-		p.logger.Warn("hotstate: touch failed", "symbol", symbol, "error", terr)
-	}
-	if pair == nil {
-		return nil // half snapshot or stale replay
-	}
-	if merr := p.store.MarkSeen(ctx, symbol, bodyHash(body)); merr != nil {
-		p.logger.Warn("hotstate: mark seen failed", "symbol", symbol, "error", merr)
-	}
-
-	if uerr := p.store.SetBook(ctx, updateFrom(pair)); uerr != nil {
-		p.logger.Warn("hotstate: set book failed", "symbol", symbol, "error", uerr)
-	}
-
-	if p.sink != nil {
-		if serr := p.sink.Store(ctx, pair); serr != nil {
-			return fmt.Errorf("service: persist order book pair: %w", serr)
+	idx := shardIndex(symbol, len(p.shards))
+	job := shardJob{ob: ob, recv: time.Now()}
+	select {
+	case p.shards[idx].ch <- job:
+	default:
+		p.drops++
+		if p.drops%1000 == 1 {
+			p.logger.Warn("book shard queue full; dropping frames", "dropped", p.drops, "shard", idx)
 		}
 	}
+	return nil
+}
 
-	b := detection.Book{
+// ObserveTrade feeds one execution to the trade's symbol shard.
+func (p *bookPipeline) ObserveTrade(ctx context.Context, t detection.Trade) error {
+	idx := shardIndex(t.Symbol, len(p.shards))
+	sh := &p.shards[idx]
+	return sh.engine.ObserveTrade(ctx, t)
+}
+
+func shardIndex(symbol string, n int) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(symbol))
+	return int(h.Sum32() % uint32(n))
+}
+
+// shardLoop is one worker: dedup → combine → hot state → persist (throttled)
+// → evaluate. Everything here touches only this shard's symbols.
+func (p *bookPipeline) shardLoop(sh *bookShard) {
+	for job := range sh.ch {
+		p.processOne(sh, job)
+	}
+}
+
+func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
+	ob := job.ob
+	symbol := ob.GetStockCode()
+
+	dup, err := p.store.DedupBook(ctxBackground(), symbol, bodyHash(ob.GetBody()))
+	if err != nil {
+		p.logger.Warn("hotstate: dedup failed", "symbol", symbol, "error", err)
+	} else if dup {
+		return
+	}
+
+	pair, _ := sh.combiner.Observe(ob, job.recv)
+	if pair == nil {
+		return
+	}
+	if uerr := p.store.SetBook(ctxBackground(), updateFrom(pair)); uerr != nil {
+		p.logger.Warn("hotstate: set book failed", "symbol", symbol, "error", uerr)
+	}
+	if p.persister != nil && p.persistOK(sh, symbol, time.Now()) {
+		ctx, cancel := context.WithTimeout(context.Background(), handleTimeout)
+		if serr := p.persister.Store(ctx, pair); serr != nil {
+			cancel()
+			p.logger.Warn("questdb: async order book write failed", "symbol", symbol, "error", serr)
+			return
+		}
+		cancel()
+	}
+	bk := detection.Book{
 		Symbol:     pair.Symbol,
 		Bid:        convertSide(pair.Bid),
 		Ask:        convertSide(pair.Ask),
 		ExchangeTS: pair.ExchangeTS,
 		ReceiveTS:  pair.ReceiveTS,
 	}
-	return p.engine.ObserveBook(ctx, b)
+	_ = sh.engine.ObserveBook(context.Background(), bk)
+}
+
+func ctxBackground() context.Context { return context.Background() }
+
+// Pending reports how many frames await processing across shards.
+func (p *bookPipeline) Pending() int {
+	n := 0
+	for i := range p.shards {
+		n += len(p.shards[i].ch)
+	}
+	return n
+}
+
+// persistOK reports whether enough time has passed since this symbol's last
+// durable write. Skipped snapshots still reach the detector and hot state.
+func (p *bookPipeline) persistOK(sh *bookShard, symbol string, now time.Time) bool {
+	if p.minPersist <= 0 {
+		return true
+	}
+	if last, ok := sh.lastPersist[symbol]; ok && now.Sub(last) < p.minPersist {
+		return false
+	}
+	sh.lastPersist[symbol] = now
+	return true
 }
 
 func updateFrom(pair *questdb.BookPair) hotstate.BookUpdate {

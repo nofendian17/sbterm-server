@@ -103,25 +103,6 @@ func (s *Store) TouchBook(ctx context.Context, symbol string, receiveTS time.Tim
 	return err
 }
 
-// SeenBefore reports whether this exact body hash was already processed for
-// the symbol. Hash marks are written without TTL: they exist to keep
-// deduplication stable across process restarts.
-func (s *Store) SeenBefore(ctx context.Context, symbol, bodyHash string) (bool, error) {
-	prev, err := s.rdb.Get(ctx, s.hashKey(symbol)).Result()
-	if err == redis.Nil {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return prev == bodyHash, nil
-}
-
-// MarkSeen records the body hash of the last processed frame.
-func (s *Store) MarkSeen(ctx context.Context, symbol, bodyHash string) error {
-	return s.rdb.Set(ctx, s.hashKey(symbol), bodyHash, 0).Err()
-}
-
 // dedupScript atomically swaps the body hash and refreshes the book key's
 // liveness, reporting whether the previous hash matched. One round trip
 // replaces the previous GET + SET + TOUCH trio on the hot path.

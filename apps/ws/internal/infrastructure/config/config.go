@@ -114,6 +114,8 @@ func Load() (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
+	v.SetDefault("app.name", "sbterm-server")
+	v.SetDefault("app.version", version)
 	v.SetDefault("stockbit.base_url", "https://exodus.stockbit.com")
 	v.SetDefault("stockbit.timeout", 30*time.Second)
 	v.SetDefault("stockbit.retry_count", 3)

@@ -222,7 +222,7 @@ func (e *Engine) ObserveBook(ctx context.Context, b Book) error {
 	// Single clock domain: exchange event time for every rule below.
 	now := b.ExchangeTS
 	if !st.prevTS.IsZero() && now.Sub(st.prevTS) > e.cfg.SessionGap {
-		e.reset(st, b.Symbol)
+		e.reset(st)
 	}
 
 	e.detectPull(st, b)
@@ -237,7 +237,7 @@ func (e *Engine) ObserveBook(ctx context.Context, b Book) error {
 
 // reset wipes per-symbol windows after a session gap so pre-gap flow never
 // leaks into post-gap signals. Cooldowns survive: they are anti-spam gates.
-func (e *Engine) reset(st *symState, symbol string) {
+func (e *Engine) reset(st *symState) {
 	lastEmit := st.lastEmit
 	*st = symState{
 		bidLv:    make(map[string]*lvl),

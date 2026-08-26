@@ -10,20 +10,9 @@ import (
 	consumerv1 "github.com/nofendian17/sbterm/libs/proto/securities/transactional/datafeed/consumer/entity/v1"
 )
 
-func bidBody(sym string, levels ...string) string {
-	s := "#O|" + sym + "|BID|"
-	for i, l := range levels {
-		if i > 0 {
-			s += "|"
-		}
-		s += l
-	}
-	return s
-}
-
-func TestParseOrderBookBody(t *testing.T) {
+func TestSplitBody(t *testing.T) {
 	t.Run("parses price frequency shares triplets", func(t *testing.T) {
-		side, levels, err := parseOrderBookBody("#O|BBCA|BID|7750;12;340000|7745;3;125000")
+		_, side, levels, err := splitBody("#O|BBCA|BID|7750;12;340000|7745;3;125000")
 		require.NoError(t, err)
 		assert.Equal(t, "BID", side)
 		require.Len(t, levels, 2)
@@ -34,7 +23,7 @@ func TestParseOrderBookBody(t *testing.T) {
 	})
 
 	t.Run("skips malformed levels but keeps valid ones", func(t *testing.T) {
-		side, levels, err := parseOrderBookBody("#O|BBCA|BID|bad;stuff|7700;1;90000|;|")
+		_, side, levels, err := splitBody("#O|BBCA|BID|bad;stuff|7700;1;90000|;|")
 		require.NoError(t, err)
 		assert.Equal(t, "BID", side)
 		require.Len(t, levels, 1)
@@ -43,7 +32,7 @@ func TestParseOrderBookBody(t *testing.T) {
 
 	t.Run("rejects non order book bodies", func(t *testing.T) {
 		for _, body := range []string{"", "#X|BBCA|x", "#O|BBCA"} {
-			_, _, err := parseOrderBookBody(body)
+			_, _, _, err := splitBody(body)
 			require.Error(t, err, "body %q must be rejected", body)
 		}
 	})
@@ -104,16 +93,14 @@ func TestCombiner(t *testing.T) {
 
 	t.Run("caps stored levels", func(t *testing.T) {
 		c := NewCombiner(3)
-		c.observeBody("#O|BBCA|OFFER|8000;1;1", ts)
+		c.Observe(ob("BBCA", "OFFER", 11, "8000;1;1"), ts)
 
-		body := "#O|BBCA|BID|"
+		levels := make([]string, 0, 10)
 		for p := 10; p >= 1; p-- {
-			if p != 10 {
-				body += "|"
-			}
-			body += itoa(p*100) + ";1;" + itoa(p)
+			levels = append(levels, itoa(p*100)+";1;"+itoa(p))
 		}
-		caps := c.observeBody(body, ts)
+		caps, ok := c.Observe(ob("BBCA", "BID", 12, levels...), ts)
+		require.True(t, ok)
 		require.NotNil(t, caps)
 		assert.Len(t, caps.Bid.Prices, 3, "only the top-3 levels are kept")
 		assert.Equal(t, []float64{1000, 900, 800}, caps.Bid.Prices)

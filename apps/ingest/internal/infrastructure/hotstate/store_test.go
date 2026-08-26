@@ -80,22 +80,3 @@ func TestStore_TouchBook(t *testing.T) {
 			"touch must not clobber stored levels")
 	})
 }
-
-func TestStore_HashDedup(t *testing.T) {
-	ctx := context.Background()
-	store, _ := newTestStore(t, 24*time.Hour)
-
-	seen, err := store.SeenBefore(ctx, "BBCA", "abc123")
-	require.NoError(t, err)
-	assert.False(t, seen)
-
-	require.NoError(t, store.MarkSeen(ctx, "BBCA", "abc123"))
-
-	seen, err = store.SeenBefore(ctx, "BBCA", "abc123")
-	require.NoError(t, err)
-	assert.True(t, seen, "a marked body hash must be recognized across restarts")
-
-	unseen, err := store.SeenBefore(ctx, "BBCA", "different")
-	require.NoError(t, err)
-	assert.False(t, unseen)
-}

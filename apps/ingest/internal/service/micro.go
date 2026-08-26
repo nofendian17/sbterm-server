@@ -191,7 +191,7 @@ func (p *bookPipeline) shardLoop(sh *bookShard) {
 
 func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
 	if job.trade != nil {
-		if err := sh.engine.ObserveTrade(ctxBackground(), *job.trade); err != nil {
+		if err := sh.engine.ObserveTrade(context.Background(), *job.trade); err != nil {
 			p.logger.Warn("detection: trade observation failed", "symbol", job.trade.Symbol, "error", err)
 		}
 		return
@@ -200,7 +200,7 @@ func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
 	ob := job.ob
 	symbol := ob.GetStockCode()
 
-	dup, err := p.store.DedupBook(ctxBackground(), symbol, bodyHash(ob.GetBody()))
+	dup, err := p.store.DedupBook(context.Background(), symbol, bodyHash(ob.GetBody()))
 	if err != nil {
 		p.logger.Warn("hotstate: dedup failed", "symbol", symbol, "error", err)
 	} else if dup {
@@ -211,7 +211,7 @@ func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
 	if pair == nil {
 		return
 	}
-	if uerr := p.store.SetBook(ctxBackground(), updateFrom(pair)); uerr != nil {
+	if uerr := p.store.SetBook(context.Background(), updateFrom(pair)); uerr != nil {
 		p.logger.Warn("hotstate: set book failed", "symbol", symbol, "error", uerr)
 	}
 	if p.persister != nil && p.persistOK(sh, symbol, time.Now()) {
@@ -232,8 +232,6 @@ func (p *bookPipeline) processOne(sh *bookShard, job shardJob) {
 	}
 	_ = sh.engine.ObserveBook(context.Background(), bk)
 }
-
-func ctxBackground() context.Context { return context.Background() }
 
 // Pending reports how many frames await processing across shards.
 func (p *bookPipeline) Pending() int {

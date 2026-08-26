@@ -15,7 +15,6 @@ var base = time.Date(2026, 8, 27, 9, 30, 0, 0, time.UTC)
 
 type captureSink struct {
 	alerts []Alert
-	nowFn  func() time.Time
 }
 
 func (c *captureSink) Emit(_ context.Context, a Alert) error {

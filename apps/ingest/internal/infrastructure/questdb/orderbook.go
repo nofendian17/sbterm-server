@@ -78,13 +78,6 @@ func splitBody(body string) (string, string, []bookLevel, error) {
 	return parts[1], parts[2], levels, nil
 }
 
-// parseOrderBookBody keeps the historic single-call shape for callers that
-// only need one side of the snapshot.
-func parseOrderBookBody(body string) (string, []bookLevel, error) {
-	_, side, levels, err := splitBody(body)
-	return side, levels, err
-}
-
 // BookHalf is one stored side of a symbol's book: capped top levels in book
 // order (best first).
 type BookHalf struct {
@@ -141,19 +134,6 @@ func (c *Combiner) Observe(ob *consumerv1.Orderbook, receiveTS time.Time) (*Book
 	pair := c.apply(symbol, side, ob.GetBoard(), ob.GetSequenceNumber(),
 		orderBookTimestamp(ob, receiveTS), receiveTS, levels)
 	return pair, pair != nil
-}
-
-func (c *Combiner) observeBody(body string, receiveTS time.Time) *BookPair {
-	symbol, rawSide, levels, err := splitBody(body)
-	if err != nil || len(levels) == 0 {
-		return nil
-	}
-	side := sideOf(rawSide)
-	if side == SideUnknown {
-		return nil
-	}
-	return c.apply(symbol, side, consumerv1.BoardType_BOARD_TYPE_UNSPECIFIED, 0,
-		receiveTS, receiveTS, levels)
 }
 
 func (c *Combiner) apply(symbol string, side Side, board consumerv1.BoardType,

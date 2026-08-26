@@ -61,6 +61,8 @@ func Load() (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
+	v.SetDefault("app.name", "sbterm-server")
+	v.SetDefault("app.version", version)
 	v.SetDefault("port", ":8081")
 	v.SetDefault("kafka.brokers", []string{"localhost:29092"})
 	v.SetDefault("kafka.group", "sbterm-stream")

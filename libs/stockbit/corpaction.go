@@ -41,7 +41,47 @@ type CorpActionCalendarData struct {
 	Tender        []TenderInfo      `json:"tender"`
 	Warrant       []WarrantInfo     `json:"warrant"`
 	StockDividend []json.RawMessage `json:"stock_dividend"`
-	Today         []string          `json:"today"`
+	// Today is the upstream "today" marker. Its shape is unstable across
+	// upstream releases: it has appeared both as an array of company ids
+	// (["101","202"]) and as a single date string ("2026-08-25"). CorpActionToday
+	// decodes either shape into []string so an upstream schema drift cannot
+	// 500 the calendar endpoint.
+	Today CorpActionToday `json:"today"`
+}
+
+// CorpActionToday is the "today" marker on a corp action calendar. Upstream has
+// returned it both as a JSON array of company ids and as a bare date string; this
+// type normalizes both into a []string so decoding never fails on an upstream
+// shape change.
+type CorpActionToday []string
+
+// UnmarshalJSON tolerates the upstream array-of-ids shape and the scalar
+// date-string shape, normalizing both to a string slice. An unexpected shape is
+// dropped (leaving the slice empty) rather than failing the whole decode.
+func (t *CorpActionToday) UnmarshalJSON(b []byte) error {
+	*t = nil
+	var ids []string
+	if err := json.Unmarshal(b, &ids); err == nil {
+		*t = CorpActionToday(ids)
+		return nil
+	}
+	var single string
+	if err := json.Unmarshal(b, &single); err == nil {
+		if single != "" {
+			*t = CorpActionToday{single}
+		}
+		return nil
+	}
+	return nil
+}
+
+// MarshalJSON emits the normalized slice, keeping the API response contract (an
+// array under "today") stable regardless of what upstream sent.
+func (t CorpActionToday) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(t))
 }
 
 type DividendInfo struct {

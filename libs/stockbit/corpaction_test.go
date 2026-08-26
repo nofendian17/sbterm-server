@@ -64,7 +64,26 @@ func TestGetCorpActionCalendar(t *testing.T) {
 	assert.Empty(t, resp.Data.StockReverse)
 	assert.Empty(t, resp.Data.StockDividend)
 
-	assert.Equal(t, []string{"101", "202"}, resp.Data.Today)
+	assert.Equal(t, []string{"101", "202"}, []string(resp.Data.Today))
+}
+
+// TestGetCorpActionCalendarScalarToday reproduces the upstream schema drift where
+// "today" is a bare date string (e.g. "2026-08-25") instead of an array of ids.
+// It must decode without error (no more 500 INTERNAL_ERROR) and normalize to a slice.
+func TestGetCorpActionCalendarScalarToday(t *testing.T) {
+	body := `{"message":"Successfully retrieved corporate action events for today","data":{"bonus":[],"dividend":[],"economic":[],"ipo":[],"pubex":[],"rightissue":[],"rups":[],"stock_reverse":[],"stocksplit":[],"tender":[],"warrant":[],"stock_dividend":[],"today":"2026-08-25"}}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/corpaction", r.URL.Path)
+		assert.Equal(t, "2026-08-25", r.URL.Query().Get("date"))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	resp, err := New(WithBaseURL(srv.URL)).GetCorpActionCalendar(context.Background(), "2026-08-25")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-08-25"}, []string(resp.Data.Today))
 }
 
 func TestGetCorpActions(t *testing.T) {

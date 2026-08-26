@@ -48,7 +48,7 @@ func (r *CorpActionRepository) GetCorpActionCalendar(ctx context.Context, date s
 		Tender:        toDomainTenders(d.Tender),
 		Warrant:       toDomainWarrants(d.Warrant),
 		StockDividend: d.StockDividend,
-		Today:         d.Today,
+		Today:         []string(d.Today),
 	}, nil
 }
 

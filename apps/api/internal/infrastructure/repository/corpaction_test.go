@@ -16,6 +16,8 @@ const corpActionRepoBody = `{"message":"Successfully get corp action","data":[{"
 
 const corpActionCalendarRepoBody = `{"message":"ok","data":{"bonus":[],"dividend":[{"company_id":"0","company_symbol":"BPII","dividend_exdate":"2026-08-27","dividend_value":"3.54","event_note":"Cum Date"}],"economic":[],"ipo":[],"pubex":[],"rightissue":[],"rups":[{"company_id":"0","company_symbol":"NICE","rups_date":"2026-08-26","rups_time":"15:00"}],"stock_reverse":[],"stocksplit":[],"tender":[{"company_symbol":"KETR","tender_end":"2026-08-26","tender_price":"523"}],"warrant":[{"company_symbol":"BRPTBQCQ6A","wrant_trading_end":"2026-08-26","wrant_exc_price":"2078"}],"stock_dividend":[],"today":["101"]}}`
 
+const corpActionCalendarRepoBodyScalarToday = `{"message":"ok","data":{"bonus":[],"dividend":[{"company_id":"0","company_symbol":"BPII","dividend_exdate":"2026-08-27","dividend_value":"3.54","event_note":"Cum Date"}],"economic":[],"ipo":[],"pubex":[],"rightissue":[],"rups":[{"company_id":"0","company_symbol":"NICE","rups_date":"2026-08-26","rups_time":"15:00"}],"stock_reverse":[],"stocksplit":[],"tender":[{"company_symbol":"KETR","tender_end":"2026-08-26","tender_price":"523"}],"warrant":[{"company_symbol":"BRPTBQCQ6A","wrant_trading_end":"2026-08-26","wrant_exc_price":"2078"}],"stock_dividend":[],"today":"2026-08-25"}}`
+
 func TestCorpActionRepositoryGetCorpActions(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -65,15 +67,23 @@ func TestCorpActionRepositoryGetCorpActions(t *testing.T) {
 
 func TestCorpActionRepositoryGetCorpActionCalendar(t *testing.T) {
 	tests := []struct {
-		name    string
-		status  int
-		body    string
-		wantErr bool
+		name      string
+		status    int
+		body      string
+		wantErr   bool
+		wantToday []string
 	}{
 		{
 			name:   "returns mapped calendar",
 			status: http.StatusOK,
 			body:   corpActionCalendarRepoBody,
+			wantToday: []string{"101"},
+		},
+		{
+			name:      "returns mapped calendar with scalar today string",
+			status:    http.StatusOK,
+			body:      corpActionCalendarRepoBodyScalarToday,
+			wantToday: []string{"2026-08-25"},
 		},
 		{
 			name:    "propagates upstream error",
@@ -122,7 +132,7 @@ func TestCorpActionRepositoryGetCorpActionCalendar(t *testing.T) {
 
 			assert.Empty(t, got.Bonus)
 			assert.Empty(t, got.StockSplit)
-			assert.Equal(t, []string{"101"}, got.Today)
+			assert.Equal(t, tt.wantToday, got.Today)
 		})
 	}
 }

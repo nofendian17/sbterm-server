@@ -6,6 +6,7 @@ replace github.com/nofendian17/sbterm/libs/pkg => ../../libs/pkg
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pashagolub/pgxmock/v5 v5.1.0

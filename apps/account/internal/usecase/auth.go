@@ -83,6 +83,21 @@ func (s *TokenService) VerifyAccess(token string) (string, error) {
 	return claims.Subject, nil
 }
 
+// VerifyRefresh verifies a signed refresh JWT (correct secret, HS256, valid
+// typ="refresh", not expired) and returns the subject userID and the refresh
+// jti. The auth usecase uses the jti to consume/rotate/delete the refresh
+// token in the RefreshStore.
+func (s *TokenService) VerifyRefresh(token string) (userID, jti string, err error) {
+	claims, err := s.parse(token, claimTypeRefresh)
+	if err != nil {
+		return "", "", err
+	}
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
+		return "", "", errors.New("token expired")
+	}
+	return claims.Subject, claims.ID, nil
+}
+
 // StoreRefresh persists a refresh jti. See repository.RefreshStore.
 func (s *TokenService) StoreRefresh(jti, userID string, ttl time.Duration) error {
 	return s.refreshStore.StoreRefresh(jti, userID, ttl)

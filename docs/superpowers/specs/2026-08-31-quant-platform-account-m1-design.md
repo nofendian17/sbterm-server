@@ -90,14 +90,18 @@ CREATE TABLE users (
     email         TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     display_name  TEXT NOT NULL,
+    expires_at    TIMESTAMPTZ,            -- NULL = never expires; enforced server-side in AuthMiddleware
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at    TIMESTAMPTZ
 );
 CREATE INDEX idx_users_email ON users (email);
 CREATE INDEX idx_users_deleted_at ON users (deleted_at);
+CREATE INDEX idx_users_expires_at ON users (expires_at);
 ```
-Role is **not** a column — it is relational via `user_roles`. Soft-delete via `deleted_at IS NULL`.
+- Role is **not** a column — it is relational via `user_roles`.
+- **Expiry**: `expires_at` is enforced **server-side** (never from a JWT claim). `NULL` means the account never expires (intended for admin/system accounts). New self-registrations get `expires_at = now() + auth.default_user_ttl` (config, default `720h`). Admin can set/extend it via `admin:users:manage`.
+- Soft-delete via `deleted_at IS NULL`.
 
 ### RBAC
 
@@ -161,7 +165,7 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 - **Rate limiting**: `rate_limit` applied globally; auth endpoints additionally protected from brute force (tight burst).
 - **Generic errors**: never return DB/stack details to clients; log server-side with `slog`.
 - **Endpoints** (under `/api/v1`):
-  - `POST /api/v1/auth/register` — public. Validates (go-playground/validator) email/password; hashes; inserts user + assigns `user` role in **one transaction**; issues tokens.
+  - `POST /api/v1/auth/register` — public. Validates (go-playground/validator) email/password; hashes; inserts user (with `expires_at = now() + auth.default_user_ttl`) + assigns `user` role in **one transaction**; issues tokens.
   - `POST /api/v1/auth/login` — public. Verifies bcrypt; issues tokens; stores refresh in Redis.
   - `POST /api/v1/auth/refresh` — requires refresh token; rotates.
   - `POST /api/v1/auth/logout` — authenticated; deletes refresh key + bumps token_version.
@@ -170,8 +174,9 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 ### 5.1 `AuthMiddleware`
 
 - Reads `Authorization: Bearer <access>`, verifies signature + `type==access` + not-before token_version.
+- Loads the user (from cache or DB) and enforces **account expiry**: if `expires_at IS NOT NULL` and `expires_at < now()`, reject with **401** (server-side check — never trust a JWT claim for expiry). Also enforces `deleted_at IS NULL` (suspended).
 - Injects `user_id` and the resolved **permission set** into `context.Context` (typed keys).
-- 401 on missing/invalid/expired; 403 on missing permission (enforced per-route via `RequirePermission(...)` middleware or in usecase).
+- 401 on missing/invalid/expired token OR expired/suspended account; 403 on missing permission (enforced per-route via `RequirePermission(...)` middleware or in usecase).
 
 ### 5.2 Permission resolution & caching
 
@@ -195,6 +200,7 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 - `GET /api/v1/admin/users` — list users (paginated, respects soft-delete) (`admin:users:read`).
 - `GET /api/v1/admin/users/{id}` — view one (`admin:users:read`).
 - `POST /api/v1/admin/users/{id}/suspend` — soft-delete/suspend (`admin:users:manage`).
+- `PATCH /api/v1/admin/users/{id}/expiry` — set/extend `expires_at` (`admin:users:manage`); body `{ "expires_at": "<rfc3339>" }` or `{ "extend_days": N }`. `null`/absent = never expires.
 - `DELETE /api/v1/admin/users/{id}` — soft delete (`admin:users:manage`).
 - `GET /api/v1/admin/users/{id}/watchlists` — view user's watchlists (`admin:users:read`).
 
@@ -232,6 +238,7 @@ auth:
   jwt_secret: change-me-in-prod
   access_ttl: 15m
   refresh_ttl: 720h
+  default_user_ttl: 720h        # account lifetime assigned to self-registered users (NULL = never expires)
   bcrypt_cost: 12
 http:
   read_timeout: 10s
@@ -250,7 +257,7 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 ## 9. Testing (golang-testing + database + security applied)
 
 - **Table-driven** with named subtests for every handler/usecase/repo; `assert`/`require` instances built per-subtest (never bound to parent `t`).
-- **Unit — domain/usecase**: bcrypt verify, JWT round-trip (sign/verify with wrong secret fails), register duplicate-email (unique-constraint → conflict error), refresh rotation, **permission gating** (user without `admin:users:read` is denied), role assignment changes effective permissions. Mock repositories with `uber-go/mock` typed mocks.
+- **Unit — domain/usecase**: bcrypt verify, JWT round-trip (sign/verify with wrong secret fails), register duplicate-email (unique-constraint → conflict error), register assigns `expires_at = now() + default_user_ttl`, **account-expiry enforcement** (expired `expires_at` → 401; `NULL` never expires), refresh rotation, **permission gating** (user without `admin:users:read` is denied), role assignment changes effective permissions. Mock repositories with `uber-go/mock` typed mocks.
 - **Repository (pgx)** with `pgxmock`: user insert/lookup, soft-delete filter (`deleted_at IS NULL`), unique-constraint detection; RBAC joins (`user_roles→role_permissions`); watchlist upsert/list/delete. Always `QueryContext`/`ExecContext` with `$N` params; `defer rows.Close()`; translate `sql.ErrNoRows` → domain `ErrNotFound`.
 - **Repository (Redis)** with `miniredis`: refresh store/delete/rotate; permission-set cache write/invalidate.
 - **HTTP** with `httptest`: table tests per handler including `AuthMiddleware` 401/403/role cases; request validation errors return 400 with generic messages.
@@ -268,7 +275,7 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 
 - Service layout: **1 new service `apps/account`**.
 - `apps/api`: **internal-only**, unchanged in M1.
-- Auth: bcrypt (cost 12) + `golang-jwt/jwt/v5`; access stateless; refresh in **Redis** with `crypto/rand` jti; `token_version` invalidation.
+- Auth: bcrypt (cost 12) + `golang-jwt/jwt/v5`; access stateless; refresh in **Redis** with `crypto/rand` jti; `token_version` invalidation; **account expiry** enforced server-side via `users.expires_at` (auto-set on register from `auth.default_user_ttl`; admin can extend/reset).
 - Authorization: **dynamic RBAC** by permission (roles/permissions/assignments managed at runtime via admin endpoints), cached in Redis.
 - Migrations: **golang-migrate** (embedded).
 - Watchlist: flat per-user.
@@ -279,4 +286,4 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 - No `TBD`/placeholder sections.
 - Consistent: RBAC tables match repo/usecase; admin endpoints gated by specific permissions; register transaction assigns default role.
 - Scope: single new service — fits one implementation plan.
-- Ambiguity resolved: "suspend" = soft-delete for M1; refresh token = opaque `crypto/rand` id in Redis; `symbol` free text; secrets via config, required in prod.
+- Ambiguity resolved: "suspend" = soft-delete for M1; refresh token = opaque `crypto/rand` id in Redis; `symbol` free text; secrets via config, required in prod; `expires_at = NULL` means never expires, enforced server-side (not via JWT claim).

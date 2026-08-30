@@ -159,15 +159,16 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 - **Password hashing**: `golang.org/x/crypto/bcrypt` at cost **12**. Verify with `bcrypt.CompareHashAndPassword` (constant-time internally). Never compare hashes with `==`.
 - **JWT**: `github.com/golang-jwt/jwt/v5`. Claims: `sub`=user id, `type`(`access`|`refresh`), `jti`, `exp`, `iat`. Signed with `auth.jwt_secret` from config.
   - **Secret hygiene**: `auth.jwt_secret` MUST be non-empty; fail fast at startup if empty in non-`dev` mode. Supplied via `config.account.yaml` (mounted read-only from a secret store in prod) — never hardcoded.
-- **Access token**: short-lived (`auth.access_ttl`, default 15m), stateless, verified by `AuthMiddleware`.
-- **Refresh token**: opaque random id generated with `crypto/rand` (NOT `math/rand`), stored in **Redis** under `refresh:<jti>` with TTL = `auth.refresh_ttl`. Logout/rotation deletes the key. Rotation issues a new `jti` and deletes the old.
-- **Sessions invalidation**: a per-user `token_version` counter (Redis or `users` column). Admin suspend/role change bumps it; `AuthMiddleware` rejects access tokens issued before the bump. (Defense-in-depth beyond refresh-key deletion.)
+- **Access token**: short-lived (`auth.access_ttl`, default 15m), stateless **JWT** (`type=access`, `sub`, `jti`, `exp`, `iat`), verified by `AuthMiddleware`.
+- **Refresh token**: also a signed **JWT** (`type=refresh`, `sub`, `jti`, `exp`) — never an opaque string, so it cannot be tampered with (signature check fails on modification). The `jti` is stored in **Redis** under `refresh:<jti>` (value = user_id, TTL = `auth.refresh_ttl`) so it can be revoked/rotated. Verification = (1) validate JWT signature + `type==refresh`, then (2) confirm `jti` still present in Redis.
+- **Rotation**: refresh issues a new refresh JWT with a fresh `jti` and deletes the old `refresh:<jti>` key.
+- **Sessions invalidation**: a per-user `token_version` counter. Admin suspend/role change (or any permission-affecting assignment) bumps it; `AuthMiddleware` rejects access tokens issued before the bump. (Defense-in-depth beyond refresh-key deletion.)
 - **Rate limiting**: `rate_limit` applied globally; auth endpoints additionally protected from brute force (tight burst).
 - **Generic errors**: never return DB/stack details to clients; log server-side with `slog`.
 - **Endpoints** (under `/api/v1`):
   - `POST /api/v1/auth/register` — public. Validates (go-playground/validator) email/password; hashes; inserts user (with `expires_at = now() + auth.default_user_ttl`) + assigns `user` role in **one transaction**; issues tokens.
   - `POST /api/v1/auth/login` — public. Verifies bcrypt; issues tokens; stores refresh in Redis.
-  - `POST /api/v1/auth/refresh` — requires refresh token; rotates.
+  - `POST /api/v1/auth/refresh` — requires a valid refresh JWT; verifies signature + Redis `jti` presence, then rotates (new refresh JWT + new `jti`, deletes old key) and issues a new access JWT.
   - `POST /api/v1/auth/logout` — authenticated; deletes refresh key + bumps token_version.
 - **Open routes**: `/healthz`, `/api/v1/auth/register`, `/api/v1/auth/login`.
 
@@ -275,7 +276,7 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 
 - Service layout: **1 new service `apps/account`**.
 - `apps/api`: **internal-only**, unchanged in M1.
-- Auth: bcrypt (cost 12) + `golang-jwt/jwt/v5`; access stateless; refresh in **Redis** with `crypto/rand` jti; `token_version` invalidation; **account expiry** enforced server-side via `users.expires_at` (auto-set on register from `auth.default_user_ttl`; admin can extend/reset).
+- Auth: bcrypt (cost 12) + `golang-jwt/jwt/v5`; **both access and refresh are signed JWTs**; refresh `jti` tracked in **Redis** for revoke/rotate; `token_version` invalidation; **account expiry** enforced server-side via `users.expires_at` (auto-set on register from `auth.default_user_ttl`; admin can extend/reset).
 - Authorization: **dynamic RBAC** by permission (roles/permissions/assignments managed at runtime via admin endpoints), cached in Redis.
 - Migrations: **golang-migrate** (embedded).
 - Watchlist: flat per-user.
@@ -286,4 +287,4 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 - No `TBD`/placeholder sections.
 - Consistent: RBAC tables match repo/usecase; admin endpoints gated by specific permissions; register transaction assigns default role.
 - Scope: single new service — fits one implementation plan.
-- Ambiguity resolved: "suspend" = soft-delete for M1; refresh token = opaque `crypto/rand` id in Redis; `symbol` free text; secrets via config, required in prod; `expires_at = NULL` means never expires, enforced server-side (not via JWT claim).
+- Ambiguity resolved: "suspend" = soft-delete for M1; refresh token = signed JWT whose `jti` is tracked in Redis for revoke/rotate; `symbol` free text; secrets via config, required in prod; `expires_at = NULL` means never expires, enforced server-side (not via JWT claim).

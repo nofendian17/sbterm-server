@@ -7,6 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/nofendian17/sbterm/apps/account/internal/repository"
 )
 
 // Pool is the narrow interface *Postgres depends on. It is satisfied by
@@ -107,4 +109,10 @@ func (p *Postgres) HealthCheck(ctx context.Context) error {
 func (p *Postgres) Shutdown() error {
 	p.pool.Close()
 	return nil
+}
+
+// Querier returns the underlying pgxpool.Pool as a repository.Querier.
+// This is used by the container to pass the pool to repository constructors.
+func (p *Postgres) Querier() repository.Querier {
+	return p.pool.(*pgxpool.Pool)
 }

@@ -117,3 +117,13 @@ func (r *Redis) HealthCheck(ctx context.Context) error {
 func (r *Redis) Shutdown() error {
 	return r.client.Close()
 }
+
+// Client returns the underlying *redis.Client. This is used by the container
+// to pass the client to repository constructors that need it.
+func (r *Redis) Client() *redis.Client {
+	c, ok := r.client.(*redis.Client)
+	if !ok {
+		return nil
+	}
+	return c
+}

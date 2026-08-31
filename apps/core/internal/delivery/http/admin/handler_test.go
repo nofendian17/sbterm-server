@@ -169,7 +169,7 @@ func TestAdminHandler_CreateRole(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	uc := mocks.NewMockAdminUsecase(ctrl)
-	uc.EXPECT().CreateRole(gomock.Any(), gomock.Any()).Return(nil)
+	uc.EXPECT().CreateRole(gomock.Any(), gomock.Any()).Return(domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"}, nil)
 
 	handler := NewAdminHandler(uc)
 	body, _ := json.Marshal(createRoleRequest{Name: "moderator", Description: "Moderator"})

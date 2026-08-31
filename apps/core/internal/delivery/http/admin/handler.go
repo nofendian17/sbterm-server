@@ -165,11 +165,12 @@ func (h *AdminHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 		Name:        req.Name,
 		Description: req.Description,
 	}
-	if err := h.uc.CreateRole(r.Context(), role); err != nil {
+	created, err := h.uc.CreateRole(r.Context(), role)
+	if err != nil {
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
-	response.Created(w, role)
+	response.Created(w, created)
 }
 
 func (h *AdminHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {

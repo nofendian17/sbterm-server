@@ -34,8 +34,8 @@ type AdminUsecase interface {
 	RevokeRoleFromUser(ctx context.Context, userID, roleID string) error
 	// ListUserRoles is not in the spec but useful; omitted for M1.
 
-	// CreateRole creates a new role.
-	CreateRole(ctx context.Context, role domain.Role) error
+	// CreateRole creates a new role and returns it with the generated ID.
+	CreateRole(ctx context.Context, role domain.Role) (domain.Role, error)
 	// GetRole returns a role by ID.
 	GetRole(ctx context.Context, id string) (domain.Role, error)
 	// ListRoles returns all roles.
@@ -105,11 +105,14 @@ func (u *adminUsecase) RevokeRoleFromUser(ctx context.Context, userID, roleID st
 	return u.rbacUsecase.RevokeRoleFromUser(ctx, userID, roleID)
 }
 
-func (u *adminUsecase) CreateRole(ctx context.Context, role domain.Role) error {
+func (u *adminUsecase) CreateRole(ctx context.Context, role domain.Role) (domain.Role, error) {
 	if role.ID == "" {
 		role.ID = uuid.NewString()
 	}
-	return u.rbacUsecase.CreateRole(ctx, role)
+	if err := u.rbacUsecase.CreateRole(ctx, role); err != nil {
+		return domain.Role{}, err
+	}
+	return role, nil
 }
 
 func (u *adminUsecase) GetRole(ctx context.Context, id string) (domain.Role, error) {

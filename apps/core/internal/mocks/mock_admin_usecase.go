@@ -119,11 +119,12 @@ func (c *MockAdminUsecaseAssignRoleToUserCall) DoAndReturn(f func(context.Contex
 }
 
 // CreateRole mocks base method.
-func (m *MockAdminUsecase) CreateRole(ctx context.Context, role domain.Role) error {
+func (m *MockAdminUsecase) CreateRole(ctx context.Context, role domain.Role) (domain.Role, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateRole", ctx, role)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(domain.Role)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // CreateRole indicates an expected call of CreateRole.
@@ -139,19 +140,19 @@ type MockAdminUsecaseCreateRoleCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockAdminUsecaseCreateRoleCall) Return(arg0 error) *MockAdminUsecaseCreateRoleCall {
-	c.Call = c.Call.Return(arg0)
+func (c *MockAdminUsecaseCreateRoleCall) Return(arg0 domain.Role, arg1 error) *MockAdminUsecaseCreateRoleCall {
+	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockAdminUsecaseCreateRoleCall) Do(f func(context.Context, domain.Role) error) *MockAdminUsecaseCreateRoleCall {
+func (c *MockAdminUsecaseCreateRoleCall) Do(f func(context.Context, domain.Role) (domain.Role, error)) *MockAdminUsecaseCreateRoleCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockAdminUsecaseCreateRoleCall) DoAndReturn(f func(context.Context, domain.Role) error) *MockAdminUsecaseCreateRoleCall {
+func (c *MockAdminUsecaseCreateRoleCall) DoAndReturn(f func(context.Context, domain.Role) (domain.Role, error)) *MockAdminUsecaseCreateRoleCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

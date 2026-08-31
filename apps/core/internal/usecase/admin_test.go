@@ -158,7 +158,10 @@ func TestAdminUsecase_CreateRole(t *testing.T) {
 
 	uc := NewAdminUsecase(userRepo, rbac)
 	role := domain.Role{Name: "moderator", Description: "Moderator"}
-	require.NoError(t, uc.CreateRole(context.Background(), role))
+	created, err := uc.CreateRole(context.Background(), role)
+	require.NoError(t, err)
+	assert.NotEmpty(t, created.ID)
+	assert.Equal(t, "moderator", created.Name)
 }
 
 func TestAdminUsecase_DeleteRole(t *testing.T) {
@@ -185,5 +188,7 @@ func TestAdminUsecase_CreateRole_GeneratesID(t *testing.T) {
 	})
 
 	uc := NewAdminUsecase(userRepo, rbac)
-	require.NoError(t, uc.CreateRole(context.Background(), domain.Role{Name: "mod"}))
+	created, err := uc.CreateRole(context.Background(), domain.Role{Name: "mod"})
+	require.NoError(t, err)
+	require.NotEmpty(t, created.ID)
 }

@@ -74,9 +74,9 @@ func TestCorpActionRepositoryGetCorpActionCalendar(t *testing.T) {
 		wantToday []string
 	}{
 		{
-			name:   "returns mapped calendar",
-			status: http.StatusOK,
-			body:   corpActionCalendarRepoBody,
+			name:      "returns mapped calendar",
+			status:    http.StatusOK,
+			body:      corpActionCalendarRepoBody,
 			wantToday: []string{"101"},
 		},
 		{

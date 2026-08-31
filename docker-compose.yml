@@ -81,19 +81,19 @@ services:
       retries: 3
       start_period: 10s
 
-  account:
+  core:
     build:
       context: .
-      dockerfile: apps/account/Dockerfile
+      dockerfile: apps/core/Dockerfile
       args:
         APP_VERSION: ${APP_VERSION:-dev}
-    image: sbterm-account:${APP_VERSION:-dev}
-    container_name: sbterm-account
+    image: sbterm-core:${APP_VERSION:-dev}
+    container_name: sbterm-core
     restart: always
     volumes:
-      - ./config.account.yaml:/app/config.account.yaml:ro
+      - ./config.core.yaml:/app/config.core.yaml:ro
     ports:
-      - "${ACCOUNT_HOST_PORT:-8082}:8082"
+      - "${CORE_HOST_PORT:-8082}:8082"
     depends_on:
       postgres:
         condition: service_healthy

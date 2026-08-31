@@ -1,8 +1,8 @@
-# Quant Platform — `apps/account` M1 Implementation Plan
+# Quant Platform — `apps/core` M1 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `apps/account`, a new standalone Go service (Clean Architecture, samber/do DI) providing email+password auth, dynamic RBAC, per-user watchlists, and admin management, while `apps/api` stays internal-only and unchanged.
+**Goal:** Build `apps/core`, a new standalone Go service (Clean Architecture, samber/do DI) providing email+password auth, dynamic RBAC, per-user watchlists, and admin management, while `apps/api` stays internal-only and unchanged.
 
 **Architecture:** `cmd/server/main.go` → `internal/container` (samber/do v2, the only DI site) → `delivery/http` (chi + slog-chi) → `usecase` → `repository` (contracts) → `infrastructure` (pgxpool, go-redis, viper, golang-migrate). One new Go module + docker-compose entry + embedded SQL migrations. All DB access via `pgx` `Querier`/`TxManager` (no ORM), fully parameterized.
 
@@ -14,7 +14,7 @@
 
 - Use **samber/do/v2** only in `internal/container`; define interfaces at consumption sites; inject via constructors. (DI skill)
 - All SQL **parameterized** with pgx `$N`; never concatenate input; `defer rows.Close()`; translate `sql.ErrNoRows` → domain error; use `QueryContext`/`ExecContext` variants via `repository.Querier`. (database skill)
-- **bcrypt** cost 12; refresh token is a **signed JWT** (not random string); `jwt_secret` required (fail fast if empty in non-`dev`); secrets via `config.account.yaml`. (security skill)
+- **bcrypt** cost 12; refresh token is a **signed JWT** (not random string); `jwt_secret` required (fail fast if empty in non-`dev`); secrets via `config.core.yaml`. (security skill)
 - `users.expires_at` enforced **server-side** in `AuthMiddleware`; NULL = never expires.
 - Authorization by **permission** (`Resource:Action`), cached in Redis (`perms:<user_id>`), enforced in usecase.
 - Tests: table-driven + named subtests; `assert`/`require` built per-subtest; pgxmock for pgx; miniredis for redis; `uber-go/mock` typed mocks; integration tests behind `//go:build integration`; `go test -race` in CI; `goleak.VerifyTestMain` where goroutines spawn. (testing skill)
@@ -25,11 +25,11 @@
 ## File Structure (what gets created)
 
 ```
-apps/account/
-  go.mod                                  # module github.com/nofendian17/sbterm/apps/account ; require libs via go.work replace
+apps/core/
+  go.mod                                  # module github.com/nofendian17/sbterm/apps/core ; require libs via go.work replace
   cmd/server/main.go                      # load config, run migrations, build container, start server, graceful shutdown
   Dockerfile
-  config.account.yaml.example
+  config.core.yaml.example
   migrations/account/
     000001_create_users.up.sql / .down.sql
     000002_create_rbac.up.sql / .down.sql        # roles, permissions, role_permissions, user_roles + seed
@@ -77,23 +77,23 @@ apps/account/
     mocks/                                # mockgen -typed output
 ```
 
-`go.work` is **modified** to add `./apps/account`.
+`go.work` is **modified** to add `./apps/core`.
 
 ---
 
 ### Task 1: Scaffold module + config + go.work
 
 **Files:**
-- Create: `apps/account/go.mod`, `apps/account/config.account.yaml.example`
-- Modify: `go.work` (add `./apps/account`)
+- Create: `apps/core/go.mod`, `apps/core/config.core.yaml.example`
+- Modify: `go.work` (add `./apps/core`)
 
 **Interfaces:**
-- Produces: module path `github.com/nofendian17/sbterm/apps/account`; config loadable via `config.Load()`.
+- Produces: module path `github.com/nofendian17/sbterm/apps/core`; config loadable via `config.Load()`.
 
-- [ ] **Step 1: Create `apps/account/go.mod`**
+- [ ] **Step 1: Create `apps/core/go.mod`**
 
 ```go
-module github.com/nofendian17/sbterm/apps/account
+module github.com/nofendian17/sbterm/apps/core
 
 go 1.26.5
 
@@ -117,7 +117,7 @@ require (
 ```
 Pin to versions already present in the workspace where possible; run `go mod tidy` in a later task to reconcile.
 
-- [ ] **Step 2: Create `apps/account/config.account.yaml.example`** (mirror spec §7)
+- [ ] **Step 2: Create `apps/core/config.core.yaml.example`** (mirror spec §7)
 
 ```yaml
 app:
@@ -157,19 +157,19 @@ http:
   idle_timeout: 60s
 ```
 
-- [ ] **Step 3: Add `./apps/account` to `go.work` `use (...)`**
+- [ ] **Step 3: Add `./apps/core` to `go.work` `use (...)`**
 
-Edit `go.work` to append `./apps/account` after `./apps/ws`.
+Edit `go.work` to append `./apps/core` after `./apps/ws`.
 
 - [ ] **Step 4: Verify module resolves**
 
-Run: `cd apps/account && go mod edit -require=github.com/nofendian17/sbterm/libs/pkg@v0.0.0 && cd ../.. && go work sync && go build ./apps/account/... 2>&1 | head`
+Run: `cd apps/core && go mod edit -require=github.com/nofendian17/sbterm/libs/pkg@v0.0.0 && cd ../.. && go work sync && go build ./apps/core/... 2>&1 | head`
 Expected: builds (empty main for now is fine; may show "no Go files" until Task 2 — acceptable). The key check is `go.work` sync succeeds.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/account/go.mod apps/account/config.account.yaml.example go.work
+git add apps/core/go.mod apps/core/config.core.yaml.example go.work
 git commit -m "feat(account): scaffold module, config, go.work entry"
 ```
 
@@ -178,8 +178,8 @@ git commit -m "feat(account): scaffold module, config, go.work entry"
 ### Task 2: Config loader + Postgres + Redis infrastructure (TDD)
 
 **Files:**
-- Create: `apps/account/internal/infrastructure/config/config.go`, `apps/account/internal/infrastructure/database/postgres.go`, `apps/account/internal/infrastructure/cache/redis.go`
-- Create: `apps/account/internal/infrastructure/config/config_test.go`, `apps/account/internal/infrastructure/database/postgres_test.go`, `apps/account/internal/infrastructure/cache/redis_test.go`
+- Create: `apps/core/internal/infrastructure/config/config.go`, `apps/core/internal/infrastructure/database/postgres.go`, `apps/core/internal/infrastructure/cache/redis.go`
+- Create: `apps/core/internal/infrastructure/config/config_test.go`, `apps/core/internal/infrastructure/database/postgres_test.go`, `apps/core/internal/infrastructure/cache/redis_test.go`
 - Test: same paths as above
 
 **Interfaces:**
@@ -201,7 +201,7 @@ import (
 
 func TestLoad(t *testing.T) {
 	dir := t.TempDir()
-	p := filepath.Join(dir, "config.account.yaml")
+	p := filepath.Join(dir, "config.core.yaml")
 	require.NoError(t, os.WriteFile(p, []byte("app:\n  name: account\n  version: dev\nport: \":8081\"\nauth:\n  jwt_secret: test-secret\n  access_ttl: 15m\n  refresh_ttl: 720h\n  default_user_ttl: 720h\n  bcrypt_cost: 12\n"), 0o644))
 
 	cfg, err := Load()
@@ -214,7 +214,7 @@ func TestLoad(t *testing.T) {
 
 - [ ] **Step 2: Run test — expect FAIL (config.Load undefined)**
 
-Run: `cd apps/account && go test ./internal/infrastructure/config/... 2>&1 | head`
+Run: `cd apps/core && go test ./internal/infrastructure/config/... 2>&1 | head`
 Expected: build failure, `Load` undefined.
 
 - [ ] **Step 3: Implement `config.go`** (mirror `apps/api/internal/infrastructure/config/config.go`, add `AuthConfig`)
@@ -231,7 +231,7 @@ import (
 )
 
 const (
-	ConfigFileName = "config.account"
+	ConfigFileName = "config.core"
 	ConfigFileType = "yaml"
 	ConfigFilePath = "."
 )
@@ -390,13 +390,13 @@ func TestNewRedis_Ping(t *testing.T) {
 
 - [ ] **Step 6: Run tests — expect PASS**
 
-Run: `cd apps/account && go test ./internal/infrastructure/... 2>&1 | tail`
+Run: `cd apps/core && go test ./internal/infrastructure/... 2>&1 | tail`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/account/internal/infrastructure/config apps/account/internal/infrastructure/database apps/account/internal/infrastructure/cache
+git add apps/core/internal/infrastructure/config apps/core/internal/infrastructure/database apps/core/internal/infrastructure/cache
 git commit -m "feat(account): config loader, pgx Postgres wrapper, redis wrapper"
 ```
 
@@ -405,8 +405,8 @@ git commit -m "feat(account): config loader, pgx Postgres wrapper, redis wrapper
 ### Task 3: SQL migrations (golang-migrate, embedded) + runner
 
 **Files:**
-- Create: `apps/account/migrations/account/000001_create_users.up.sql`, `.down.sql`, `000002_create_rbac.up.sql`, `.down.sql`, `000003_create_watchlists.up.sql`, `.down.sql`
-- Create: `apps/account/internal/infrastructure/database/migrate.go` (+ `migrate_test.go` with miniredis/embedded not feasible; use `-tags integration` test against postgres if available; otherwise rely on manual apply)
+- Create: `apps/core/migrations/account/000001_create_users.up.sql`, `.down.sql`, `000002_create_rbac.up.sql`, `.down.sql`, `000003_create_watchlists.up.sql`, `.down.sql`
+- Create: `apps/core/internal/infrastructure/database/migrate.go` (+ `migrate_test.go` with miniredis/embedded not feasible; use `-tags integration` test against postgres if available; otherwise rely on manual apply)
 
 **Interfaces:**
 - Produces: `database.RunMigrations(ctx, url string) error` applying embedded `migrations/account`.
@@ -534,13 +534,13 @@ func RunMigrations(ctx context.Context, dbURL string) error {
 
 - [ ] **Step 5: Run (integration if postgres available)**
 
-Run: `cd apps/account && go build ./... && go test -tags integration ./internal/infrastructure/database/... 2>&1 | tail` (skip if no DB; note in commit).
+Run: `cd apps/core && go build ./... && go test -tags integration ./internal/infrastructure/database/... 2>&1 | tail` (skip if no DB; note in commit).
 Expected: builds; integration applies 3 migrations.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/account/migrations apps/account/internal/infrastructure/database/migrate.go
+git add apps/core/migrations apps/core/internal/infrastructure/database/migrate.go
 git commit -m "feat(account): golang-migrate embedded migrations (users, rbac, watchlists)"
 ```
 
@@ -549,8 +549,8 @@ git commit -m "feat(account): golang-migrate embedded migrations (users, rbac, w
 ### Task 4: Domain types + sentinel errors
 
 **Files:**
-- Create: `apps/account/internal/domain/user.go`, `watchlist.go`, `rbac.go`, `errors.go`
-- Test: `apps/account/internal/domain/domain_test.go`
+- Create: `apps/core/internal/domain/user.go`, `watchlist.go`, `rbac.go`, `errors.go`
+- Test: `apps/core/internal/domain/domain_test.go`
 
 **Interfaces:**
 - Produces: `domain.User`, `domain.RegisterInput`, `domain.LoginInput`, `domain.Watchlist`, `domain.Role`, `domain.Permission`, sentinel errors `ErrUserNotFound`, `ErrEmailTaken`, `ErrInvalidCredentials`, `ErrExpired`, `ErrSuspended`, `ErrPermissionDenied`, `ErrDuplicateWatchlist`.
@@ -635,13 +635,13 @@ type Permission struct {
 
 - [ ] **Step 4: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/domain/...`
+Run: `cd apps/core && go test ./internal/domain/...`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/account/internal/domain
+git add apps/core/internal/domain
 git commit -m "feat(account): domain types and sentinel errors"
 ```
 
@@ -650,8 +650,8 @@ git commit -m "feat(account): domain types and sentinel errors"
 ### Task 5: Token service (bcrypt + JWT access/refresh + Redis jti) — TDD
 
 **Files:**
-- Create: `apps/account/internal/usecase/auth.go` (token helpers), `apps/account/internal/infrastructure/repository/token_redis.go`
-- Test: `apps/account/internal/usecase/auth_test.go`, `apps/account/internal/infrastructure/repository/token_redis_test.go`
+- Create: `apps/core/internal/usecase/auth.go` (token helpers), `apps/core/internal/infrastructure/repository/token_redis.go`
+- Test: `apps/core/internal/usecase/auth_test.go`, `apps/core/internal/infrastructure/repository/token_redis_test.go`
 
 **Interfaces:**
 - Produces: `TokenService` with `GenerateTokenPair(userID string, expiry *time.Time) (access, refresh string, err error)`, `VerifyAccess(token string) (userID string, err error)`, `StoreRefresh(jti, userID string, ttl time.Duration) error`, `ConsumeRefresh(jti string) (userID string, ok bool)`, `DeleteRefresh(jti string) error`.
@@ -711,7 +711,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/nofendian17/sbterm/apps/account/internal/infrastructure/repository"
+	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/repository"
 )
 
 const (
@@ -832,13 +832,13 @@ func (s *redisRefreshStore) DeleteRefresh(jti string) error {
 
 - [ ] **Step 6: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/usecase/... ./internal/infrastructure/repository/...`
+Run: `cd apps/core && go test ./internal/usecase/... ./internal/infrastructure/repository/...`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/account/internal/usecase/auth.go apps/account/internal/infrastructure/repository/token_redis.go
+git add apps/core/internal/usecase/auth.go apps/core/internal/infrastructure/repository/token_redis.go
 git commit -m "feat(account): bcrypt-less token service + redis refresh store (TDD)"
 ```
 (Note: bcrypt hashing lives in the user repository/usecase, Task 7.)
@@ -848,14 +848,14 @@ git commit -m "feat(account): bcrypt-less token service + redis refresh store (T
 ### Task 6: User repository (pgx) — TDD
 
 **Files:**
-- Create: `apps/account/internal/repository/user.go` (contract), `apps/account/internal/infrastructure/repository/user.go` (pgx), `apps/account/internal/infrastructure/repository/user_test.go`
+- Create: `apps/core/internal/repository/user.go` (contract), `apps/core/internal/infrastructure/repository/user.go` (pgx), `apps/core/internal/infrastructure/repository/user_test.go`
 - Test: same
 
 **Interfaces:**
-- Consumes: `repository.Querier`, `repository.TxManager` (copy `transaction.go` from `apps/api` into `apps/account/internal/repository`).
+- Consumes: `repository.Querier`, `repository.TxManager` (copy `transaction.go` from `apps/api` into `apps/core/internal/repository`).
 - Produces: `UserRepository` with `Create(ctx, user User) error`, `GetByEmail(ctx, email) (User, error)`, `GetByID(ctx, id) (User, error)`, `Update(ctx, id, displayName, expiresAt *time.Time) error`, `SoftDelete(ctx, id) error`, `SetExpiry(ctx, id, expiresAt *time.Time) error`.
 
-- [ ] **Step 1: Copy `transaction.go`** from `apps/api/internal/repository/transaction.go` into `apps/account/internal/repository/transaction.go` (unchanged). Add `//go:generate` lines for mockgen on `health.go`/repos later.
+- [ ] **Step 1: Copy `transaction.go`** from `apps/api/internal/repository/transaction.go` into `apps/core/internal/repository/transaction.go` (unchanged). Add `//go:generate` lines for mockgen on `health.go`/repos later.
 
 - [ ] **Step 2: Write failing `user_test.go`** (pgxmock: Create inserts; GetByEmail returns row; not found → `ErrUserNotFound`; duplicate → `ErrEmailTaken` from unique violation code `23505`).
 
@@ -900,13 +900,13 @@ Add helper `pgErrNoRows()` returning a `pgconn.PgError` with Code `02000`/use `s
 
 - [ ] **Step 4: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/infrastructure/repository/... -run User`
+Run: `cd apps/core && go test ./internal/infrastructure/repository/... -run User`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/account/internal/repository apps/account/internal/infrastructure/repository/user.go apps/account/internal/infrastructure/repository/user_test.go
+git add apps/core/internal/repository apps/core/internal/infrastructure/repository/user.go apps/core/internal/infrastructure/repository/user_test.go
 git commit -m "feat(account): user repository (pgx, pgxmock TDD)"
 ```
 
@@ -915,8 +915,8 @@ git commit -m "feat(account): user repository (pgx, pgxmock TDD)"
 ### Task 7: Auth usecase (Register/Login/Refresh/Logout) — TDD
 
 **Files:**
-- Create: `apps/account/internal/usecase/auth.go` (extend), `apps/account/internal/usecase/auth_usecase_test.go`
-- Create: `apps/account/internal/mocks/mock_user_repository.go`, `mock_auth_deps.go` (TokenService mock not needed; inject real or interface)
+- Create: `apps/core/internal/usecase/auth.go` (extend), `apps/core/internal/usecase/auth_usecase_test.go`
+- Create: `apps/core/internal/mocks/mock_user_repository.go`, `mock_auth_deps.go` (TokenService mock not needed; inject real or interface)
 - Test: `auth_usecase_test.go`
 
 **Interfaces:**
@@ -979,13 +979,13 @@ func TestAuthUsecase_Register(t *testing.T) {
 
 - [ ] **Step 4: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/usecase/... -run Auth`
+Run: `cd apps/core && go test ./internal/usecase/... -run Auth`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/account/internal/usecase/auth.go apps/account/internal/usecase/auth_usecase_test.go apps/account/internal/mocks
+git add apps/core/internal/usecase/auth.go apps/core/internal/usecase/auth_usecase_test.go apps/core/internal/mocks
 git commit -m "feat(account): auth usecase register/login/refresh/logout (TDD)"
 ```
 
@@ -994,8 +994,8 @@ git commit -m "feat(account): auth usecase register/login/refresh/logout (TDD)"
 ### Task 8: RBAC repository + usecase + permission cache — TDD
 
 **Files:**
-- Create: `apps/account/internal/repository/rbac.go`, `apps/account/internal/infrastructure/repository/rbac.go`, `rbac_test.go`
-- Create: `apps/account/internal/usecase/rbac.go`, `apps/account/internal/usecase/rbac_test.go`
+- Create: `apps/core/internal/repository/rbac.go`, `apps/core/internal/infrastructure/repository/rbac.go`, `rbac_test.go`
+- Create: `apps/core/internal/usecase/rbac.go`, `apps/core/internal/usecase/rbac_test.go`
 - Create: permission cache in `token_redis.go` (add `PermissionCache` interface) or new `rbac_redis.go`
 
 **Interfaces:**
@@ -1013,13 +1013,13 @@ git commit -m "feat(account): auth usecase register/login/refresh/logout (TDD)"
 
 - [ ] **Step 6: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/... -run RBAC`
+Run: `cd apps/core && go test ./internal/... -run RBAC`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add apps/account/internal/repository/rbac.go apps/account/internal/infrastructure/repository/rbac.go apps/account/internal/usecase/rbac.go apps/account/internal/infrastructure/repository/rbac_redis.go
+git add apps/core/internal/repository/rbac.go apps/core/internal/infrastructure/repository/rbac.go apps/core/internal/usecase/rbac.go apps/core/internal/infrastructure/repository/rbac_redis.go
 git commit -m "feat(account): RBAC repository + usecase + permission cache (TDD)"
 ```
 
@@ -1028,8 +1028,8 @@ git commit -m "feat(account): RBAC repository + usecase + permission cache (TDD)
 ### Task 9: Auth middleware + context identity + RequirePermission
 
 **Files:**
-- Create: `apps/account/internal/delivery/http/middleware/auth.go` (+ `auth_test.go`)
-- Create: `apps/account/internal/delivery/http/middleware/ratelimit.go` (copy from `apps/api`)
+- Create: `apps/core/internal/delivery/http/middleware/auth.go` (+ `auth_test.go`)
+- Create: `apps/core/internal/delivery/http/middleware/ratelimit.go` (copy from `apps/api`)
 
 **Interfaces:**
 - Consumes: `TokenService.VerifyAccess`, `UserRepository.GetByID` (for expiry/suspended check + load), `RBACUsecase.HasPermission`.
@@ -1045,13 +1045,13 @@ git commit -m "feat(account): RBAC repository + usecase + permission cache (TDD)
 
 - [ ] **Step 4: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/delivery/http/middleware/...`
+Run: `cd apps/core && go test ./internal/delivery/http/middleware/...`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/account/internal/delivery/http/middleware
+git add apps/core/internal/delivery/http/middleware
 git commit -m "feat(account): auth middleware, context identity, permission guard"
 ```
 
@@ -1060,8 +1060,8 @@ git commit -m "feat(account): auth middleware, context identity, permission guar
 ### Task 10: HTTP handlers + router (auth, user, watchlist, admin, health)
 
 **Files:**
-- Create: `apps/account/internal/delivery/http/router.go`, `server.go`, `health/handler.go`, `auth/handler.go`, `user/handler.go`, `watchlist/handler.go`, `admin/handler.go`, and their `_test.go`
-- Create: `apps/account/internal/usecase/health.go`, `apps/account/internal/repository/health.go`, `apps/account/internal/infrastructure/repository/health.go` (mirror `apps/api` health chain)
+- Create: `apps/core/internal/delivery/http/router.go`, `server.go`, `health/handler.go`, `auth/handler.go`, `user/handler.go`, `watchlist/handler.go`, `admin/handler.go`, and their `_test.go`
+- Create: `apps/core/internal/usecase/health.go`, `apps/core/internal/repository/health.go`, `apps/core/internal/infrastructure/repository/health.go` (mirror `apps/api` health chain)
 - Create: watchlist usecase/repo (Tasks 11–12) before wiring admin.
 
 **Interfaces:**
@@ -1081,13 +1081,13 @@ git commit -m "feat(account): auth middleware, context identity, permission guar
 
 - [ ] **Step 5: Run — expect PASS**
 
-Run: `cd apps/account && go test ./internal/delivery/http/...`
+Run: `cd apps/core && go test ./internal/delivery/http/...`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add apps/account/internal/delivery apps/account/internal/usecase/health.go apps/account/internal/repository/health.go apps/account/internal/infrastructure/repository/health.go
+git add apps/core/internal/delivery apps/core/internal/usecase/health.go apps/core/internal/repository/health.go apps/core/internal/infrastructure/repository/health.go
 git commit -m "feat(account): http handlers, router, health, all routes wired"
 ```
 
@@ -1096,7 +1096,7 @@ git commit -m "feat(account): http handlers, router, health, all routes wired"
 ### Task 11: Watchlist usecase + repository (TDD)
 
 **Files:**
-- Create: `apps/account/internal/usecase/watchlist.go` (+test), `apps/account/internal/repository/watchlist.go` (contract), `apps/account/internal/infrastructure/repository/watchlist.go` (+test)
+- Create: `apps/core/internal/usecase/watchlist.go` (+test), `apps/core/internal/repository/watchlist.go` (contract), `apps/core/internal/infrastructure/repository/watchlist.go` (+test)
 
 **Interfaces:**
 - Produces: `WatchlistUsecase` (`List(ctx, userID)`, `Add(ctx, userID, AddWatchlistInput)`, `Remove(ctx, userID, symbol)`); repo maps unique `(user_id, symbol)` violation `23505` → `ErrDuplicateWatchlist`.
@@ -1108,7 +1108,7 @@ git commit -m "feat(account): http handlers, router, health, all routes wired"
 - [ ] **Step 3: Run — PASS; commit.**
 
 ```bash
-git add apps/account/internal/usecase/watchlist.go apps/account/internal/repository/watchlist.go apps/account/internal/infrastructure/repository/watchlist.go
+git add apps/core/internal/usecase/watchlist.go apps/core/internal/repository/watchlist.go apps/core/internal/infrastructure/repository/watchlist.go
 git commit -m "feat(account): watchlist usecase + repository (TDD)"
 ```
 
@@ -1117,7 +1117,7 @@ git commit -m "feat(account): watchlist usecase + repository (TDD)"
 ### Task 12: Admin usecase + handler wiring (RBAC management + user mgmt)
 
 **Files:**
-- Create: `apps/account/internal/usecase/admin.go` (+test), `apps/account/internal/delivery/http/admin/handler.go` (+test)
+- Create: `apps/core/internal/usecase/admin.go` (+test), `apps/core/internal/delivery/http/admin/handler.go` (+test)
 
 **Interfaces:**
 - Consumes: `RBACUsecase`, `UserRepository`, `WatchlistUsecase`.
@@ -1130,7 +1130,7 @@ git commit -m "feat(account): watchlist usecase + repository (TDD)"
 - [ ] **Step 3: Run — PASS; commit.**
 
 ```bash
-git add apps/account/internal/usecase/admin.go apps/account/internal/delivery/http/admin
+git add apps/core/internal/usecase/admin.go apps/core/internal/delivery/http/admin
 git commit -m "feat(account): admin usecase + handlers (RBAC + user management)"
 ```
 
@@ -1139,7 +1139,7 @@ git commit -m "feat(account): admin usecase + handlers (RBAC + user management)"
 ### Task 13: main.go wiring + samber/do container + graceful shutdown
 
 **Files:**
-- Create: `apps/account/cmd/server/main.go`, `apps/account/internal/container/container.go`
+- Create: `apps/core/cmd/server/main.go`, `apps/core/internal/container/container.go`
 
 **Interfaces:**
 - Consumes: all providers.
@@ -1151,13 +1151,13 @@ git commit -m "feat(account): admin usecase + handlers (RBAC + user management)"
 
 - [ ] **Step 3: Build + smoke test (integration)**
 
-Run: `cd apps/account && go build ./... && go vet ./... && go test ./... 2>&1 | tail`
+Run: `cd apps/core && go build ./... && go vet ./... && go test ./... 2>&1 | tail`
 Expected: all build, vet clean, tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/account/cmd apps/account/internal/container
+git add apps/core/cmd apps/core/internal/container
 git commit -m "feat(account): main.go + samber/do container + graceful shutdown"
 ```
 
@@ -1166,13 +1166,13 @@ git commit -m "feat(account): main.go + samber/do container + graceful shutdown"
 ### Task 14: Dockerfile + docker-compose entry + config example wiring
 
 **Files:**
-- Create: `apps/account/Dockerfile`
-- Modify: `docker-compose.yml` (add `account` service), `config.account.yaml.example` already exists
+- Create: `apps/core/Dockerfile`
+- Modify: `docker-compose.yml` (add `account` service), `config.core.yaml.example` already exists
 
 **Interfaces:**
-- Produces: `account` service depends_on postgres+redis healthy; mounts `config.account.yaml`; publishes `8081:8081`; healthcheck `curl -fsS http://127.0.0.1:8081/healthz`.
+- Produces: `account` service depends_on postgres+redis healthy; mounts `config.core.yaml`; publishes `8081:8081`; healthcheck `curl -fsS http://127.0.0.1:8081/healthz`.
 
-- [ ] **Step 1: Create `Dockerfile`** (copy `apps/api/Dockerfile` multi-stage; build arg `APP_VERSION` ldflags into `internal/infrastructure/config.version`; entry runs the binary with `--config /app/config.account.yaml` or expects `config.account.yaml` in CWD — match `main.go`).
+- [ ] **Step 1: Create `Dockerfile`** (copy `apps/api/Dockerfile` multi-stage; build arg `APP_VERSION` ldflags into `internal/infrastructure/config.version`; entry runs the binary with `--config /app/config.core.yaml` or expects `config.core.yaml` in CWD — match `main.go`).
 
 - [ ] **Step 2: Add `account` to `docker-compose.yml`** after `api`, mirroring the `api` service block (env from compose vars; mount config read-only).
 
@@ -1183,7 +1183,7 @@ Run: `docker compose config 2>&1 | head` (expect valid). Otherwise note in commi
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/account/Dockerfile docker-compose.yml
+git add apps/core/Dockerfile docker-compose.yml
 git commit -m "feat(account): Dockerfile + docker-compose service entry"
 ```
 
@@ -1192,7 +1192,7 @@ git commit -m "feat(account): Dockerfile + docker-compose service entry"
 ### Task 15: Mockgen generation + final test sweep
 
 **Files:**
-- Modify: generate `apps/account/internal/mocks/*.go` via `//go:generate` (mockgen `-typed`) for user, rbac, watchlist, health repositories and usecases.
+- Modify: generate `apps/core/internal/mocks/*.go` via `//go:generate` (mockgen `-typed`) for user, rbac, watchlist, health repositories and usecases.
 
 **Interfaces:**
 - Produces: regenerated typed mocks used by handler/usecase tests.
@@ -1201,18 +1201,18 @@ git commit -m "feat(account): Dockerfile + docker-compose service entry"
 
 - [ ] **Step 2: Run `make mock` / `go generate ./...`**
 
-Run: `cd apps/account && go generate ./...`
+Run: `cd apps/core && go generate ./...`
 Expected: mocks generated, compile.
 
 - [ ] **Step 3: Full suite + race**
 
-Run: `cd apps/account && go test -race ./... 2>&1 | tail`
+Run: `cd apps/core && go test -race ./... 2>&1 | tail`
 Expected: PASS, no races.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add apps/account/internal/mocks apps/account/internal -A
+git add apps/core/internal/mocks apps/core/internal -A
 git commit -m "chore(account): generate typed mocks, full test sweep green"
 ```
 

@@ -1,16 +1,16 @@
-# Quant Platform — Milestone 1: User Account Service with Dynamic RBAC (`apps/account`)
+# Quant Platform — Milestone 1: User Account Service with Dynamic RBAC (`apps/core`)
 
 - **Date:** 2026-08-31
 - **Status:** Draft for review
-- **Scope:** New standalone Go service `apps/account` for user-facing identity, dynamic RBAC, watchlists, and admin. `apps/api` remains an internal-only market-data proxy and is NOT modified in M1.
-- **Decisions locked:** golang-migrate (migrations); Redis (refresh tokens + permission cache); flat per-user watchlist; new single service `apps/account`; `apps/api` is internal-only; **dynamic RBAC** (roles/permissions assignable at runtime).
+- **Scope:** New standalone Go service `apps/core` for user-facing identity, dynamic RBAC, watchlists, and admin. `apps/api` remains an internal-only market-data proxy and is NOT modified in M1.
+- **Decisions locked:** golang-migrate (migrations); Redis (refresh tokens + permission cache); flat per-user watchlist; new single service `apps/core`; `apps/api` is internal-only; **dynamic RBAC** (roles/permissions assignable at runtime).
 - **Guiding skills:** golang-security, golang-database, golang-dependency-injection, golang-testing.
 
 ---
 
 ## 1. Goal
 
-Stand up `apps/account` — a Clean-Architecture Go service that owns:
+Stand up `apps/core` — a Clean-Architecture Go service that owns:
 
 - **Authentication**: register, login, refresh, logout (email + password; bcrypt; JWT).
 - **Dynamic RBAC**: roles and permissions are assignable at runtime via admin endpoints. Authorization is checked by **permission**, not by a static role string.
@@ -25,15 +25,15 @@ Stand up `apps/account` — a Clean-Architecture Go service that owns:
 - No market-data analysis, charts, screening, or backtesting (M3–M4).
 - No `apps/api` changes; `api` stays internal-only.
 - No OAuth/SSO, email verification, or password-reset flows (can follow later).
-- No inter-service auth delegation; tokens are issued and verified entirely within `apps/account`.
+- No inter-service auth delegation; tokens are issued and verified entirely within `apps/core`.
 
 ## 3. Architecture
 
-`apps/account` follows the **exact** conventions of `apps/api`:
+`apps/core` follows the **exact** conventions of `apps/api`:
 
 - Layer order: `cmd/server/main.go` → `internal/container` (**samber/do v2**, composition root — the only place DI happens) → `delivery/http` → `usecase` → `repository` (contracts) → `infrastructure` (database, cache, config).
 - Router: `chi/v5` + `slog-chi`, with `middleware.Recoverer`, `RequestID`, timeout, and rate limit (copy `apps/api/internal/delivery/http/middleware/ratelimit.go`).
-- Config: `viper` loaded from `config.account.yaml` (mirror `config.api.yaml` shape).
+- Config: `viper` loaded from `config.core.yaml` (mirror `config.api.yaml` shape).
 - Database: `jackc/pgx/v5` **pgxpool** (no ORM; explicit SQL, parameterized). Reuse the `Postgres` wrapper + `TxManager` pattern from `apps/api`.
 - Cache: `go-redis/v9` via a `Redis` wrapper (mirror `apps/api/internal/infrastructure/cache/redis.go`).
 - DI: `samber/do/v2` used only in `container.go`; define repository/usecase interfaces at consumption sites; inject via constructors.
@@ -42,11 +42,11 @@ Stand up `apps/account` — a Clean-Architecture Go service that owns:
 ### 3.1 Directory layout
 
 ```text
-apps/account/
+apps/core/
   cmd/server/main.go
-  go.mod                         # module github.com/nofendian17/sbterm/apps/account
+  go.mod                         # module github.com/nofendian17/sbterm/apps/core
   Dockerfile
-  config.account.yaml.example
+  config.core.yaml.example
   internal/
     container/container.go
     delivery/http/
@@ -76,7 +76,7 @@ apps/account/
 
 ### 3.2 `go.work`
 
-Add `./apps/account` to the existing `go.work` `use (...)` block.
+Add `./apps/core` to the existing `go.work` `use (...)` block.
 
 ## 4. Data model (Postgres, golang-migrate)
 
@@ -158,7 +158,7 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 
 - **Password hashing**: `golang.org/x/crypto/bcrypt` at cost **12**. Verify with `bcrypt.CompareHashAndPassword` (constant-time internally). Never compare hashes with `==`.
 - **JWT**: `github.com/golang-jwt/jwt/v5`. Claims: `sub`=user id, `type`(`access`|`refresh`), `jti`, `exp`, `iat`. Signed with `auth.jwt_secret` from config.
-  - **Secret hygiene**: `auth.jwt_secret` MUST be non-empty; fail fast at startup if empty in non-`dev` mode. Supplied via `config.account.yaml` (mounted read-only from a secret store in prod) — never hardcoded.
+  - **Secret hygiene**: `auth.jwt_secret` MUST be non-empty; fail fast at startup if empty in non-`dev` mode. Supplied via `config.core.yaml` (mounted read-only from a secret store in prod) — never hardcoded.
 - **Access token**: short-lived (`auth.access_ttl`, default 15m), stateless **JWT** (`type=access`, `sub`, `jti`, `exp`, `iat`), verified by `AuthMiddleware`.
 - **Refresh token**: also a signed **JWT** (`type=refresh`, `sub`, `jti`, `exp`) — never an opaque string, so it cannot be tampered with (signature check fails on modification). The `jti` is stored in **Redis** under `refresh:<jti>` (value = user_id, TTL = `auth.refresh_ttl`) so it can be revoked/rotated. Verification = (1) validate JWT signature + `type==refresh`, then (2) confirm `jti` still present in Redis.
 - **Rotation**: refresh issues a new refresh JWT with a fresh `jti` and deletes the old `refresh:<jti>` key.
@@ -207,7 +207,7 @@ CREATE INDEX idx_watchlists_user_id ON watchlists (user_id);
 
 > Authorization authority is the usecase (`HasPermission(ctx, perm)`), not just middleware, so logic is testable and centralized.
 
-## 7. Configuration (`config.account.yaml`)
+## 7. Configuration (`config.core.yaml`)
 
 ```yaml
 app:
@@ -247,12 +247,12 @@ http:
   idle_timeout: 60s
 ```
 
-Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:8080`. **`jwt_secret` must be empty-by-default in example and required in prod.**
+Provide `config.core.yaml.example`. Port `:8081` to avoid `apps/api` at `:8080`. **`jwt_secret` must be empty-by-default in example and required in prod.**
 
 ## 8. Deployment
 
-- `apps/account/Dockerfile` (multi-stage; build arg `APP_VERSION` ldflags into `internal/infrastructure/config.version`).
-- `account` service in `docker-compose.yml` (depends_on `postgres` + `redis` healthy; mounts `config.account.yaml`; publishes host port `8081`).
+- `apps/core/Dockerfile` (multi-stage; build arg `APP_VERSION` ldflags into `internal/infrastructure/config.version`).
+- `account` service in `docker-compose.yml` (depends_on `postgres` + `redis` healthy; mounts `config.core.yaml`; publishes host port `8081`).
 - `GET /healthz` → 200 for compose healthcheck.
 
 ## 9. Testing (golang-testing + database + security applied)
@@ -274,7 +274,7 @@ Provide `config.account.yaml.example`. Port `:8081` to avoid `apps/api` at `:808
 
 ## 11. Decisions resolved
 
-- Service layout: **1 new service `apps/account`**.
+- Service layout: **1 new service `apps/core`**.
 - `apps/api`: **internal-only**, unchanged in M1.
 - Auth: bcrypt (cost 12) + `golang-jwt/jwt/v5`; **both access and refresh are signed JWTs**; refresh `jti` tracked in **Redis** for revoke/rotate; `token_version` invalidation; **account expiry** enforced server-side via `users.expires_at` (auto-set on register from `auth.default_user_ttl`; admin can extend/reset).
 - Authorization: **dynamic RBAC** by permission (roles/permissions/assignments managed at runtime via admin endpoints), cached in Redis.

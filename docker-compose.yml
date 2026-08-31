@@ -81,6 +81,31 @@ services:
       retries: 3
       start_period: 10s
 
+  core:
+    build:
+      context: .
+      dockerfile: apps/core/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: sbterm-core:${APP_VERSION:-dev}
+    container_name: sbterm-core
+    restart: always
+    volumes:
+      - ./config.core.yaml:/app/config.core.yaml:ro
+    ports:
+      - "${CORE_HOST_PORT:-8082}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8082/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   postgres:
     image: postgres:18-alpine
     container_name: sbterm-postgres

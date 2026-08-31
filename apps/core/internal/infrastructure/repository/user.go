@@ -19,20 +19,20 @@ const uniqueViolationCode = "23505"
 // userRepository is the pgx implementation of repository.UserRepository. It
 // runs every query through a repository.Querier so the same code works outside
 // (pool) and inside (tx) a transaction.
-type userRepository struct {
+type UserRepository struct {
 	q repository.Querier
 }
 
 // NewUserRepository builds a UserRepository backed by the given Querier (a
 // *pgxpool.Pool or a pgx.Tx both satisfy it). pgxmock pools satisfy it too,
 // which is what the tests use.
-func NewUserRepository(q repository.Querier) repository.UserRepository {
-	return &userRepository{q: q}
+func NewUserRepository(q repository.Querier) *UserRepository {
+	return &UserRepository{q: q}
 }
 
 // Create inserts a new user. email, password_hash and display_name are
 // provided; id/created_at/updated_at default in Postgres, expires_at is null.
-func (r *userRepository) Create(ctx context.Context, user domain.User) error {
+func (r *UserRepository) Create(ctx context.Context, user domain.User) error {
 	const q = `
 		INSERT INTO users (id, email, password_hash, display_name, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -54,7 +54,7 @@ func (r *userRepository) Create(ctx context.Context, user domain.User) error {
 }
 
 // GetByEmail returns the user matching email, or domain.ErrUserNotFound.
-func (r *userRepository) GetByEmail(ctx context.Context, email string) (domain.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (domain.User, error) {
 	return r.scanUser(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
 		 FROM users WHERE email = $1`,
@@ -63,7 +63,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (domain.U
 }
 
 // GetByID returns the user matching id, or domain.ErrUserNotFound.
-func (r *userRepository) GetByID(ctx context.Context, id string) (domain.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id string) (domain.User, error) {
 	return r.scanUser(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
 		 FROM users WHERE id = $1`,
@@ -73,7 +73,7 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (domain.User, e
 
 // scanUser runs a single-row query and maps the result to domain.User,
 // translating sql.ErrNoRows into domain.ErrUserNotFound.
-func (r *userRepository) scanUser(ctx context.Context, query string, args ...any) (domain.User, error) {
+func (r *UserRepository) scanUser(ctx context.Context, query string, args ...any) (domain.User, error) {
 	var u domain.User
 	err := r.q.QueryRow(ctx, query, args...).Scan(
 		&u.ID,
@@ -95,7 +95,7 @@ func (r *userRepository) scanUser(ctx context.Context, query string, args ...any
 }
 
 // Update sets display_name and expires_at for the given id.
-func (r *userRepository) Update(ctx context.Context, id, displayName string, expiresAt *time.Time) error {
+func (r *UserRepository) Update(ctx context.Context, id, displayName string, expiresAt *time.Time) error {
 	const q = `UPDATE users SET display_name = $2, expires_at = $3, updated_at = now() WHERE id = $1`
 	if _, err := r.q.Exec(ctx, q, id, displayName, derefTime(expiresAt)); err != nil {
 		return fmt.Errorf("user update: %w", err)
@@ -104,7 +104,7 @@ func (r *userRepository) Update(ctx context.Context, id, displayName string, exp
 }
 
 // SoftDelete sets deleted_at instead of deleting the row.
-func (r *userRepository) SoftDelete(ctx context.Context, id string) error {
+func (r *UserRepository) SoftDelete(ctx context.Context, id string) error {
 	const q = `UPDATE users SET deleted_at = now(), updated_at = now() WHERE id = $1`
 	if _, err := r.q.Exec(ctx, q, id); err != nil {
 		return fmt.Errorf("user soft delete: %w", err)
@@ -113,7 +113,7 @@ func (r *userRepository) SoftDelete(ctx context.Context, id string) error {
 }
 
 // SetExpiry updates the expires_at column for the given id.
-func (r *userRepository) SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error {
+func (r *UserRepository) SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error {
 	const q = `UPDATE users SET expires_at = $1, updated_at = now() WHERE id = $2`
 	if _, err := r.q.Exec(ctx, q, derefTime(expiresAt), id); err != nil {
 		return fmt.Errorf("user set expiry: %w", err)
@@ -123,7 +123,7 @@ func (r *userRepository) SetExpiry(ctx context.Context, id string, expiresAt *ti
 
 // AssignDefaultRole links the user to the seeded "user" role by inserting a row
 // into user_roles. The role id is resolved from roles by name in SQL.
-func (r *userRepository) AssignDefaultRole(ctx context.Context, userID string) error {
+func (r *UserRepository) AssignDefaultRole(ctx context.Context, userID string) error {
 	const q = `
 		INSERT INTO user_roles (user_id, role_id)
 		SELECT $1, id FROM roles WHERE name = 'user'
@@ -136,7 +136,7 @@ func (r *userRepository) AssignDefaultRole(ctx context.Context, userID string) e
 }
 
 // ListAll returns all non-deleted users.
-func (r *userRepository) ListAll(ctx context.Context) ([]domain.User, error) {
+func (r *UserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
 	rows, err := r.q.Query(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
 		 FROM users WHERE deleted_at IS NULL ORDER BY created_at`)

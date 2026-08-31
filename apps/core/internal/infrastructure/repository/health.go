@@ -16,20 +16,22 @@ type RedisPinger interface {
 	Ping(ctx context.Context) error
 }
 
-type healthRepository struct {
+type HealthRepository struct {
 	db    DBPinger
 	redis RedisPinger
 }
 
 // NewHealthRepository builds a HealthRepository backed by the given pingers.
-func NewHealthRepository(db DBPinger, redis RedisPinger) repository.HealthRepository {
-	return &healthRepository{db: db, redis: redis}
+func NewHealthRepository(db DBPinger, redis RedisPinger) *HealthRepository {
+	return &HealthRepository{db: db, redis: redis}
 }
 
-func (r *healthRepository) Ping(ctx context.Context) error {
+func (r *HealthRepository) Ping(ctx context.Context) error {
 	return r.db.Ping(ctx)
 }
 
-func (r *healthRepository) PingRedis(ctx context.Context) error {
+func (r *HealthRepository) PingRedis(ctx context.Context) error {
 	return r.redis.Ping(ctx)
 }
+
+var _ repository.HealthRepository = (*HealthRepository)(nil)

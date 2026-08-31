@@ -13,17 +13,17 @@ import (
 )
 
 // rbacRepository is the pgx implementation of repository.RBACRepository.
-type rbacRepository struct {
+type RBACRepository struct {
 	q repository.Querier
 }
 
 // NewRBACRepository builds an RBACRepository backed by the given Querier.
-func NewRBACRepository(q repository.Querier) repository.RBACRepository {
-	return &rbacRepository{q: q}
+func NewRBACRepository(q repository.Querier) *RBACRepository {
+	return &RBACRepository{q: q}
 }
 
 // CreateRole inserts a new role. A conflicting name maps to a domain error.
-func (r *rbacRepository) CreateRole(ctx context.Context, role domain.Role) error {
+func (r *RBACRepository) CreateRole(ctx context.Context, role domain.Role) error {
 	const q = `INSERT INTO roles (id, name, description) VALUES ($1, $2, $3)`
 	_, err := r.q.Exec(ctx, q, role.ID, role.Name, role.Description)
 	if err != nil {
@@ -36,7 +36,7 @@ func (r *rbacRepository) CreateRole(ctx context.Context, role domain.Role) error
 }
 
 // GetRole returns the role with the given id.
-func (r *rbacRepository) GetRole(ctx context.Context, id string) (domain.Role, error) {
+func (r *RBACRepository) GetRole(ctx context.Context, id string) (domain.Role, error) {
 	var role domain.Role
 	err := r.q.QueryRow(ctx,
 		`SELECT id, name, description FROM roles WHERE id = $1`, id,
@@ -51,7 +51,7 @@ func (r *rbacRepository) GetRole(ctx context.Context, id string) (domain.Role, e
 }
 
 // ListRoles returns all roles.
-func (r *rbacRepository) ListRoles(ctx context.Context) ([]domain.Role, error) {
+func (r *RBACRepository) ListRoles(ctx context.Context) ([]domain.Role, error) {
 	rows, err := r.q.Query(ctx, `SELECT id, name, description FROM roles ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("role list: %w", err)
@@ -73,7 +73,7 @@ func (r *rbacRepository) ListRoles(ctx context.Context) ([]domain.Role, error) {
 }
 
 // DeleteRole removes a role by id.
-func (r *rbacRepository) DeleteRole(ctx context.Context, id string) error {
+func (r *RBACRepository) DeleteRole(ctx context.Context, id string) error {
 	const q = `DELETE FROM roles WHERE id = $1`
 	tag, err := r.q.Exec(ctx, q, id)
 	if err != nil {
@@ -86,7 +86,7 @@ func (r *rbacRepository) DeleteRole(ctx context.Context, id string) error {
 }
 
 // AssignPermissionToRole links a permission to a role.
-func (r *rbacRepository) AssignPermissionToRole(ctx context.Context, roleID, permissionID string) error {
+func (r *RBACRepository) AssignPermissionToRole(ctx context.Context, roleID, permissionID string) error {
 	const q = `
 		INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
 		ON CONFLICT (role_id, permission_id) DO NOTHING
@@ -98,7 +98,7 @@ func (r *rbacRepository) AssignPermissionToRole(ctx context.Context, roleID, per
 }
 
 // RevokePermissionFromRole unlinks a permission from a role.
-func (r *rbacRepository) RevokePermissionFromRole(ctx context.Context, roleID, permissionID string) error {
+func (r *RBACRepository) RevokePermissionFromRole(ctx context.Context, roleID, permissionID string) error {
 	const q = `DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2`
 	if _, err := r.q.Exec(ctx, q, roleID, permissionID); err != nil {
 		return fmt.Errorf("revoke permission from role: %w", err)
@@ -107,7 +107,7 @@ func (r *rbacRepository) RevokePermissionFromRole(ctx context.Context, roleID, p
 }
 
 // AssignRoleToUser links a role to a user.
-func (r *rbacRepository) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
+func (r *RBACRepository) AssignRoleToUser(ctx context.Context, userID, roleID string) error {
 	const q = `
 		INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)
 		ON CONFLICT (user_id, role_id) DO NOTHING
@@ -119,7 +119,7 @@ func (r *rbacRepository) AssignRoleToUser(ctx context.Context, userID, roleID st
 }
 
 // RevokeRoleFromUser unlinks a role from a user.
-func (r *rbacRepository) RevokeRoleFromUser(ctx context.Context, userID, roleID string) error {
+func (r *RBACRepository) RevokeRoleFromUser(ctx context.Context, userID, roleID string) error {
 	const q = `DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`
 	if _, err := r.q.Exec(ctx, q, userID, roleID); err != nil {
 		return fmt.Errorf("revoke role from user: %w", err)
@@ -129,7 +129,7 @@ func (r *rbacRepository) RevokeRoleFromUser(ctx context.Context, userID, roleID 
 
 // ListUserPermissions returns the deduplicated set of permission names for the
 // user via the user_roles → role_permissions → permissions join.
-func (r *rbacRepository) ListUserPermissions(ctx context.Context, userID string) ([]string, error) {
+func (r *RBACRepository) ListUserPermissions(ctx context.Context, userID string) ([]string, error) {
 	const q = `
 		SELECT DISTINCT p.name
 		FROM permissions p

@@ -8,24 +8,22 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-
-	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 )
 
 const permCacheKeyPrefix = "perms:"
 
 // redisPermissionCache is the Redis-backed implementation of repository.PermissionCache.
-type redisPermissionCache struct {
+type RedisPermissionCache struct {
 	client *redis.Client
 }
 
 // NewRedisPermissionCache builds a PermissionCache backed by the given Redis client.
-func NewRedisPermissionCache(client *redis.Client) repository.PermissionCache {
-	return &redisPermissionCache{client: client}
+func NewRedisPermissionCache(client *redis.Client) *RedisPermissionCache {
+	return &RedisPermissionCache{client: client}
 }
 
 // Get returns the cached permission set for the given user.
-func (c *redisPermissionCache) Get(ctx context.Context, userID string) ([]string, bool) {
+func (c *RedisPermissionCache) Get(ctx context.Context, userID string) ([]string, bool) {
 	data, err := c.client.Get(ctx, permCacheKeyPrefix+userID).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, false
@@ -41,7 +39,7 @@ func (c *redisPermissionCache) Get(ctx context.Context, userID string) ([]string
 }
 
 // Set stores the permission set for the given user with the specified TTL.
-func (c *redisPermissionCache) Set(ctx context.Context, userID string, perms []string, ttl time.Duration) error {
+func (c *RedisPermissionCache) Set(ctx context.Context, userID string, perms []string, ttl time.Duration) error {
 	data, err := json.Marshal(perms)
 	if err != nil {
 		return fmt.Errorf("perm cache set: marshal: %w", err)
@@ -53,7 +51,7 @@ func (c *redisPermissionCache) Set(ctx context.Context, userID string, perms []s
 }
 
 // Invalidate removes the cached permission set for the given user.
-func (c *redisPermissionCache) Invalidate(ctx context.Context, userID string) error {
+func (c *RedisPermissionCache) Invalidate(ctx context.Context, userID string) error {
 	if err := c.client.Del(ctx, permCacheKeyPrefix+userID).Err(); err != nil {
 		return fmt.Errorf("perm cache invalidate: %w", err)
 	}

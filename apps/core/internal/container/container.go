@@ -71,36 +71,43 @@ func provideInfrastructure(injector *do.RootScope) {
 }
 
 func provideRepositories(injector *do.RootScope) {
-	do.Provide(injector, func(i do.Injector) (repository.TxManager, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.TxManagerImpl, error) {
 		return infraRepo.NewTxManager(do.MustInvoke[*database.Postgres](i)), nil
 	})
+	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.HealthRepository, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
 		return infraRepo.NewHealthRepository(
 			do.MustInvoke[*database.Postgres](i),
 			do.MustInvoke[*cache.Redis](i),
 		), nil
 	})
+	do.MustAs[*infraRepo.HealthRepository, repository.HealthRepository](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.UserRepository, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.UserRepository, error) {
 		return infraRepo.NewUserRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
 	})
+	do.MustAs[*infraRepo.UserRepository, repository.UserRepository](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.RBACRepository, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.RBACRepository, error) {
 		return infraRepo.NewRBACRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
 	})
+	do.MustAs[*infraRepo.RBACRepository, repository.RBACRepository](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.WatchlistRepository, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.WatchlistRepository, error) {
 		return infraRepo.NewWatchlistRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
 	})
+	do.MustAs[*infraRepo.WatchlistRepository, repository.WatchlistRepository](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.RefreshStore, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.RedisRefreshStore, error) {
 		return infraRepo.NewRedisRefreshStore(do.MustInvoke[*cache.Redis](i).Client()), nil
 	})
+	do.MustAs[*infraRepo.RedisRefreshStore, repository.RefreshStore](injector)
 
-	do.Provide(injector, func(i do.Injector) (repository.PermissionCache, error) {
+	do.Provide(injector, func(i do.Injector) (*infraRepo.RedisPermissionCache, error) {
 		return infraRepo.NewRedisPermissionCache(do.MustInvoke[*cache.Redis](i).Client()), nil
 	})
+	do.MustAs[*infraRepo.RedisPermissionCache, repository.PermissionCache](injector)
 }
 
 func provideUsecases(injector *do.RootScope) {

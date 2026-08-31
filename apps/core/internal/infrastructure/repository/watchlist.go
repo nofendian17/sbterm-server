@@ -13,17 +13,17 @@ import (
 )
 
 // watchlistRepository is the pgx implementation of repository.WatchlistRepository.
-type watchlistRepository struct {
+type WatchlistRepository struct {
 	q repository.Querier
 }
 
 // NewWatchlistRepository builds a WatchlistRepository backed by the given Querier.
-func NewWatchlistRepository(q repository.Querier) repository.WatchlistRepository {
-	return &watchlistRepository{q: q}
+func NewWatchlistRepository(q repository.Querier) *WatchlistRepository {
+	return &WatchlistRepository{q: q}
 }
 
 // ListByUser returns all watchlist entries for the given user.
-func (r *watchlistRepository) ListByUser(ctx context.Context, userID string) ([]domain.Watchlist, error) {
+func (r *WatchlistRepository) ListByUser(ctx context.Context, userID string) ([]domain.Watchlist, error) {
 	rows, err := r.q.Query(ctx,
 		`SELECT id, user_id, symbol, label, created_at
 		 FROM watchlists WHERE user_id = $1 ORDER BY created_at`, userID)
@@ -48,7 +48,7 @@ func (r *watchlistRepository) ListByUser(ctx context.Context, userID string) ([]
 
 // Add inserts a new watchlist entry. A conflicting (user_id, symbol) maps to
 // domain.ErrDuplicateWatchlist.
-func (r *watchlistRepository) Add(ctx context.Context, w domain.Watchlist) error {
+func (r *WatchlistRepository) Add(ctx context.Context, w domain.Watchlist) error {
 	const q = `
 		INSERT INTO watchlists (user_id, symbol, label)
 		VALUES ($1, $2, $3)
@@ -64,7 +64,7 @@ func (r *watchlistRepository) Add(ctx context.Context, w domain.Watchlist) error
 }
 
 // RemoveBySymbol deletes the watchlist entry for the given user and symbol.
-func (r *watchlistRepository) RemoveBySymbol(ctx context.Context, userID, symbol string) error {
+func (r *WatchlistRepository) RemoveBySymbol(ctx context.Context, userID, symbol string) error {
 	const q = `DELETE FROM watchlists WHERE user_id = $1 AND symbol = $2`
 	if _, err := r.q.Exec(ctx, q, userID, symbol); err != nil {
 		return fmt.Errorf("watchlist remove: %w", err)

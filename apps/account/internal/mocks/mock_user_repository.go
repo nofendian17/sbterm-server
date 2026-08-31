@@ -196,6 +196,45 @@ func (c *MockUserRepositoryGetByIDCall) DoAndReturn(f func(context.Context, stri
 	return c
 }
 
+// ListAll mocks base method.
+func (m *MockUserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAll", ctx)
+	ret0, _ := ret[0].([]domain.User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAll indicates an expected call of ListAll.
+func (mr *MockUserRepositoryMockRecorder) ListAll(ctx any) *MockUserRepositoryListAllCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockUserRepository)(nil).ListAll), ctx)
+	return &MockUserRepositoryListAllCall{Call: call}
+}
+
+// MockUserRepositoryListAllCall wrap *gomock.Call
+type MockUserRepositoryListAllCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockUserRepositoryListAllCall) Return(arg0 []domain.User, arg1 error) *MockUserRepositoryListAllCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockUserRepositoryListAllCall) Do(f func(context.Context) ([]domain.User, error)) *MockUserRepositoryListAllCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockUserRepositoryListAllCall) DoAndReturn(f func(context.Context) ([]domain.User, error)) *MockUserRepositoryListAllCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // SetExpiry mocks base method.
 func (m *MockUserRepository) SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error {
 	m.ctrl.T.Helper()

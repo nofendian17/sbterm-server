@@ -135,6 +135,33 @@ func (r *userRepository) AssignDefaultRole(ctx context.Context, userID string) e
 	return nil
 }
 
+// ListAll returns all non-deleted users.
+func (r *userRepository) ListAll(ctx context.Context) ([]domain.User, error) {
+	rows, err := r.q.Query(ctx,
+		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
+		 FROM users WHERE deleted_at IS NULL ORDER BY created_at`)
+	if err != nil {
+		return nil, fmt.Errorf("user list all: %w", err)
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(
+			&u.ID, &u.Email, &u.PasswordHash, &u.DisplayName,
+			&u.ExpiresAt, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
+		); err != nil {
+			return nil, fmt.Errorf("user list all scan: %w", err)
+		}
+		users = append(users, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("user list all rows: %w", err)
+	}
+	return users, nil
+}
+
 // isUniqueViolation reports whether err is (or wraps) a Postgres unique
 // violation (SQLSTATE 23505).
 func isUniqueViolation(err error) bool {

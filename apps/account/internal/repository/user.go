@@ -29,4 +29,6 @@ type UserRepository interface {
 	// AssignDefaultRole links the user to the seeded "user" role by inserting a
 	// row into user_roles. The role id is resolved from the roles table by name.
 	AssignDefaultRole(ctx context.Context, userID string) error
+	// ListAll returns all non-deleted users.
+	ListAll(ctx context.Context) ([]domain.User, error)
 }

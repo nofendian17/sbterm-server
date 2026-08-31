@@ -14,171 +14,159 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
 )
 
-func TestRBACUsecase_HasPermission_CacheHit(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	// Cache hit with the permission present
-	cache.EXPECT().Get(gomock.Any(), "u1").Return([]string{"profile:read", "watchlist:read"}, true)
-
-	ok, err := uc.HasPermission(context.Background(), "u1", "profile:read")
-	require.NoError(t, err)
-	assert.True(t, ok)
-}
-
-func TestRBACUsecase_HasPermission_CacheHit_Missing(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	// Cache hit but permission not present
-	cache.EXPECT().Get(gomock.Any(), "u1").Return([]string{"profile:read"}, true)
-
-	ok, err := uc.HasPermission(context.Background(), "u1", "admin:users:manage")
-	require.NoError(t, err)
-	assert.False(t, ok)
-}
-
-func TestRBACUsecase_HasPermission_CacheMiss(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	// Cache miss
-	cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
-	// DB lookup
-	repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return([]string{"profile:read", "watchlist:write"}, nil)
-	// Cache the result
-	cache.EXPECT().Set(gomock.Any(), "u1", []string{"profile:read", "watchlist:write"}, 5*time.Minute).Return(nil)
-
-	ok, err := uc.HasPermission(context.Background(), "u1", "watchlist:write")
-	require.NoError(t, err)
-	assert.True(t, ok)
-}
-
-func TestRBACUsecase_HasPermission_CacheMiss_Empty(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
-	repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return(nil, nil)
-	cache.EXPECT().Set(gomock.Any(), "u1", ([]string)(nil), 5*time.Minute).Return(nil)
-
-	ok, err := uc.HasPermission(context.Background(), "u1", "profile:read")
-	require.NoError(t, err)
-	assert.False(t, ok)
-}
-
-func TestRBACUsecase_HasPermission_DBError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
-	repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return(nil, errors.New("db error"))
-
-	ok, err := uc.HasPermission(context.Background(), "u1", "profile:read")
-	assert.Error(t, err)
-	assert.False(t, ok)
-}
-
-func TestRBACUsecase_AssignRoleToUser_InvalidatesCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	repo.EXPECT().AssignRoleToUser(gomock.Any(), "u1", "r1").Return(nil)
-	cache.EXPECT().Invalidate(gomock.Any(), "u1").Return(nil)
-
-	require.NoError(t, uc.AssignRoleToUser(context.Background(), "u1", "r1"))
-}
-
-func TestRBACUsecase_RevokeRoleFromUser_InvalidatesCache(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	repo.EXPECT().RevokeRoleFromUser(gomock.Any(), "u1", "r1").Return(nil)
-	cache.EXPECT().Invalidate(gomock.Any(), "u1").Return(nil)
-
-	require.NoError(t, uc.RevokeRoleFromUser(context.Background(), "u1", "r1"))
-}
-
-func TestRBACUsecase_CreateRole(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	role := domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"}
-	repo.EXPECT().CreateRole(gomock.Any(), role).Return(nil)
-
-	require.NoError(t, uc.CreateRole(context.Background(), role))
-}
-
-func TestRBACUsecase_ListRoles(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
-
-	uc := NewRBACUsecase(repo, cache)
-
-	roles := []domain.Role{
-		{ID: "r1", Name: "admin"},
-		{ID: "r2", Name: "user"},
+func TestRBACUsecase_HasPermission(t *testing.T) {
+	tests := []struct {
+		name    string
+		userID  string
+		perm    string
+		setup   func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository)
+		wantOK  bool
+		wantErr bool
+	}{
+		{
+			name:   "cache hit with permission present",
+			userID: "u1",
+			perm:   "profile:read",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return([]string{"profile:read", "watchlist:read"}, true)
+			},
+			wantOK: true,
+		},
+		{
+			name:   "cache hit but permission missing",
+			userID: "u1",
+			perm:   "admin:users:manage",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return([]string{"profile:read"}, true)
+			},
+			wantOK: false,
+		},
+		{
+			name:   "cache miss resolves from DB",
+			userID: "u1",
+			perm:   "watchlist:write",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
+				repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return([]string{"profile:read", "watchlist:write"}, nil)
+				cache.EXPECT().Set(gomock.Any(), "u1", []string{"profile:read", "watchlist:write"}, 5*time.Minute).Return(nil)
+			},
+			wantOK: true,
+		},
+		{
+			name:   "cache miss with empty permissions",
+			userID: "u1",
+			perm:   "profile:read",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
+				repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return(nil, nil)
+				cache.EXPECT().Set(gomock.Any(), "u1", ([]string)(nil), 5*time.Minute).Return(nil)
+			},
+			wantOK: false,
+		},
+		{
+			name:   "DB error propagates",
+			userID: "u1",
+			perm:   "profile:read",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
+				repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return(nil, errors.New("db error"))
+			},
+			wantErr: true,
+		},
 	}
-	repo.EXPECT().ListRoles(gomock.Any()).Return(roles, nil)
 
-	got, err := uc.ListRoles(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, roles, got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			cache := mocks.NewMockPermissionCache(ctrl)
+			repo := mocks.NewMockRBACRepository(ctrl)
+			uc := NewRBACUsecase(repo, cache)
+			tt.setup(cache, repo)
+
+			ok, err := uc.HasPermission(context.Background(), tt.userID, tt.perm)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.False(t, ok)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantOK, ok)
+			}
+		})
+	}
 }
 
-func TestRBACUsecase_DeleteRole(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+func TestRBACUsecase_AssignmentOps(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository)
+		call  func(uc RBACUsecase) error
+	}{
+		{
+			name: "assign role invalidates cache",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().AssignRoleToUser(gomock.Any(), "u1", "r1").Return(nil)
+				cache.EXPECT().Invalidate(gomock.Any(), "u1").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.AssignRoleToUser(context.Background(), "u1", "r1")
+			},
+		},
+		{
+			name: "revoke role invalidates cache",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().RevokeRoleFromUser(gomock.Any(), "u1", "r1").Return(nil)
+				cache.EXPECT().Invalidate(gomock.Any(), "u1").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.RevokeRoleFromUser(context.Background(), "u1", "r1")
+			},
+		},
+		{
+			name: "create role delegates to repo",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				role := domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"}
+				repo.EXPECT().CreateRole(gomock.Any(), role).Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.CreateRole(context.Background(), domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"})
+			},
+		},
+		{
+			name: "list roles returns from repo",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				roles := []domain.Role{{ID: "r1", Name: "admin"}, {ID: "r2", Name: "user"}}
+				repo.EXPECT().ListRoles(gomock.Any()).Return(roles, nil)
+			},
+			call: func(uc RBACUsecase) error {
+				_, err := uc.ListRoles(context.Background())
+				return err
+			},
+		},
+		{
+			name: "delete role delegates to repo",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().DeleteRole(gomock.Any(), "r1").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.DeleteRole(context.Background(), "r1")
+			},
+		},
+	}
 
-	cache := mocks.NewMockPermissionCache(ctrl)
-	repo := mocks.NewMockRBACRepository(ctrl)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
 
-	uc := NewRBACUsecase(repo, cache)
+			cache := mocks.NewMockPermissionCache(ctrl)
+			repo := mocks.NewMockRBACRepository(ctrl)
+			uc := NewRBACUsecase(repo, cache)
+			tt.setup(cache, repo)
 
-	repo.EXPECT().DeleteRole(gomock.Any(), "r1").Return(nil)
-
-	require.NoError(t, uc.DeleteRole(context.Background(), "r1"))
+			err := tt.call(uc)
+			require.NoError(t, err)
+		})
+	}
 }

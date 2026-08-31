@@ -20,95 +20,149 @@ func pgErrUniqueViolation() error {
 }
 
 func TestUserRepository_Create(t *testing.T) {
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectExec(`INSERT INTO users`).
-		WithArgs(pgxmock.AnyArg(), "a@b.co", "hash", "Beni", pgxmock.AnyArg()).
-		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	tests := []struct {
+		name    string
+		user    domain.User
+		setup   func(mock pgxmock.PgxPoolIface)
+		wantErr error
+	}{
+		{
+			name: "success",
+			user: domain.User{Email: "a@b.co", PasswordHash: "hash", DisplayName: "Beni"},
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectExec(`INSERT INTO users`).
+					WithArgs(pgxmock.AnyArg(), "a@b.co", "hash", "Beni", pgxmock.AnyArg()).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
+			},
+		},
+		{
+			name: "duplicate email",
+			user: domain.User{Email: "a@b.co", PasswordHash: "hash", DisplayName: "Beni"},
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectExec(`INSERT INTO users`).
+					WithArgs(pgxmock.AnyArg(), "a@b.co", "hash", "Beni", pgxmock.AnyArg()).
+					WillReturnError(pgErrUniqueViolation())
+			},
+			wantErr: domain.ErrEmailTaken,
+		},
+	}
 
-	repo := NewUserRepository(mock)
-	err := repo.Create(context.Background(), domain.User{
-		Email:        "a@b.co",
-		PasswordHash: "hash",
-		DisplayName:  "Beni",
-	})
-	require.NoError(t, err)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, _ := pgxmock.NewPool()
+			defer mock.Close()
+			tt.setup(mock)
 
-func TestUserRepository_Create_DuplicateEmail(t *testing.T) {
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectExec(`INSERT INTO users`).
-		WithArgs(pgxmock.AnyArg(), "a@b.co", "hash", "Beni", pgxmock.AnyArg()).
-		WillReturnError(pgErrUniqueViolation())
-
-	repo := NewUserRepository(mock)
-	err := repo.Create(context.Background(), domain.User{
-		Email:        "a@b.co",
-		PasswordHash: "hash",
-		DisplayName:  "Beni",
-	})
-	require.ErrorIs(t, err, domain.ErrEmailTaken)
-	require.NoError(t, mock.ExpectationsWereMet())
+			repo := NewUserRepository(mock)
+			err := repo.Create(context.Background(), tt.user)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestUserRepository_GetByEmail(t *testing.T) {
-	now := time.Now()
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectQuery(`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at FROM users`).
-		WithArgs("a@b.co").
-		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "email", "password_hash", "display_name", "expires_at", "created_at", "updated_at", "deleted_at",
-		}).AddRow("u1", "a@b.co", "hash", "Beni", nil, now, now, nil))
+	tests := []struct {
+		name    string
+		email   string
+		setup   func(mock pgxmock.PgxPoolIface)
+		wantID  string
+		wantErr error
+	}{
+		{
+			name:  "found",
+			email: "a@b.co",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				now := time.Now()
+				rows := pgxmock.NewRows([]string{
+					"id", "email", "password_hash", "display_name", "expires_at", "created_at", "updated_at", "deleted_at",
+				}).AddRow("u1", "a@b.co", "hash", "Beni", nil, now, now, nil)
+				mock.ExpectQuery(`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at FROM users`).
+					WithArgs("a@b.co").WillReturnRows(rows)
+			},
+			wantID: "u1",
+		},
+		{
+			name:  "not found",
+			email: "x@y.co",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectQuery(`(?s)SELECT .* FROM users`).WithArgs("x@y.co").WillReturnError(sql.ErrNoRows)
+			},
+			wantErr: domain.ErrUserNotFound,
+		},
+	}
 
-	repo := NewUserRepository(mock)
-	got, err := repo.GetByEmail(context.Background(), "a@b.co")
-	require.NoError(t, err)
-	require.Equal(t, "u1", got.ID)
-	require.Equal(t, "a@b.co", got.Email)
-	require.Equal(t, "Beni", got.DisplayName)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, _ := pgxmock.NewPool()
+			defer mock.Close()
+			tt.setup(mock)
 
-func TestUserRepository_GetByEmail_NotFound(t *testing.T) {
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectQuery(`(?s)SELECT .* FROM users`).WithArgs("x@y.co").WillReturnError(sql.ErrNoRows)
-
-	repo := NewUserRepository(mock)
-	_, err := repo.GetByEmail(context.Background(), "x@y.co")
-	require.ErrorIs(t, err, domain.ErrUserNotFound)
-	require.NoError(t, mock.ExpectationsWereMet())
+			repo := NewUserRepository(mock)
+			got, err := repo.GetByEmail(context.Background(), tt.email)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantID, got.ID)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestUserRepository_GetByID(t *testing.T) {
-	now := time.Now()
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectQuery(`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at FROM users`).
-		WithArgs("u1").
-		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "email", "password_hash", "display_name", "expires_at", "created_at", "updated_at", "deleted_at",
-		}).AddRow("u1", "a@b.co", "hash", "Beni", nil, now, now, nil))
+	tests := []struct {
+		name    string
+		id      string
+		setup   func(mock pgxmock.PgxPoolIface)
+		wantID  string
+		wantErr error
+	}{
+		{
+			name: "found",
+			id:   "u1",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				now := time.Now()
+				rows := pgxmock.NewRows([]string{
+					"id", "email", "password_hash", "display_name", "expires_at", "created_at", "updated_at", "deleted_at",
+				}).AddRow("u1", "a@b.co", "hash", "Beni", nil, now, now, nil)
+				mock.ExpectQuery(`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at FROM users`).
+					WithArgs("u1").WillReturnRows(rows)
+			},
+			wantID: "u1",
+		},
+		{
+			name: "not found",
+			id:   "missing",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectQuery(`(?s)SELECT .* FROM users`).WithArgs("missing").WillReturnError(sql.ErrNoRows)
+			},
+			wantErr: domain.ErrUserNotFound,
+		},
+	}
 
-	repo := NewUserRepository(mock)
-	got, err := repo.GetByID(context.Background(), "u1")
-	require.NoError(t, err)
-	require.Equal(t, "u1", got.ID)
-	require.NoError(t, mock.ExpectationsWereMet())
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, _ := pgxmock.NewPool()
+			defer mock.Close()
+			tt.setup(mock)
 
-func TestUserRepository_GetByID_NotFound(t *testing.T) {
-	mock, _ := pgxmock.NewPool()
-	defer mock.Close()
-	mock.ExpectQuery(`(?s)SELECT .* FROM users`).WithArgs("missing").WillReturnError(sql.ErrNoRows)
-
-	repo := NewUserRepository(mock)
-	_, err := repo.GetByID(context.Background(), "missing")
-	require.ErrorIs(t, err, domain.ErrUserNotFound)
-	require.NoError(t, mock.ExpectationsWereMet())
+			repo := NewUserRepository(mock)
+			got, err := repo.GetByID(context.Background(), tt.id)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantID, got.ID)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 func TestUserRepository_Update(t *testing.T) {

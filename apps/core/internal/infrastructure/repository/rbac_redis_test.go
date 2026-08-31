@@ -11,67 +11,78 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPermissionCache_SetAndGet(t *testing.T) {
+func newTestRedisClient(t *testing.T) *redis.Client {
+	t.Helper()
 	srv, err := miniredis.Run()
 	require.NoError(t, err)
-	defer srv.Close()
-
+	t.Cleanup(srv.Close)
 	client := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	defer client.Close()
-
-	cache := NewRedisPermissionCache(client)
-	ctx := context.Background()
-	perms := []string{"profile:read", "watchlist:write"}
-
-	// Get misses before set
-	got, ok := cache.Get(ctx, "u1")
-	assert.False(t, ok)
-	assert.Nil(t, got)
-
-	// Set
-	require.NoError(t, cache.Set(ctx, "u1", perms, 5*time.Minute))
-
-	// Get hits
-	got, ok = cache.Get(ctx, "u1")
-	assert.True(t, ok)
-	assert.Equal(t, perms, got)
+	t.Cleanup(func() { client.Close() })
+	return client
 }
 
-func TestPermissionCache_Invalidate(t *testing.T) {
-	srv, err := miniredis.Run()
-	require.NoError(t, err)
-	defer srv.Close()
+func TestPermissionCache(t *testing.T) {
+	tests := []struct {
+		name      string
+		userID    string
+		perms     []string
+		ttl       time.Duration
+		setup     func(t *testing.T, cache *RedisPermissionCache)
+		wantOK    bool
+		wantPerms []string
+	}{
+		{
+			name:   "get miss before set",
+			userID: "u1",
+			setup:  func(t *testing.T, cache *RedisPermissionCache) {},
+			wantOK: false,
+		},
+		{
+			name:   "set and get hit",
+			userID: "u1",
+			perms:  []string{"profile:read", "watchlist:write"},
+			ttl:    5 * time.Minute,
+			setup: func(t *testing.T, cache *RedisPermissionCache) {
+				require.NoError(t, cache.Set(context.Background(), "u1", []string{"profile:read", "watchlist:write"}, 5*time.Minute))
+			},
+			wantOK:    true,
+			wantPerms: []string{"profile:read", "watchlist:write"},
+		},
+		{
+			name:   "invalidate removes cached entry",
+			userID: "u1",
+			perms:  []string{"a"},
+			ttl:    5 * time.Minute,
+			setup: func(t *testing.T, cache *RedisPermissionCache) {
+				require.NoError(t, cache.Set(context.Background(), "u1", []string{"a"}, 5*time.Minute))
+				require.NoError(t, cache.Invalidate(context.Background(), "u1"))
+			},
+			wantOK: false,
+		},
+		{
+			name:   "empty permissions set",
+			userID: "u1",
+			perms:  []string{},
+			ttl:    5 * time.Minute,
+			setup: func(t *testing.T, cache *RedisPermissionCache) {
+				require.NoError(t, cache.Set(context.Background(), "u1", []string{}, 5*time.Minute))
+			},
+			wantOK:    true,
+			wantPerms: []string{},
+		},
+	}
 
-	client := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	defer client.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := newTestRedisClient(t)
+			cache := NewRedisPermissionCache(client)
+			tt.setup(t, cache)
 
-	cache := NewRedisPermissionCache(client)
-	ctx := context.Background()
-
-	require.NoError(t, cache.Set(ctx, "u1", []string{"a"}, 5*time.Minute))
-	got, ok := cache.Get(ctx, "u1")
-	assert.True(t, ok)
-	assert.Equal(t, []string{"a"}, got)
-
-	require.NoError(t, cache.Invalidate(ctx, "u1"))
-	got, ok = cache.Get(ctx, "u1")
-	assert.False(t, ok)
-	assert.Nil(t, got)
-}
-
-func TestPermissionCache_EmptyPerms(t *testing.T) {
-	srv, err := miniredis.Run()
-	require.NoError(t, err)
-	defer srv.Close()
-
-	client := redis.NewClient(&redis.Options{Addr: srv.Addr()})
-	defer client.Close()
-
-	cache := NewRedisPermissionCache(client)
-	ctx := context.Background()
-
-	require.NoError(t, cache.Set(ctx, "u1", []string{}, 5*time.Minute))
-	got, ok := cache.Get(ctx, "u1")
-	assert.True(t, ok)
-	assert.Equal(t, []string{}, got)
+			got, ok := cache.Get(context.Background(), tt.userID)
+			assert.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				assert.Equal(t, tt.wantPerms, got)
+			}
+		})
+	}
 }

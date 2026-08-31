@@ -16,6 +16,7 @@ config.api.yaml
 config.ws.yaml
 config.ingest.yaml
 config.stream.yaml
+config.core.yaml
 
 # Superpowers working docs (design specs stay local)
 doc/superpowers/

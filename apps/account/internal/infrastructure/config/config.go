@@ -106,7 +106,7 @@ func Load() (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-	v.SetDefault("port", ":8081")
+	v.SetDefault("port", ":8082")
 	v.SetDefault("auth.bcrypt_cost", 12)
 	v.SetDefault("auth.access_ttl", 15*time.Minute)
 	v.SetDefault("auth.refresh_ttl", 720*time.Hour)

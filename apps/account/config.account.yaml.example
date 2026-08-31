@@ -1,7 +1,7 @@
 app:
   name: account
   version: dev
-port: ":8081"
+port: ":8082"
 database:
   url: postgres://postgres:postgres@localhost:5432/sbterm?sslmode=disable
   max_conns: 10

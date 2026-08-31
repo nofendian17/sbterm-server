@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -112,7 +113,11 @@ func (p *Postgres) Shutdown() error {
 }
 
 // Querier returns the underlying pgxpool.Pool as a repository.Querier.
-// This is used by the container to pass the pool to repository constructors.
-func (p *Postgres) Querier() repository.Querier {
-	return p.pool.(*pgxpool.Pool)
+// Returns an error if the pool is not a *pgxpool.Pool (e.g. in tests with a mock).
+func (p *Postgres) Querier() (repository.Querier, error) {
+	pool, ok := p.pool.(*pgxpool.Pool)
+	if !ok {
+		return nil, errors.New("database: pool is not *pgxpool.Pool")
+	}
+	return pool, nil
 }

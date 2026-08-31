@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgconn"
-
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 )
@@ -28,7 +26,7 @@ func (r *RBACRepository) CreateRole(ctx context.Context, role domain.Role) error
 	_, err := r.q.Exec(ctx, q, role.ID, role.Name, role.Description)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return fmt.Errorf("role create: %w", domain.ErrRoleNotFound) // reuse for now
+			return fmt.Errorf("role create: %w", domain.ErrRoleNameTaken)
 		}
 		return fmt.Errorf("role create: %w", err)
 	}
@@ -156,13 +154,4 @@ func (r *RBACRepository) ListUserPermissions(ctx context.Context, userID string)
 		return nil, fmt.Errorf("list user permissions rows: %w", err)
 	}
 	return perms, nil
-}
-
-// isRoleUniqueViolation checks if err is a Postgres unique violation for roles.
-func isRoleUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == uniqueViolationCode
-	}
-	return false
 }

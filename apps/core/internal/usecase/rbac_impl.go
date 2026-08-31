@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -75,8 +76,10 @@ func (u *rbacUsecase) AssignRoleToUser(ctx context.Context, userID, roleID strin
 		return fmt.Errorf("rbac assign role: %w", err)
 	}
 	// Invalidate the user's permission cache so the new role takes effect
-	// immediately.
-	_ = u.cache.Invalidate(ctx, userID)
+	// immediately. Log but don't fail — stale cache expires via TTL anyway.
+	if err := u.cache.Invalidate(ctx, userID); err != nil {
+		slog.Warn("rbac: failed to invalidate permission cache", "user_id", userID, "error", err)
+	}
 	return nil
 }
 
@@ -84,7 +87,9 @@ func (u *rbacUsecase) RevokeRoleFromUser(ctx context.Context, userID, roleID str
 	if err := u.repo.RevokeRoleFromUser(ctx, userID, roleID); err != nil {
 		return fmt.Errorf("rbac revoke role: %w", err)
 	}
-	_ = u.cache.Invalidate(ctx, userID)
+	if err := u.cache.Invalidate(ctx, userID); err != nil {
+		slog.Warn("rbac: failed to invalidate permission cache", "user_id", userID, "error", err)
+	}
 	return nil
 }
 

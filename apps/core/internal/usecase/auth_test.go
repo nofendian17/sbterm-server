@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -10,9 +11,10 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 )
 
-// fakeRefreshStore is an in-memory RefreshStore for token service tests.
+// fakeRefreshStore is a concurrent-safe in-memory RefreshStore for token service tests.
 type fakeRefreshStore struct {
-	m map[string]string
+	mu sync.Mutex
+	m  map[string]string
 }
 
 func newFakeRefreshStore() *fakeRefreshStore {
@@ -20,16 +22,22 @@ func newFakeRefreshStore() *fakeRefreshStore {
 }
 
 func (f *fakeRefreshStore) StoreRefresh(jti, userID string, _ time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.m[jti] = userID
 	return nil
 }
 
 func (f *fakeRefreshStore) ConsumeRefresh(jti string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	v, ok := f.m[jti]
 	return v, ok
 }
 
 func (f *fakeRefreshStore) DeleteRefresh(jti string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	delete(f.m, jti)
 	return nil
 }

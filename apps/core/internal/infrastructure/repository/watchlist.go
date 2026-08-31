@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -80,6 +79,3 @@ func isWatchlistUniqueViolation(err error) bool {
 	}
 	return false
 }
-
-// Ensure sql.ErrNoRows is used (for potential future use).
-var _ = sql.ErrNoRows

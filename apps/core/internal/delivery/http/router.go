@@ -14,7 +14,6 @@ import (
 	appmw "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/user"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/watchlist"
-	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
@@ -48,7 +47,7 @@ type AuthDeps struct {
 	Checker  appmw.PermissionChecker
 }
 
-func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, authUc usecase.AuthUsecase, opts ...RouterOption) chi.Router {
+func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,12 +30,12 @@ type userListResponse struct {
 }
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	if page < 1 {
+	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	if err != nil || page < 1 {
 		page = 1
 	}
-	if limit < 1 {
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || limit < 1 {
 		limit = 20
 	}
 
@@ -65,6 +66,10 @@ func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.uc.SuspendUser(r.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			response.Error(w, http.StatusNotFound, response.CodeNotFound, "user not found")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
@@ -74,6 +79,10 @@ func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.uc.DeleteUser(r.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			response.Error(w, http.StatusNotFound, response.CodeNotFound, "user not found")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
@@ -166,6 +175,10 @@ func (h *AdminHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.uc.DeleteRole(r.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrRoleNotFound) {
+			response.Error(w, http.StatusNotFound, response.CodeNotFound, "role not found")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}

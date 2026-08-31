@@ -85,27 +85,47 @@ func provideRepositories(injector *do.RootScope) {
 	do.MustAs[*infraRepo.HealthRepository, repository.HealthRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.UserRepository, error) {
-		return infraRepo.NewUserRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for user repo: %w", err)
+		}
+		return infraRepo.NewUserRepository(querier), nil
 	})
 	do.MustAs[*infraRepo.UserRepository, repository.UserRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.RBACRepository, error) {
-		return infraRepo.NewRBACRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for rbac repo: %w", err)
+		}
+		return infraRepo.NewRBACRepository(querier), nil
 	})
 	do.MustAs[*infraRepo.RBACRepository, repository.RBACRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.WatchlistRepository, error) {
-		return infraRepo.NewWatchlistRepository(do.MustInvoke[*database.Postgres](i).Querier()), nil
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for watchlist repo: %w", err)
+		}
+		return infraRepo.NewWatchlistRepository(querier), nil
 	})
 	do.MustAs[*infraRepo.WatchlistRepository, repository.WatchlistRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.RedisRefreshStore, error) {
-		return infraRepo.NewRedisRefreshStore(do.MustInvoke[*cache.Redis](i).Client()), nil
+		client := do.MustInvoke[*cache.Redis](i).Client()
+		if client == nil {
+			return nil, errors.New("container: redis client unavailable for refresh store")
+		}
+		return infraRepo.NewRedisRefreshStore(client), nil
 	})
 	do.MustAs[*infraRepo.RedisRefreshStore, repository.RefreshStore](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.RedisPermissionCache, error) {
-		return infraRepo.NewRedisPermissionCache(do.MustInvoke[*cache.Redis](i).Client()), nil
+		client := do.MustInvoke[*cache.Redis](i).Client()
+		if client == nil {
+			return nil, errors.New("container: redis client unavailable for permission cache")
+		}
+		return infraRepo.NewRedisPermissionCache(client), nil
 	})
 	do.MustAs[*infraRepo.RedisPermissionCache, repository.PermissionCache](injector)
 }
@@ -202,7 +222,7 @@ func provideHandlers(injector *do.RootScope) {
 			Verifier: tokenService,
 			Loader:   userRepo,
 			Checker:  rbacUc,
-		}, logger, do.MustInvoke[usecase.AuthUsecase](i),
+		}, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)
 
@@ -272,6 +292,7 @@ func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger l
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errChan <- fmt.Errorf("http server failed: %w", err)
 		}
+		close(errChan)
 	}()
 
 	sigChan := make(chan os.Signal, 1)
@@ -279,7 +300,11 @@ func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger l
 	defer signal.Stop(sigChan)
 
 	select {
-	case err := <-errChan:
+	case err, ok := <-errChan:
+		if !ok {
+			// Server exited cleanly (shouldn't happen without signal, but handle gracefully)
+			return nil
+		}
 		logger.Error("server startup failed", "error", err)
 		if report := injector.Shutdown(); !report.Succeed {
 			logger.Error("container shutdown failed", "error", report)
@@ -287,6 +312,14 @@ func awaitShutdown(server *deliveryhttp.Server, injector *do.RootScope, logger l
 		return err
 	case sig := <-sigChan:
 		logger.Info("received shutdown signal", "signal", sig.String())
+		// Gracefully shut down the HTTP server first — this unblocks the
+		// goroutine waiting on ListenAndServe so errChan gets closed.
+		if err := server.Shutdown(); err != nil {
+			logger.Error("http server shutdown failed", "error", err)
+		}
+		// Drain the error channel (server returns ErrServerClosed which we ignore).
+		<-errChan
+
 		if report := injector.Shutdown(); !report.Succeed {
 			logger.Error("container shutdown failed", "error", report)
 			return report

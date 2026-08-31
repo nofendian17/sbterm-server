@@ -46,131 +46,104 @@ func (m *mockPermissionChecker) HasPermission(_ context.Context, _ string, perm 
 	return m.perms[perm], nil
 }
 
-func TestAuthMiddleware_NoHeader(t *testing.T) {
-	verifier := &mockTokenVerifier{}
-	loader := &mockUserLoader{}
-	checker := &mockPermissionChecker{perms: map[string]bool{}}
+func TestAuthMiddleware(t *testing.T) {
+	tests := []struct {
+		name     string
+		token    string
+		verifier *mockTokenVerifier
+		loader   *mockUserLoader
+		checker  *mockPermissionChecker
+		wantCode int
+		checkCtx func(t *testing.T, r *http.Request)
+	}{
+		{
+			name:     "no header",
+			verifier: &mockTokenVerifier{},
+			loader:   &mockUserLoader{},
+			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "invalid token",
+			token:    "invalid-token",
+			verifier: &mockTokenVerifier{err: assert.AnError},
+			loader:   &mockUserLoader{},
+			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "user not found",
+			token:    "valid-token",
+			verifier: &mockTokenVerifier{userID: "u1"},
+			loader:   &mockUserLoader{err: domain.ErrUserNotFound},
+			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "expired account",
+			token:    "valid-token",
+			verifier: &mockTokenVerifier{userID: "u1"},
+			loader: &mockUserLoader{user: domain.User{
+				ID:        "u1",
+				ExpiresAt: ptrTime(time.Now().Add(-time.Hour)),
+			}},
+			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "suspended account",
+			token:    "valid-token",
+			verifier: &mockTokenVerifier{userID: "u1"},
+			loader: &mockUserLoader{user: domain.User{
+				ID:        "u1",
+				DeletedAt: ptrTime(time.Now()),
+			}},
+			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "success",
+			token:    "valid-token",
+			verifier: &mockTokenVerifier{userID: "u1"},
+			loader:   &mockUserLoader{user: domain.User{ID: "u1"}},
+			checker:  &mockPermissionChecker{perms: map[string]bool{"profile:read": true}},
+			wantCode: http.StatusOK,
+			checkCtx: func(t *testing.T, r *http.Request) {
+				t.Helper()
+				userID, ok := UserIDFromContext(r.Context())
+				require.True(t, ok)
+				assert.Equal(t, "u1", userID)
 
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+				perms, ok := PermissionsFromContext(r.Context())
+				require.True(t, ok)
+				assert.Contains(t, perms, "profile:read")
+			},
+		},
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mw := AuthMiddleware(tt.verifier, tt.loader, tt.checker)
+			handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.checkCtx != nil {
+					tt.checkCtx(t, r)
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
 
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+			req := httptest.NewRequest(http.MethodGet, "/test", nil)
+			if tt.token != "" {
+				req.Header.Set("Authorization", "Bearer "+tt.token)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+		})
+	}
 }
 
-func TestAuthMiddleware_InvalidToken(t *testing.T) {
-	verifier := &mockTokenVerifier{err: assert.AnError}
-	loader := &mockUserLoader{}
-	checker := &mockPermissionChecker{perms: map[string]bool{}}
-
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer invalid-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
-func TestAuthMiddleware_UserNotFound(t *testing.T) {
-	verifier := &mockTokenVerifier{userID: "u1"}
-	loader := &mockUserLoader{err: domain.ErrUserNotFound}
-	checker := &mockPermissionChecker{perms: map[string]bool{}}
-
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
-func TestAuthMiddleware_Expired(t *testing.T) {
-	past := time.Now().Add(-time.Hour)
-	verifier := &mockTokenVerifier{userID: "u1"}
-	loader := &mockUserLoader{user: domain.User{
-		ID:        "u1",
-		ExpiresAt: &past,
-	}}
-	checker := &mockPermissionChecker{perms: map[string]bool{}}
-
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
-func TestAuthMiddleware_Suspended(t *testing.T) {
-	now := time.Now()
-	verifier := &mockTokenVerifier{userID: "u1"}
-	loader := &mockUserLoader{user: domain.User{
-		ID:        "u1",
-		DeletedAt: &now,
-	}}
-	checker := &mockPermissionChecker{perms: map[string]bool{}}
-
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-}
-
-func TestAuthMiddleware_Success(t *testing.T) {
-	verifier := &mockTokenVerifier{userID: "u1"}
-	loader := &mockUserLoader{user: domain.User{ID: "u1"}}
-	checker := &mockPermissionChecker{perms: map[string]bool{
-		"profile:read": true,
-	}}
-
-	mw := AuthMiddleware(verifier, loader, checker)
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Assert context values
-		userID, ok := UserIDFromContext(r.Context())
-		require.True(t, ok)
-		assert.Equal(t, "u1", userID)
-
-		perms, ok := PermissionsFromContext(r.Context())
-		require.True(t, ok)
-		assert.Contains(t, perms, "profile:read")
-
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
+func ptrTime(t time.Time) *time.Time { return &t }
 
 func TestRequirePermission_Present(t *testing.T) {
 	ctx := context.WithValue(context.Background(), CtxPermissions, []string{"profile:read", "watchlist:read"})

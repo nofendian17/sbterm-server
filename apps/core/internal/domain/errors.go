@@ -11,5 +11,6 @@ var (
 	ErrPermissionDenied   = errors.New("permission denied")
 	ErrDuplicateWatchlist = errors.New("symbol already in watchlist")
 	ErrRoleNotFound       = errors.New("role not found")
+	ErrRoleNameTaken      = errors.New("role name already exists")
 	ErrPermissionNotFound = errors.New("permission not found")
 )

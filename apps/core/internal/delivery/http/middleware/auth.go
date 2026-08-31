@@ -20,6 +20,21 @@ const (
 	CtxPermissions contextKey = "permissions"
 )
 
+// KnownPermissions is the list of all permissions resolved by AuthMiddleware.
+// To add a new permission, add it here and to the RBAC seed migration.
+var KnownPermissions = []string{
+	"auth:login",
+	"profile:read",
+	"profile:write",
+	"watchlist:read",
+	"watchlist:write",
+	"admin:roles:read",
+	"admin:roles:write",
+	"admin:users:read",
+	"admin:users:manage",
+	"admin:rbac:assign",
+}
+
 // TokenVerifier verifies an access token and returns the user ID.
 type TokenVerifier interface {
 	VerifyAccess(token string) (userID string, err error)
@@ -134,25 +149,8 @@ func extractBearerToken(r *http.Request) string {
 
 // resolvePermissions resolves the user's permission set using the checker.
 func resolvePermissions(checker PermissionChecker, ctx context.Context, userID string) ([]string, error) {
-	// For each known permission, check if the user has it.
-	// In a production system, this would use a bulk lookup, but for M1
-	// we check the common permissions individually.
-	// The PermissionChecker.HasPermission already uses cache under the hood.
-	permList := []string{
-		"auth:login",
-		"profile:read",
-		"profile:write",
-		"watchlist:read",
-		"watchlist:write",
-		"admin:roles:read",
-		"admin:roles:write",
-		"admin:users:read",
-		"admin:users:manage",
-		"admin:rbac:assign",
-	}
-
-	var perms []string
-	for _, p := range permList {
+	perms := make([]string, 0, len(KnownPermissions))
+	for _, p := range KnownPermissions {
 		ok, err := checker.HasPermission(ctx, userID, p)
 		if err != nil {
 			return nil, err

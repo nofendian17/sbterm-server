@@ -15,6 +15,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 func TestUserHandler_GetMe(t *testing.T) {
@@ -57,7 +58,7 @@ func TestUserHandler_GetMe(t *testing.T) {
 			uc := mocks.NewMockUserUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewUserHandler(uc)
+			handler := NewUserHandler(uc, validator.New())
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/users/me", nil)
 			if tt.userID != "" {
 				ctx := context.WithValue(req.Context(), middleware.CtxUserID, tt.userID)
@@ -103,6 +104,13 @@ func TestUserHandler_UpdateMe(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "validation failed - empty display_name",
+			userID:   "u1",
+			body:     updateMeRequest{DisplayName: ""},
+			setup:    func(uc *mocks.MockUserUsecase) {},
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
 			name:   "internal error",
 			userID: "u1",
 			body:   updateMeRequest{DisplayName: "New Name"},
@@ -120,7 +128,7 @@ func TestUserHandler_UpdateMe(t *testing.T) {
 			uc := mocks.NewMockUserUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewUserHandler(uc)
+			handler := NewUserHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)

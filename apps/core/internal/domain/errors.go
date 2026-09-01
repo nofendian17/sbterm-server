@@ -13,4 +13,5 @@ var (
 	ErrRoleNotFound       = errors.New("role not found")
 	ErrRoleNameTaken      = errors.New("role name already exists")
 	ErrPermissionNotFound = errors.New("permission not found")
+	ErrInvalidInput       = errors.New("invalid input")
 )

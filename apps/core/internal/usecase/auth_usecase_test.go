@@ -92,6 +92,7 @@ func TestAuthUsecase_Register(t *testing.T) {
 				is.ErrorIs(err, tt.wantErr)
 			case tt.wantErr == errValidation:
 				is.Error(err)
+				is.ErrorIs(err, domain.ErrInvalidInput)
 				is.Empty(access)
 				is.Empty(refresh)
 			default:
@@ -195,7 +196,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		repo := mocks.NewMockUserRepository(ctrl) // no repo calls expected on refresh
+		repo := mocks.NewMockUserRepository(ctrl)
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
@@ -204,6 +205,11 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 
 		oldJTI, err := jtiOf(oldRefresh)
 		require.NoError(t, err)
+
+		// User must still be valid (not suspended/expired).
+		repo.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+			ID: "u1", Email: "a@b.co",
+		}, nil)
 
 		access, refresh, err := uc.Refresh(context.Background(), oldRefresh)
 		is.NoError(err)
@@ -215,6 +221,66 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		if _, ok := ts.ConsumeRefresh(oldJTI); ok {
 			t.Errorf("old jti %q should have been deleted after rotation", oldJTI)
 		}
+	})
+
+	t.Run("suspended user -> ErrSuspended", func(t *testing.T) {
+		is := assert.New(t)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		repo := mocks.NewMockUserRepository(ctrl)
+		ts := newTestTokenService()
+		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
+
+		_, oldRefresh, err := ts.GenerateTokenPair("u1", nil)
+		require.NoError(t, err)
+
+		deletedAt := time.Now().Add(-time.Hour)
+		repo.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+			ID: "u1", DeletedAt: &deletedAt,
+		}, nil)
+
+		_, _, err = uc.Refresh(context.Background(), oldRefresh)
+		is.ErrorIs(err, domain.ErrSuspended)
+	})
+
+	t.Run("expired user -> ErrExpired", func(t *testing.T) {
+		is := assert.New(t)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		repo := mocks.NewMockUserRepository(ctrl)
+		ts := newTestTokenService()
+		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
+
+		_, oldRefresh, err := ts.GenerateTokenPair("u1", nil)
+		require.NoError(t, err)
+
+		expiredAt := time.Now().Add(-time.Hour)
+		repo.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+			ID: "u1", ExpiresAt: &expiredAt,
+		}, nil)
+
+		_, _, err = uc.Refresh(context.Background(), oldRefresh)
+		is.ErrorIs(err, domain.ErrExpired)
+	})
+
+	t.Run("deleted user -> ErrInvalidCredentials", func(t *testing.T) {
+		is := assert.New(t)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		repo := mocks.NewMockUserRepository(ctrl)
+		ts := newTestTokenService()
+		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
+
+		_, oldRefresh, err := ts.GenerateTokenPair("deleted-user", nil)
+		require.NoError(t, err)
+
+		repo.EXPECT().GetByID(gomock.Any(), "deleted-user").Return(domain.User{}, domain.ErrUserNotFound)
+
+		_, _, err = uc.Refresh(context.Background(), oldRefresh)
+		is.ErrorIs(err, domain.ErrInvalidCredentials)
 	})
 
 	t.Run("unknown jti -> ErrInvalidCredentials", func(t *testing.T) {

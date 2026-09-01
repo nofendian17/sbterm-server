@@ -140,6 +140,8 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 // mapAuthError maps domain errors to HTTP responses.
 func mapAuthError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, domain.ErrInvalidInput):
+		response.Error(w, http.StatusUnprocessableEntity, response.CodeBadRequest, "validation failed")
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		response.Error(w, http.StatusUnauthorized, response.CodeUnauthorized, "invalid email or password")
 	case errors.Is(err, domain.ErrExpired):

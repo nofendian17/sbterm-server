@@ -70,9 +70,7 @@ func NewAuthUsecase(
 func (u *authUsecase) Register(ctx context.Context, input domain.RegisterInput) (string, string, error) {
 	v := appvalidator.New()
 	if err := v.Validate(input); err != nil {
-		// Validation failures are returned unchanged so the handler can map them
-		// to a 400 response (never leak internal messages).
-		return "", "", err
+		return "", "", fmt.Errorf("%w: %w", domain.ErrInvalidInput, err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), u.bcryptCost())
@@ -112,7 +110,7 @@ func (u *authUsecase) Register(ctx context.Context, input domain.RegisterInput) 
 func (u *authUsecase) Login(ctx context.Context, input domain.LoginInput) (string, string, error) {
 	v := appvalidator.New()
 	if err := v.Validate(input); err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("%w: %w", domain.ErrInvalidInput, err)
 	}
 
 	user, err := u.repo.GetByEmail(ctx, input.Email)
@@ -150,7 +148,7 @@ func (u *authUsecase) Login(ctx context.Context, input domain.LoginInput) (strin
 func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
 	userID, jti, err := u.tokens.VerifyRefresh(refreshToken)
 	if err != nil {
-		return "", "", fmt.Errorf("auth refresh: verify: %w", err)
+		return "", "", domain.ErrInvalidCredentials
 	}
 
 	// Single-use: the jti must exist (it was stored when the pair was issued).
@@ -160,6 +158,21 @@ func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string,
 	// Delete the old jti so it cannot be replayed (rotation).
 	if err := u.tokens.DeleteRefresh(jti); err != nil {
 		return "", "", fmt.Errorf("auth refresh: delete old jti: %w", err)
+	}
+
+	// Verify the user still exists and is not suspended/expired.
+	user, err := u.repo.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return "", "", domain.ErrInvalidCredentials
+		}
+		return "", "", err
+	}
+	if user.DeletedAt != nil {
+		return "", "", domain.ErrSuspended
+	}
+	if user.ExpiresAt != nil && user.ExpiresAt.Before(time.Now()) {
+		return "", "", domain.ErrExpired
 	}
 
 	access, refresh, err := u.tokens.GenerateTokenPair(userID, nil)
@@ -173,7 +186,7 @@ func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string,
 func (u *authUsecase) Logout(ctx context.Context, refreshToken string) error {
 	_, jti, err := u.tokens.VerifyRefresh(refreshToken)
 	if err != nil {
-		return fmt.Errorf("auth logout: verify: %w", err)
+		return domain.ErrInvalidCredentials
 	}
 	if err := u.tokens.DeleteRefresh(jti); err != nil {
 		return fmt.Errorf("auth logout: delete jti: %w", err)

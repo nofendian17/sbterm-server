@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (
@@ -25,7 +27,12 @@ func NewRedisRefreshStore(client *redis.Client) *RedisRefreshStore {
 }
 
 func (s *RedisRefreshStore) StoreRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error {
-	if err := s.client.Set(ctx, refreshKeyPrefix+jti, userID, ttl).Err(); err != nil {
+	if err := s.client.Set(
+		ctx,
+		refreshKeyPrefix+jti,
+		userID,
+		ttl,
+	).Err(); err != nil {
 		return fmt.Errorf("refresh store: set %q: %w", jti, err)
 	}
 	return nil

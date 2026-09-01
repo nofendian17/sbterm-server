@@ -1,3 +1,5 @@
+// Package usecase implements the business logic for the core domain.
+
 package usecase
 
 import (
@@ -109,7 +111,12 @@ func (u *rbacUsecase) HasPermission(ctx context.Context, userID string, perm str
 
 	// Cache the result (even if empty — avoids repeated lookups for users with
 	// no permissions).
-	_ = u.cache.Set(ctx, userID, perms, permCacheTTL)
+	_ = u.cache.Set(
+		ctx,
+		userID,
+		perms,
+		permCacheTTL,
+	)
 
 	return slices.Contains(perms, perm), nil
 }

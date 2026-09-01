@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (
@@ -97,7 +99,13 @@ func (r *UserRepository) scanUser(ctx context.Context, query string, args ...any
 // Update sets display_name and expires_at for the given id.
 func (r *UserRepository) Update(ctx context.Context, id, displayName string, expiresAt *time.Time) error {
 	const q = `UPDATE users SET display_name = $2, expires_at = $3, updated_at = now() WHERE id = $1`
-	if _, err := r.q.Exec(ctx, q, id, displayName, derefTime(expiresAt)); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		id,
+		displayName,
+		derefTime(expiresAt),
+	); err != nil {
 		return fmt.Errorf("user update: %w", err)
 	}
 	return nil
@@ -115,7 +123,12 @@ func (r *UserRepository) SoftDelete(ctx context.Context, id string) error {
 // SetExpiry updates the expires_at column for the given id.
 func (r *UserRepository) SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error {
 	const q = `UPDATE users SET expires_at = $1, updated_at = now() WHERE id = $2`
-	if _, err := r.q.Exec(ctx, q, derefTime(expiresAt), id); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		derefTime(expiresAt),
+		id,
+	); err != nil {
 		return fmt.Errorf("user set expiry: %w", err)
 	}
 	return nil
@@ -145,7 +158,7 @@ func (r *UserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
 	}
 	defer rows.Close()
 
-	var users []domain.User
+	users := []domain.User{}
 	for rows.Next() {
 		var u domain.User
 		if err := rows.Scan(

@@ -1,3 +1,5 @@
+// Package http provides HTTP handlers for the core service API.
+
 package watchlist
 
 import (

@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (

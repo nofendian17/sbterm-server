@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (
@@ -31,7 +33,7 @@ func (r *WatchlistRepository) ListByUser(ctx context.Context, userID string) ([]
 	}
 	defer rows.Close()
 
-	var items []domain.Watchlist
+	items := []domain.Watchlist{}
 	for rows.Next() {
 		var w domain.Watchlist
 		if err := rows.Scan(&w.ID, &w.UserID, &w.Symbol, &w.Label, &w.CreatedAt); err != nil {
@@ -52,7 +54,13 @@ func (r *WatchlistRepository) Add(ctx context.Context, w domain.Watchlist) error
 		INSERT INTO watchlists (user_id, symbol, label)
 		VALUES ($1, $2, $3)
 	`
-	_, err := r.q.Exec(ctx, q, w.UserID, w.Symbol, w.Label)
+	_, err := r.q.Exec(
+		ctx,
+		q,
+		w.UserID,
+		w.Symbol,
+		w.Label,
+	)
 	if err != nil {
 		if isWatchlistUniqueViolation(err) {
 			return fmt.Errorf("watchlist add: %w", domain.ErrDuplicateWatchlist)

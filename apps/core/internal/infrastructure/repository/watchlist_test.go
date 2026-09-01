@@ -51,7 +51,7 @@ func TestWatchlistRepository_ListByUser(t *testing.T) {
 			got, err := repo.ListByUser(context.Background(), tt.userID)
 			require.NoError(t, err)
 			if tt.name == "empty" {
-				assert.Nil(t, got)
+				assert.Empty(t, got)
 			} else {
 				require.Len(t, got, 2)
 				assert.Equal(t, "w1", got[0].ID)

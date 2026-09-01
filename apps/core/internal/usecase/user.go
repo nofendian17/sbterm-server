@@ -1,3 +1,5 @@
+// Package usecase implements the business logic for the core domain.
+
 package usecase
 
 import (
@@ -22,9 +24,31 @@ type userUsecase struct {
 	repo repository.UserRepository
 }
 
+// UserResponse is the API response for a user profile.
+type UserResponse struct {
+	ID          string     `json:"id"`
+	Email       string     `json:"email"`
+	DisplayName string     `json:"display_name"`
+	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
 // NewUserUsecase wires up the user usecase.
 func NewUserUsecase(repo repository.UserRepository) UserUsecase {
 	return &userUsecase{repo: repo}
+}
+
+// ToResponse converts a domain.User to an API response.
+func ToResponse(u domain.User) UserResponse {
+	return UserResponse{
+		ID:          u.ID,
+		Email:       u.Email,
+		DisplayName: u.DisplayName,
+		ExpiresAt:   u.ExpiresAt,
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
+	}
 }
 
 func (u *userUsecase) GetMe(ctx context.Context, userID string) (domain.User, error) {
@@ -41,27 +65,10 @@ func (u *userUsecase) UpdateMe(ctx context.Context, userID, displayName string) 
 	if err != nil {
 		return err
 	}
-	return u.repo.Update(ctx, userID, displayName, user.ExpiresAt)
-}
-
-// UserResponse is the API response for a user profile.
-type UserResponse struct {
-	ID          string     `json:"id"`
-	Email       string     `json:"email"`
-	DisplayName string     `json:"display_name"`
-	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-}
-
-// ToResponse converts a domain.User to an API response.
-func ToResponse(u domain.User) UserResponse {
-	return UserResponse{
-		ID:          u.ID,
-		Email:       u.Email,
-		DisplayName: u.DisplayName,
-		ExpiresAt:   u.ExpiresAt,
-		CreatedAt:   u.CreatedAt,
-		UpdatedAt:   u.UpdatedAt,
-	}
+	return u.repo.Update(
+		ctx,
+		userID,
+		displayName,
+		user.ExpiresAt,
+	)
 }

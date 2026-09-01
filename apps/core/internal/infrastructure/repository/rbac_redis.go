@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (
@@ -44,7 +46,12 @@ func (c *RedisPermissionCache) Set(ctx context.Context, userID string, perms []s
 	if err != nil {
 		return fmt.Errorf("perm cache set: marshal: %w", err)
 	}
-	if err := c.client.Set(ctx, permCacheKeyPrefix+userID, data, ttl).Err(); err != nil {
+	if err := c.client.Set(
+		ctx,
+		permCacheKeyPrefix+userID,
+		data,
+		ttl,
+	).Err(); err != nil {
 		return fmt.Errorf("perm cache set: %w", err)
 	}
 	return nil

@@ -1,3 +1,5 @@
+// Package usecase implements the business logic for the core domain.
+
 package usecase
 
 import (
@@ -54,18 +56,33 @@ func NewTokenService(secret string, accessTTL, refreshTTL time.Duration, store r
 func (s *TokenService) GenerateTokenPair(ctx context.Context, userID string, _ *time.Time) (access, refresh string, err error) {
 	now := time.Now()
 
-	access, err = s.signToken(userID, claimTypeAccess, s.accessTTL, now)
+	access, err = s.signToken(
+		userID,
+		claimTypeAccess,
+		s.accessTTL,
+		now,
+	)
 	if err != nil {
 		return "", "", err
 	}
 
-	refresh, err = s.signToken(userID, claimTypeRefresh, s.refreshTTL, now)
+	refresh, err = s.signToken(
+		userID,
+		claimTypeRefresh,
+		s.refreshTTL,
+		now,
+	)
 	if err != nil {
 		return "", "", err
 	}
 
 	// Refresh jti is persisted so the auth usecase can verify presence.
-	if err := s.refreshStore.StoreRefresh(ctx, refreshJTIFrom(refresh), userID, s.refreshTTL); err != nil {
+	if err := s.refreshStore.StoreRefresh(
+		ctx,
+		refreshJTIFrom(refresh),
+		userID,
+		s.refreshTTL,
+	); err != nil {
 		return "", "", err
 	}
 	return access, refresh, nil

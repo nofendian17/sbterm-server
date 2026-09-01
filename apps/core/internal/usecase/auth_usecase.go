@@ -1,3 +1,5 @@
+// Package usecase implements the business logic for the core domain.
+
 package usecase
 
 import (

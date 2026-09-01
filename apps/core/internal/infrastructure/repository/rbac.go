@@ -1,3 +1,5 @@
+// Package repository implements the repository contracts using PostgreSQL/Redis backends.
+
 package repository
 
 import (
@@ -23,7 +25,13 @@ func NewRBACRepository(q repository.Querier) *RBACRepository {
 // CreateRole inserts a new role. A conflicting name maps to a domain error.
 func (r *RBACRepository) CreateRole(ctx context.Context, role domain.Role) error {
 	const q = `INSERT INTO roles (id, name, description) VALUES ($1, $2, $3)`
-	_, err := r.q.Exec(ctx, q, role.ID, role.Name, role.Description)
+	_, err := r.q.Exec(
+		ctx,
+		q,
+		role.ID,
+		role.Name,
+		role.Description,
+	)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return fmt.Errorf("role create: %w", domain.ErrRoleNameTaken)
@@ -56,7 +64,7 @@ func (r *RBACRepository) ListRoles(ctx context.Context) ([]domain.Role, error) {
 	}
 	defer rows.Close()
 
-	var roles []domain.Role
+	roles := []domain.Role{}
 	for rows.Next() {
 		var role domain.Role
 		if err := rows.Scan(&role.ID, &role.Name, &role.Description); err != nil {
@@ -89,7 +97,12 @@ func (r *RBACRepository) AssignPermissionToRole(ctx context.Context, roleID, per
 		INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
 		ON CONFLICT (role_id, permission_id) DO NOTHING
 	`
-	if _, err := r.q.Exec(ctx, q, roleID, permissionID); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		roleID,
+		permissionID,
+	); err != nil {
 		return fmt.Errorf("assign permission to role: %w", err)
 	}
 	return nil
@@ -98,7 +111,12 @@ func (r *RBACRepository) AssignPermissionToRole(ctx context.Context, roleID, per
 // RevokePermissionFromRole unlinks a permission from a role.
 func (r *RBACRepository) RevokePermissionFromRole(ctx context.Context, roleID, permissionID string) error {
 	const q = `DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2`
-	if _, err := r.q.Exec(ctx, q, roleID, permissionID); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		roleID,
+		permissionID,
+	); err != nil {
 		return fmt.Errorf("revoke permission from role: %w", err)
 	}
 	return nil
@@ -110,7 +128,12 @@ func (r *RBACRepository) AssignRoleToUser(ctx context.Context, userID, roleID st
 		INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)
 		ON CONFLICT (user_id, role_id) DO NOTHING
 	`
-	if _, err := r.q.Exec(ctx, q, userID, roleID); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		userID,
+		roleID,
+	); err != nil {
 		return fmt.Errorf("assign role to user: %w", err)
 	}
 	return nil
@@ -119,7 +142,12 @@ func (r *RBACRepository) AssignRoleToUser(ctx context.Context, userID, roleID st
 // RevokeRoleFromUser unlinks a role from a user.
 func (r *RBACRepository) RevokeRoleFromUser(ctx context.Context, userID, roleID string) error {
 	const q = `DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`
-	if _, err := r.q.Exec(ctx, q, userID, roleID); err != nil {
+	if _, err := r.q.Exec(
+		ctx,
+		q,
+		userID,
+		roleID,
+	); err != nil {
 		return fmt.Errorf("revoke role from user: %w", err)
 	}
 	return nil
@@ -142,7 +170,7 @@ func (r *RBACRepository) ListUserPermissions(ctx context.Context, userID string)
 	}
 	defer rows.Close()
 
-	var perms []string
+	perms := []string{}
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {

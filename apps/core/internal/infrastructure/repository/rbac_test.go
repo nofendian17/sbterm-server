@@ -251,7 +251,7 @@ func TestRBACRepository_ListUserPermissions(t *testing.T) {
 				rows := pgxmock.NewRows([]string{"name"})
 				mock.ExpectQuery(`SELECT DISTINCT p.name`).WithArgs("u2").WillReturnRows(rows)
 			},
-			want: nil,
+			want: []string{},
 		},
 	}
 	for _, tt := range tests {

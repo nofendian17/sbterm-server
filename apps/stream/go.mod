@@ -9,7 +9,7 @@ replace github.com/nofendian17/sbterm/libs/pkg => ../../libs/pkg
 replace github.com/nofendian17/sbterm/libs/marketdata => ../../libs/marketdata
 
 require (
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.3.2
 	github.com/gorilla/websocket v1.5.3
 	github.com/nofendian17/sbterm/libs/marketdata v0.0.0-00010101000000-000000000000
 	github.com/nofendian17/sbterm/libs/pkg v0.0.0-00010101000000-000000000000
@@ -19,6 +19,7 @@ require (
 	github.com/stretchr/testify v1.12.0
 	github.com/twmb/franz-go v1.21.6
 	github.com/twmb/franz-go/pkg/kfake v0.0.0-20260816150254-beb096adff00
+	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -35,9 +36,8 @@ require (
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
-	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -26,6 +26,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
+	appvalidator "github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 func New(cfg *config.Config, logger log.Logger) *do.RootScope {
@@ -34,12 +35,19 @@ func New(cfg *config.Config, logger log.Logger) *do.RootScope {
 	do.ProvideValue(injector, cfg)
 	do.ProvideValue(injector, logger)
 
+	provideCommon(injector)
 	provideInfrastructure(injector)
 	provideRepositories(injector)
 	provideUsecases(injector)
 	provideHandlers(injector)
 
 	return injector
+}
+
+func provideCommon(injector *do.RootScope) {
+	do.Provide(injector, func(i do.Injector) (appvalidator.Validator, error) {
+		return appvalidator.New(), nil
+	})
 }
 
 func provideInfrastructure(injector *do.RootScope) {
@@ -188,19 +196,31 @@ func provideHandlers(injector *do.RootScope) {
 	})
 
 	do.Provide(injector, func(i do.Injector) (*authhandler.AuthHandler, error) {
-		return authhandler.NewAuthHandler(do.MustInvoke[usecase.AuthUsecase](i)), nil
+		return authhandler.NewAuthHandler(
+			do.MustInvoke[usecase.AuthUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*user.UserHandler, error) {
-		return user.NewUserHandler(do.MustInvoke[usecase.UserUsecase](i)), nil
+		return user.NewUserHandler(
+			do.MustInvoke[usecase.UserUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*watchlist.WatchlistHandler, error) {
-		return watchlist.NewWatchlistHandler(do.MustInvoke[usecase.WatchlistUsecase](i)), nil
+		return watchlist.NewWatchlistHandler(
+			do.MustInvoke[usecase.WatchlistUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
 	})
 
 	do.Provide(injector, func(i do.Injector) (*admin.AdminHandler, error) {
-		return admin.NewAdminHandler(do.MustInvoke[usecase.AdminUsecase](i)), nil
+		return admin.NewAdminHandler(
+			do.MustInvoke[usecase.AdminUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
 	})
 
 	// Server

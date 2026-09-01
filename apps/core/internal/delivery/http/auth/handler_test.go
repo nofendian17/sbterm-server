@@ -14,6 +14,7 @@ import (
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 func TestAuthHandler_Register(t *testing.T) {
@@ -69,7 +70,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			uc := mocks.NewMockAuthUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAuthHandler(uc)
+			handler := NewAuthHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)
@@ -147,7 +148,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			uc := mocks.NewMockAuthUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAuthHandler(uc)
+			handler := NewAuthHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)
@@ -194,6 +195,12 @@ func TestAuthHandler_Refresh(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "validation failed - empty refresh token",
+			body:     refreshRequest{RefreshToken: ""},
+			setup:    func(uc *mocks.MockAuthUsecase) {},
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
 			name: "invalid token",
 			body: refreshRequest{RefreshToken: "bad"},
 			setup: func(uc *mocks.MockAuthUsecase) {
@@ -210,7 +217,7 @@ func TestAuthHandler_Refresh(t *testing.T) {
 			uc := mocks.NewMockAuthUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAuthHandler(uc)
+			handler := NewAuthHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)
@@ -257,7 +264,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 			uc := mocks.NewMockAuthUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAuthHandler(uc)
+			handler := NewAuthHandler(uc, validator.New())
 			body, _ := json.Marshal(refreshRequest{RefreshToken: "refresh-token"})
 			if tt.name == "error" {
 				body, _ = json.Marshal(refreshRequest{RefreshToken: "bad"})
@@ -271,4 +278,19 @@ func TestAuthHandler_Logout(t *testing.T) {
 			assert.Equal(t, tt.wantCode, rec.Code)
 		})
 	}
+}
+
+func TestAuthHandler_Logout_Validation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	uc := mocks.NewMockAuthUsecase(ctrl)
+
+	handler := NewAuthHandler(uc, validator.New())
+	body, _ := json.Marshal(refreshRequest{RefreshToken: ""})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.Logout(rec, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }

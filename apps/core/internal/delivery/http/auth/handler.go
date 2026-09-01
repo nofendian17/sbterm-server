@@ -8,14 +8,16 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 type AuthHandler struct {
 	uc usecase.AuthUsecase
+	v  validator.Validator
 }
 
-func NewAuthHandler(uc usecase.AuthUsecase) *AuthHandler {
-	return &AuthHandler{uc: uc}
+func NewAuthHandler(uc usecase.AuthUsecase, v validator.Validator) *AuthHandler {
+	return &AuthHandler{uc: uc, v: v}
 }
 
 type registerRequest struct {
@@ -35,7 +37,7 @@ type tokenResponse struct {
 }
 
 type refreshRequest struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +92,15 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
+		return
+	}
+
 	access, refresh, err := h.uc.Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
 		mapAuthError(w, err)
@@ -106,6 +117,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	var req refreshRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 

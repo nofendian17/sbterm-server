@@ -16,12 +16,15 @@ import (
 
 // Default values applied when the corresponding query param is omitted.
 const (
-	defaultInvestorType = "INVESTOR_TYPE_ALL"
-	defaultMarketBoard  = "BOARD_TYPE_ALL"
-	defaultPeriod       = "RT_PERIOD_LAST_1_DAY"
-	defaultSort         = "ASC"
-	defaultOrderBy      = "RUNNING_TRADE_ORDER_BY_TIME"
-	defaultFeedLimit    = 80
+	defaultInvestorType     = "INVESTOR_TYPE_ALL"
+	defaultMarketBoard      = "BOARD_TYPE_ALL"
+	defaultPeriod           = "RT_PERIOD_LAST_1_DAY"
+	defaultSort             = "ASC"
+	defaultOrderBy          = "RUNNING_TRADE_ORDER_BY_TIME"
+	defaultFeedLimit        = 80
+	defaultGroupSort        = "DESC"
+	defaultGroupMarketBoard = "BOARD_TYPE_ALL"
+	defaultGroupLimit       = 100
 )
 
 type RunningTradeHandler struct {
@@ -272,6 +275,147 @@ func toRunningTradeFeedResponse(d *domain.RunningTradeFeed) runningTradeFeedResp
 			GroupOrderNumber: t.GroupOrderNumber,
 			Value:            runningTradeFeedValueResponse{Raw: t.Value.Raw, Formatted: t.Value.Formatted},
 		})
+	}
+	return out
+}
+
+type runningTradeGroupRequest struct {
+	Symbol      string `json:"symbol" validate:"required"`
+	Sort        string `json:"sort" validate:"omitempty,oneof=ASC DESC"`
+	OrderBy     string `json:"order_by" validate:"omitempty,oneof=RUNNING_TRADE_ORDER_BY_TIME RUNNING_TRADE_ORDER_BY_LOT RUNNING_TRADE_ORDER_BY_VALUE"`
+	Date        string `json:"date" validate:"omitempty,datetime=2006-01-02"`
+	MarketBoard string `json:"market_board" validate:"omitempty,oneof=BOARD_TYPE_ALL BOARD_TYPE_REGULAR BOARD_TYPE_CASH BOARD_TYPE_NEGOTIATION"`
+	Limit       int    `validate:"min=1"`
+	Cursor      int64
+}
+
+type runningTradeGroupResponse struct {
+	Total             runningTradeGroupTotalResponse  `json:"total"`
+	RunningTradeGroup []runningTradeGroupItemResponse `json:"running_trade_group"`
+	Date              string                          `json:"date"`
+	SingleOrder       bool                            `json:"single_order"`
+}
+
+type runningTradeGroupTotalResponse struct {
+	Value     rawFormatted `json:"value"`
+	Lot       rawFormatted `json:"lot"`
+	Frequency rawFormatted `json:"frequency"`
+}
+
+type runningTradeGroupItemResponse struct {
+	ID             string                            `json:"id"`
+	OrderNumber    string                            `json:"order_number"`
+	Action         string                            `json:"action"`
+	GroupAction    string                            `json:"group_action"`
+	Time           string                            `json:"time"`
+	TradeNumber    string                            `json:"trade_number"`
+	Code           string                            `json:"code"`
+	MarketBoard    string                            `json:"market_board"`
+	Price          rawFormatted                      `json:"price"`
+	Change         rawFormatted                      `json:"change"`
+	Lot            rawFormatted                      `json:"lot"`
+	Freq           rawFormatted                      `json:"freq"`
+	IsBrokerExists bool                              `json:"is_broker_exists"`
+	Buyer          []runningTradeGroupBrokerResponse `json:"buyer"`
+	Seller         []runningTradeGroupBrokerResponse `json:"seller"`
+	Value          rawFormatted                      `json:"value"`
+}
+
+type runningTradeGroupBrokerResponse struct {
+	BrokerCode string `json:"broker_code"`
+	BrokerType string `json:"broker_type"`
+}
+
+func (h *RunningTradeHandler) RunningTradeGroup(w http.ResponseWriter, r *http.Request) {
+	req := runningTradeGroupRequest{
+		Symbol:      r.URL.Query().Get("symbol"),
+		Sort:        r.URL.Query().Get("sort"),
+		OrderBy:     r.URL.Query().Get("order_by"),
+		Date:        r.URL.Query().Get("date"),
+		MarketBoard: r.URL.Query().Get("market_board"),
+	}
+	limit, err := parseIntQuery(r.URL.Query().Get("limit"), defaultGroupLimit)
+	if err != nil {
+		response.ValidationError(w, "validation failed", map[string]string{"limit": "must be a valid integer"})
+		return
+	}
+	req.Limit = limit
+
+	cursor, err := parseInt64Query(r.URL.Query().Get("cursor"))
+	if err != nil {
+		response.ValidationError(w, "validation failed", map[string]string{"cursor": "must be a valid integer"})
+		return
+	}
+	req.Cursor = cursor
+
+	if req.Sort == "" {
+		req.Sort = defaultGroupSort
+	}
+	if req.OrderBy == "" {
+		req.OrderBy = defaultOrderBy
+	}
+	if req.MarketBoard == "" {
+		req.MarketBoard = defaultGroupMarketBoard
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to validate running trade group params")
+		return
+	}
+
+	data, err := h.uc.GetRunningTradeGroup(r.Context(), req.Symbol, req.Sort, req.OrderBy, req.Date, req.MarketBoard, req.Limit, req.Cursor)
+	if err != nil {
+		var upErr *domain.UpstreamError
+		if errors.As(err, &upErr) && response.Upstream(w, upErr.Status, upErr.RetryAfter, "no running trade group data for the requested parameters", "failed to get running trade group") {
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "failed to get running trade group")
+		return
+	}
+	response.OK(w, toRunningTradeGroupResponse(data))
+}
+
+func toRunningTradeGroupResponse(d *domain.RunningTradeGroupFeed) runningTradeGroupResponse {
+	out := runningTradeGroupResponse{
+		Date:        d.Date,
+		SingleOrder: d.SingleOrder,
+		Total: runningTradeGroupTotalResponse{
+			Value:     rawFormatted{Raw: d.Total.Value.Raw, Formatted: d.Total.Value.Formatted},
+			Lot:       rawFormatted{Raw: d.Total.Lot.Raw, Formatted: d.Total.Lot.Formatted},
+			Frequency: rawFormatted{Raw: d.Total.Frequency.Raw, Formatted: d.Total.Frequency.Formatted},
+		},
+		RunningTradeGroup: make([]runningTradeGroupItemResponse, 0, len(d.RunningTradeGroup)),
+	}
+	for _, t := range d.RunningTradeGroup {
+		item := runningTradeGroupItemResponse{
+			ID:             t.ID,
+			OrderNumber:    t.OrderNumber,
+			Action:         t.Action,
+			GroupAction:    t.GroupAction,
+			Time:           t.Time,
+			TradeNumber:    t.TradeNumber,
+			Code:           t.Code,
+			MarketBoard:    t.MarketBoard,
+			Price:          rawFormatted{Raw: t.Price.Raw, Formatted: t.Price.Formatted},
+			Change:         rawFormatted{Raw: t.Change.Raw, Formatted: t.Change.Formatted},
+			Lot:            rawFormatted{Raw: t.Lot.Raw, Formatted: t.Lot.Formatted},
+			Freq:           rawFormatted{Raw: t.Freq.Raw, Formatted: t.Freq.Formatted},
+			IsBrokerExists: t.IsBrokerExists,
+			Value:          rawFormatted{Raw: t.Value.Raw, Formatted: t.Value.Formatted},
+			Buyer:          make([]runningTradeGroupBrokerResponse, 0, len(t.Buyer)),
+			Seller:         make([]runningTradeGroupBrokerResponse, 0, len(t.Seller)),
+		}
+		for _, b := range t.Buyer {
+			item.Buyer = append(item.Buyer, runningTradeGroupBrokerResponse{BrokerCode: b.BrokerCode, BrokerType: b.BrokerType})
+		}
+		for _, s := range t.Seller {
+			item.Seller = append(item.Seller, runningTradeGroupBrokerResponse{BrokerCode: s.BrokerCode, BrokerType: s.BrokerType})
+		}
+		out.RunningTradeGroup = append(out.RunningTradeGroup, item)
 	}
 	return out
 }

@@ -11,6 +11,7 @@ import (
 const (
 	runningTradeChartPath = "/order-trade/running-trade/chart/%s"
 	runningTradePath      = "/order-trade/running-trade"
+	runningTradeGroupPath = "/order-trade/running-trade/group"
 )
 
 // RunningTradeResponse is the running trade chart response.
@@ -135,6 +136,93 @@ func (c *Client) GetRunningTrade(ctx context.Context, symbol, sort, orderBy, dat
 	}
 	var out RunningTradeFeedResponse
 	if err := c.Get(ctx, runningTradePath, q, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RunningTradeGroupResponse is the running trade group feed response.
+type RunningTradeGroupResponse struct {
+	Message string                `json:"message"`
+	Data    RunningTradeGroupData `json:"data"`
+}
+
+// RunningTradeGroupData holds the grouped running trade data.
+type RunningTradeGroupData struct {
+	Total             RunningTradeGroupTotal  `json:"total"`
+	RunningTradeGroup []RunningTradeGroupItem `json:"running_trade_group"`
+	Date              string                  `json:"date"`
+	SingleOrder       bool                    `json:"single_order"`
+}
+
+// RunningTradeGroupTotal is the aggregated totals for the group feed.
+type RunningTradeGroupTotal struct {
+	Value     RunningTradeGroupValue `json:"value"`
+	Lot       RunningTradeGroupValue `json:"lot"`
+	Frequency RunningTradeGroupValue `json:"frequency"`
+}
+
+// RunningTradeGroupItem is one grouped trade in the feed.
+type RunningTradeGroupItem struct {
+	ID             string                    `json:"id"`
+	OrderNumber    string                    `json:"order_number"`
+	Action         string                    `json:"action"`
+	GroupAction    string                    `json:"group_action"`
+	Time           string                    `json:"time"`
+	TradeNumber    string                    `json:"trade_number"`
+	Code           string                    `json:"code"`
+	MarketBoard    string                    `json:"market_board"`
+	Price          RunningTradeGroupValue    `json:"price"`
+	Change         RunningTradeGroupValue    `json:"change"`
+	Lot            RunningTradeGroupValue    `json:"lot"`
+	Freq           RunningTradeGroupValue    `json:"freq"`
+	IsBrokerExists bool                      `json:"is_broker_exists"`
+	Buyer          []RunningTradeGroupBroker `json:"buyer"`
+	Seller         []RunningTradeGroupBroker `json:"seller"`
+	Value          RunningTradeGroupValue    `json:"value"`
+}
+
+// RunningTradeGroupBroker is a broker entry in a group item's buyer/seller list.
+type RunningTradeGroupBroker struct {
+	BrokerCode string `json:"broker_code"`
+	BrokerType string `json:"broker_type"`
+}
+
+// RunningTradeGroupValue is a value with raw and formatted representations.
+type RunningTradeGroupValue struct {
+	Raw       json.Number `json:"raw"`
+	Formatted string      `json:"formatted"`
+}
+
+// GetRunningTradeGroup returns the grouped running trade feed for a symbol.
+// sort (ASC/DESC) and orderBy (RUNNING_TRADE_ORDER_BY_*) select the ordering;
+// cursor is the id of the last item for paging; date selects a session
+// (YYYY-MM-DD) — empty lets upstream fall back to the most recent data;
+// marketBoard takes BOARD_TYPE_* values. The access token is attached
+// automatically.
+func (c *Client) GetRunningTradeGroup(ctx context.Context, symbol, sort, orderBy, date, marketBoard string, limit int, cursor int64) (*RunningTradeGroupResponse, error) {
+	q := url.Values{}
+	q.Set("symbols", symbol)
+	if sort != "" {
+		q.Set("sort", sort)
+	}
+	if orderBy != "" {
+		q.Set("order_by", orderBy)
+	}
+	if marketBoard != "" {
+		q.Set("market_board", marketBoard)
+	}
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if cursor > 0 {
+		q.Set("cursor", strconv.FormatInt(cursor, 10))
+	}
+	if date != "" {
+		q.Set("date", date)
+	}
+	var out RunningTradeGroupResponse
+	if err := c.Get(ctx, runningTradeGroupPath, q, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

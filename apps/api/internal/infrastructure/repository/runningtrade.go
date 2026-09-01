@@ -106,6 +106,56 @@ func (r *RunningTradeRepository) GetRunningTrade(ctx context.Context, symbol, so
 	return out, nil
 }
 
+func (r *RunningTradeRepository) GetRunningTradeGroup(ctx context.Context, symbol, sort, orderBy, date, marketBoard string, limit int, cursor int64) (*domain.RunningTradeGroupFeed, error) {
+	resp, err := r.client.GetRunningTradeGroup(ctx, symbol, sort, orderBy, date, marketBoard, limit, cursor)
+	if err != nil {
+		var se *stockbit.StatusError
+		if errors.As(err, &se) {
+			return nil, &domain.UpstreamError{Status: se.Status, Msg: se.Msg, RetryAfter: se.RetryAfter}
+		}
+		return nil, err
+	}
+	d := resp.Data
+	out := &domain.RunningTradeGroupFeed{
+		Date:        d.Date,
+		SingleOrder: d.SingleOrder,
+		Total: domain.RunningTradeGroupTotal{
+			Value:     domain.RawFormatted{Raw: d.Total.Value.Raw.String(), Formatted: d.Total.Value.Formatted},
+			Lot:       domain.RawFormatted{Raw: d.Total.Lot.Raw.String(), Formatted: d.Total.Lot.Formatted},
+			Frequency: domain.RawFormatted{Raw: d.Total.Frequency.Raw.String(), Formatted: d.Total.Frequency.Formatted},
+		},
+		RunningTradeGroup: make([]domain.RunningTradeGroupItem, 0, len(d.RunningTradeGroup)),
+	}
+	for _, t := range d.RunningTradeGroup {
+		item := domain.RunningTradeGroupItem{
+			ID:             t.ID,
+			OrderNumber:    t.OrderNumber,
+			Action:         t.Action,
+			GroupAction:    t.GroupAction,
+			Time:           t.Time,
+			TradeNumber:    t.TradeNumber,
+			Code:           t.Code,
+			MarketBoard:    t.MarketBoard,
+			Price:          domain.RawFormatted{Raw: t.Price.Raw.String(), Formatted: t.Price.Formatted},
+			Change:         domain.RawFormatted{Raw: t.Change.Raw.String(), Formatted: t.Change.Formatted},
+			Lot:            domain.RawFormatted{Raw: t.Lot.Raw.String(), Formatted: t.Lot.Formatted},
+			Freq:           domain.RawFormatted{Raw: t.Freq.Raw.String(), Formatted: t.Freq.Formatted},
+			IsBrokerExists: t.IsBrokerExists,
+			Value:          domain.RawFormatted{Raw: t.Value.Raw.String(), Formatted: t.Value.Formatted},
+			Buyer:          make([]domain.RunningTradeGroupBroker, 0, len(t.Buyer)),
+			Seller:         make([]domain.RunningTradeGroupBroker, 0, len(t.Seller)),
+		}
+		for _, b := range t.Buyer {
+			item.Buyer = append(item.Buyer, domain.RunningTradeGroupBroker{BrokerCode: b.BrokerCode, BrokerType: b.BrokerType})
+		}
+		for _, s := range t.Seller {
+			item.Seller = append(item.Seller, domain.RunningTradeGroupBroker{BrokerCode: s.BrokerCode, BrokerType: s.BrokerType})
+		}
+		out.RunningTradeGroup = append(out.RunningTradeGroup, item)
+	}
+	return out, nil
+}
+
 func toRunningTradeChartPoints(points []stockbit.RunningTradeChartPoint) []domain.RunningTradeChartPoint {
 	out := make([]domain.RunningTradeChartPoint, 0, len(points))
 	for _, p := range points {

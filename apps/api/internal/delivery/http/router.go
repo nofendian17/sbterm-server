@@ -149,6 +149,7 @@ func NewRouter(hs Handlers, logger log.Logger, opts ...RouterOption) chi.Router 
 			r.Get("/index/{symbol}/chart", hs.IndexSummary.IndexChart)
 			r.Get("/company/{symbol}/running-trade-chart", hs.RunningTrade.RunningTradeChart)
 			r.Get("/order-trade/running-trade", hs.RunningTrade.RunningTrade)
+			r.Get("/order-trade/running-trade/group", hs.RunningTrade.RunningTradeGroup)
 			r.Get("/company/{symbol}/orderbook", hs.OrderBook.OrderBook)
 			r.Get("/order-trade/foreign-domestic/historical", hs.ForeignDomestic.ForeignDomesticHistorical)
 			r.Get("/company/{symbol}/historical-summary", hs.HistoricalSummary.HistoricalSummary)

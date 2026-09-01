@@ -83,3 +83,44 @@ type RunningTradeFeedValue struct {
 	Raw       json.Number
 	Formatted string
 }
+
+// RunningTradeGroupFeed is the grouped running trade feed for a single symbol.
+type RunningTradeGroupFeed struct {
+	Total             RunningTradeGroupTotal
+	RunningTradeGroup []RunningTradeGroupItem
+	Date              string
+	SingleOrder       bool
+}
+
+// RunningTradeGroupTotal holds aggregated totals for the group feed.
+type RunningTradeGroupTotal struct {
+	Value     RawFormatted
+	Lot       RawFormatted
+	Frequency RawFormatted
+}
+
+// RunningTradeGroupItem is one grouped trade in the feed.
+type RunningTradeGroupItem struct {
+	ID             string
+	OrderNumber    string
+	Action         string
+	GroupAction    string
+	Time           string
+	TradeNumber    string
+	Code           string
+	MarketBoard    string
+	Price          RawFormatted
+	Change         RawFormatted
+	Lot            RawFormatted
+	Freq           RawFormatted
+	IsBrokerExists bool
+	Buyer          []RunningTradeGroupBroker
+	Seller         []RunningTradeGroupBroker
+	Value          RawFormatted
+}
+
+// RunningTradeGroupBroker is a broker entry in a group item's buyer/seller list.
+type RunningTradeGroupBroker struct {
+	BrokerCode string
+	BrokerType string
+}

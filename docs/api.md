@@ -42,6 +42,7 @@ All routes registered in `internal/delivery/http/router.go` are documented below
 | 30 | `GET /api/v1/user/{username}/stream` | [Stream](#get-apiv1userusernamestream) |
 | 31 | `GET /api/v1/stream/announcement/{stream_id}` | [Stream](#get-apiv1streamannouncementstream_id) |
 | 32 | `GET /api/v1/order-trade/running-trade` | [Running trade feed](#get-apiv1order-traderunning-trade) |
+| 32a | `GET /api/v1/order-trade/running-trade/group` | [Running trade group](#get-apiv1order-traderunning-tradegroup) |
 | 33 | `GET /api/v1/company/{symbol}/orderbook` | [Order book](#get-apiv1companysymbolorderbook) |
 | 34 | `GET /api/v1/order-trade/foreign-domestic/historical` | [Foreign-domestic historical](#get-apiv1order-tradeforeign-domestichistorical) |
 | 35 | `GET /api/v1/search` | [Search](#get-apiv1search) |
@@ -1437,6 +1438,85 @@ curl 'http://localhost:8080/api/v1/order-trade/running-trade?symbol=BBCA&date=20
         "value": { "raw": 630000, "formatted": "630.0K" }
       }
     ]
+  }
+}
+```
+
+### `GET /api/v1/order-trade/running-trade/group`
+Running trade group feed: grouped running trades for one symbol with aggregated
+totals, frequency data, and multi-broker buyer/seller arrays (proxies
+`/order-trade/running-trade/group`).
+
+| param | required | values |
+|---|---|---|
+| `symbol` | yes | one symbol |
+| `sort` | no | `ASC`, `DESC` (default) |
+| `order_by` | no | `RUNNING_TRADE_ORDER_BY_TIME` (default), `RUNNING_TRADE_ORDER_BY_LOT`, `RUNNING_TRADE_ORDER_BY_VALUE` |
+| `market_board` | no | `BOARD_TYPE_ALL` (default), `BOARD_TYPE_REGULAR`, `BOARD_TYPE_CASH`, `BOARD_TYPE_NEGOTIATION` |
+| `limit` | no | int ≥ 1 (default 100) |
+| `cursor` | no | int64 — pass the last item's `id` to fetch the next page |
+| `date` | no | `YYYY-MM-DD` — omitted/empty defaults to the most recent data available |
+
+- **Cursor paging:** `cursor` is the `id` of the last item in the previous
+  response. Walk the feed by passing successive `id` values.
+- `date` empty → omitted from the request, so upstream falls back to the most
+  recent session with data. Invalid `YYYY-MM-DD` → `422 VALIDATION_ERROR`.
+- Invalid enum values → `422 VALIDATION_ERROR`.
+- Upstream 400 (e.g. no data for the requested parameters) → `422`.
+- Unlike the flat running-trade feed, `buyer`/`seller` are **arrays of broker
+  objects** (`{ broker_code, broker_type }`), supporting multiple brokers per
+  side in a single grouped trade.
+- `value.raw` is a **JSON number** (e.g. `3522600`), not a string.
+- `group_action` indicates the opposite side's action direction when different
+  from `action` (e.g. a sell order matched against a buy).
+
+`data: { total: { value: {raw, formatted}, lot: {raw, formatted}, frequency: {raw, formatted} }, running_trade_group: [{ id, order_number, action, group_action, time, trade_number, code, market_board, price: {raw, formatted}, change: {raw, formatted}, lot: {raw, formatted}, freq: {raw, formatted}, is_broker_exists, buyer: [{broker_code, broker_type}], seller: [{broker_code, broker_type}], value: {raw, formatted} }], date, single_order }`
+
+#### Example: request / response
+
+```bash
+# Latest data with defaults (DESC by time, all boards, limit 100)
+curl 'http://localhost:8080/api/v1/order-trade/running-trade/group?symbol=BUMI'
+
+# Specific session with cursor paging
+curl 'http://localhost:8080/api/v1/order-trade/running-trade/group?symbol=BUMI&date=2026-09-01&limit=100&cursor=92328193'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "total": {
+      "value": { "raw": "1434998094470", "formatted": "1.4 T" },
+      "lot": { "raw": "70938623.9", "formatted": "70,938,623.90" },
+      "frequency": { "raw": "96456", "formatted": "96,456" }
+    },
+    "running_trade_group": [
+      {
+        "id": "92328949",
+        "order_number": "6178356",
+        "action": "RUNNING_TRADE_ACTION_TYPE_SELL",
+        "group_action": "RUNNING_TRADE_ACTION_TYPE_SELL",
+        "time": "16:00:00",
+        "trade_number": "2608744",
+        "code": "BUMI",
+        "market_board": "RG",
+        "price": { "raw": "206", "formatted": "206" },
+        "change": { "raw": "7.291666666666667", "formatted": "+7.29%" },
+        "lot": { "raw": "171", "formatted": "171" },
+        "freq": { "raw": "3", "formatted": "3" },
+        "is_broker_exists": true,
+        "buyer": [
+          { "broker_code": "XL [D]", "broker_type": "BROKER_TYPE_LOCAL" }
+        ],
+        "seller": [
+          { "broker_code": "MG [D]", "broker_type": "BROKER_TYPE_LOCAL" }
+        ],
+        "value": { "raw": "3522600", "formatted": "3.5 M" }
+      }
+    ],
+    "date": "2026-09-01",
+    "single_order": true
   }
 }
 ```

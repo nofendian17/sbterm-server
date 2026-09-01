@@ -118,3 +118,42 @@ func (c *MockRunningTradeRepositoryGetRunningTradeChartCall) DoAndReturn(f func(
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// GetRunningTradeGroup mocks base method.
+func (m *MockRunningTradeRepository) GetRunningTradeGroup(ctx context.Context, symbol, sort, orderBy, date, marketBoard string, limit int, cursor int64) (*domain.RunningTradeGroupFeed, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetRunningTradeGroup", ctx, symbol, sort, orderBy, date, marketBoard, limit, cursor)
+	ret0, _ := ret[0].(*domain.RunningTradeGroupFeed)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetRunningTradeGroup indicates an expected call of GetRunningTradeGroup.
+func (mr *MockRunningTradeRepositoryMockRecorder) GetRunningTradeGroup(ctx, symbol, sort, orderBy, date, marketBoard, limit, cursor any) *MockRunningTradeRepositoryGetRunningTradeGroupCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRunningTradeGroup", reflect.TypeOf((*MockRunningTradeRepository)(nil).GetRunningTradeGroup), ctx, symbol, sort, orderBy, date, marketBoard, limit, cursor)
+	return &MockRunningTradeRepositoryGetRunningTradeGroupCall{Call: call}
+}
+
+// MockRunningTradeRepositoryGetRunningTradeGroupCall wrap *gomock.Call
+type MockRunningTradeRepositoryGetRunningTradeGroupCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRunningTradeRepositoryGetRunningTradeGroupCall) Return(arg0 *domain.RunningTradeGroupFeed, arg1 error) *MockRunningTradeRepositoryGetRunningTradeGroupCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRunningTradeRepositoryGetRunningTradeGroupCall) Do(f func(context.Context, string, string, string, string, string, int, int64) (*domain.RunningTradeGroupFeed, error)) *MockRunningTradeRepositoryGetRunningTradeGroupCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRunningTradeRepositoryGetRunningTradeGroupCall) DoAndReturn(f func(context.Context, string, string, string, string, string, int, int64) (*domain.RunningTradeGroupFeed, error)) *MockRunningTradeRepositoryGetRunningTradeGroupCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

@@ -99,7 +99,7 @@ func (u *authUsecase) Register(ctx context.Context, input domain.RegisterInput) 
 		return "", "", err
 	}
 
-	access, refresh, err := u.tokens.GenerateTokenPair(user.ID, user.ExpiresAt)
+	access, refresh, err := u.tokens.GenerateTokenPair(ctx, user.ID, user.ExpiresAt)
 	if err != nil {
 		return "", "", fmt.Errorf("auth register: issue tokens: %w", err)
 	}
@@ -137,7 +137,7 @@ func (u *authUsecase) Login(ctx context.Context, input domain.LoginInput) (strin
 		return "", "", domain.ErrSuspended
 	}
 
-	access, refresh, err := u.tokens.GenerateTokenPair(user.ID, user.ExpiresAt)
+	access, refresh, err := u.tokens.GenerateTokenPair(ctx, user.ID, user.ExpiresAt)
 	if err != nil {
 		return "", "", fmt.Errorf("auth login: issue tokens: %w", err)
 	}
@@ -152,11 +152,11 @@ func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string,
 	}
 
 	// Single-use: the jti must exist (it was stored when the pair was issued).
-	if _, ok := u.tokens.ConsumeRefresh(jti); !ok {
+	if _, ok := u.tokens.ConsumeRefresh(ctx, jti); !ok {
 		return "", "", domain.ErrInvalidCredentials
 	}
 	// Delete the old jti so it cannot be replayed (rotation).
-	if err := u.tokens.DeleteRefresh(jti); err != nil {
+	if err := u.tokens.DeleteRefresh(ctx, jti); err != nil {
 		return "", "", fmt.Errorf("auth refresh: delete old jti: %w", err)
 	}
 
@@ -175,7 +175,7 @@ func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string,
 		return "", "", domain.ErrExpired
 	}
 
-	access, refresh, err := u.tokens.GenerateTokenPair(userID, nil)
+	access, refresh, err := u.tokens.GenerateTokenPair(ctx, userID, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("auth refresh: issue tokens: %w", err)
 	}
@@ -188,7 +188,7 @@ func (u *authUsecase) Logout(ctx context.Context, refreshToken string) error {
 	if err != nil {
 		return domain.ErrInvalidCredentials
 	}
-	if err := u.tokens.DeleteRefresh(jti); err != nil {
+	if err := u.tokens.DeleteRefresh(ctx, jti); err != nil {
 		return fmt.Errorf("auth logout: delete jti: %w", err)
 	}
 	return nil

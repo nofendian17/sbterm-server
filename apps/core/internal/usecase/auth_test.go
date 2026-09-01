@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -21,21 +22,21 @@ func newFakeRefreshStore() *fakeRefreshStore {
 	return &fakeRefreshStore{m: make(map[string]string)}
 }
 
-func (f *fakeRefreshStore) StoreRefresh(jti, userID string, _ time.Duration) error {
+func (f *fakeRefreshStore) StoreRefresh(_ context.Context, jti, userID string, _ time.Duration) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.m[jti] = userID
 	return nil
 }
 
-func (f *fakeRefreshStore) ConsumeRefresh(jti string) (string, bool) {
+func (f *fakeRefreshStore) ConsumeRefresh(_ context.Context, jti string) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	v, ok := f.m[jti]
 	return v, ok
 }
 
-func (f *fakeRefreshStore) DeleteRefresh(jti string) error {
+func (f *fakeRefreshStore) DeleteRefresh(_ context.Context, jti string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.m, jti)
@@ -52,7 +53,7 @@ func TestTokenService(t *testing.T) {
 		{
 			name: "round trip generate and verify",
 			actions: func(t *testing.T, ts *TokenService) {
-				access, refresh, err := ts.GenerateTokenPair("u1", nil)
+				access, refresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 				require.NoError(t, err)
 				require.NotEmpty(t, access)
 				require.NotEmpty(t, refresh)
@@ -65,7 +66,7 @@ func TestTokenService(t *testing.T) {
 		{
 			name: "wrong secret fails verification",
 			actions: func(t *testing.T, ts *TokenService) {
-				access, _, err := ts.GenerateTokenPair("u1", nil)
+				access, _, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 				require.NoError(t, err)
 
 				bad := NewTokenService("other", time.Minute, time.Minute, newFakeRefreshStore())
@@ -77,7 +78,7 @@ func TestTokenService(t *testing.T) {
 			name: "expired token rejected",
 			actions: func(t *testing.T, ts *TokenService) {
 				shortLived := NewTokenService("secret", 1*time.Nanosecond, time.Hour, newFakeRefreshStore())
-				access, _, err := shortLived.GenerateTokenPair("u3", nil)
+				access, _, err := shortLived.GenerateTokenPair(context.Background(), "u3", nil)
 				require.NoError(t, err)
 
 				time.Sleep(2 * time.Nanosecond)
@@ -88,7 +89,7 @@ func TestTokenService(t *testing.T) {
 		{
 			name: "refresh token has correct claims",
 			actions: func(t *testing.T, ts *TokenService) {
-				_, refresh, err := ts.GenerateTokenPair("u2", nil)
+				_, refresh, err := ts.GenerateTokenPair(context.Background(), "u2", nil)
 				require.NoError(t, err)
 
 				type withTyp struct {
@@ -104,7 +105,7 @@ func TestTokenService(t *testing.T) {
 				require.Equal(t, "u2", claims.Subject)
 				require.Equal(t, "refresh", claims.Typ)
 
-				uid, ok := ts.ConsumeRefresh(claims.ID)
+				uid, ok := ts.ConsumeRefresh(context.Background(), claims.ID)
 				require.True(t, ok)
 				require.Equal(t, "u2", uid)
 			},
@@ -112,7 +113,7 @@ func TestTokenService(t *testing.T) {
 		{
 			name: "verify rejects refresh token as access",
 			actions: func(t *testing.T, ts *TokenService) {
-				_, refresh, err := ts.GenerateTokenPair("u4", nil)
+				_, refresh, err := ts.GenerateTokenPair(context.Background(), "u4", nil)
 				require.NoError(t, err)
 
 				_, err = ts.VerifyAccess(refresh)

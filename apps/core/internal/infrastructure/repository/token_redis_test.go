@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -19,7 +20,7 @@ func TestRedisRefreshStore(t *testing.T) {
 		{
 			name: "store then consume returns user",
 			actions: func(t *testing.T, store *RedisRefreshStore) {
-				require.NoError(t, store.StoreRefresh("abc123", "u1", 10*time.Minute))
+				require.NoError(t, store.StoreRefresh(context.Background(), "abc123", "u1", 10*time.Minute))
 			},
 			wantJTI:  "abc123",
 			wantOK:   true,
@@ -28,8 +29,8 @@ func TestRedisRefreshStore(t *testing.T) {
 		{
 			name: "delete then consume returns false",
 			actions: func(t *testing.T, store *RedisRefreshStore) {
-				require.NoError(t, store.StoreRefresh("def456", "u2", 10*time.Minute))
-				require.NoError(t, store.DeleteRefresh("def456"))
+				require.NoError(t, store.StoreRefresh(context.Background(), "def456", "u2", 10*time.Minute))
+				require.NoError(t, store.DeleteRefresh(context.Background(), "def456"))
 			},
 			wantJTI: "def456",
 			wantOK:  false,
@@ -48,7 +49,7 @@ func TestRedisRefreshStore(t *testing.T) {
 			store := NewRedisRefreshStore(client)
 			tt.actions(t, store)
 
-			got, ok := store.ConsumeRefresh(tt.wantJTI)
+			got, ok := store.ConsumeRefresh(context.Background(), tt.wantJTI)
 			assert.Equal(t, tt.wantOK, ok)
 			if tt.wantOK {
 				assert.Equal(t, tt.wantUser, got)

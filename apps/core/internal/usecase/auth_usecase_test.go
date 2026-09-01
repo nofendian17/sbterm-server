@@ -200,7 +200,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, oldRefresh, err := ts.GenerateTokenPair("u1", nil)
+		_, oldRefresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 		require.NoError(t, err)
 
 		oldJTI, err := jtiOf(oldRefresh)
@@ -218,7 +218,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		is.NotEqual(oldRefresh, refresh, "refresh must rotate to a new token")
 
 		// Old jti must have been deleted (cannot be reused).
-		if _, ok := ts.ConsumeRefresh(oldJTI); ok {
+		if _, ok := ts.ConsumeRefresh(context.Background(), oldJTI); ok {
 			t.Errorf("old jti %q should have been deleted after rotation", oldJTI)
 		}
 	})
@@ -232,7 +232,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, oldRefresh, err := ts.GenerateTokenPair("u1", nil)
+		_, oldRefresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 		require.NoError(t, err)
 
 		deletedAt := time.Now().Add(-time.Hour)
@@ -253,7 +253,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, oldRefresh, err := ts.GenerateTokenPair("u1", nil)
+		_, oldRefresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 		require.NoError(t, err)
 
 		expiredAt := time.Now().Add(-time.Hour)
@@ -274,7 +274,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, oldRefresh, err := ts.GenerateTokenPair("deleted-user", nil)
+		_, oldRefresh, err := ts.GenerateTokenPair(context.Background(), "deleted-user", nil)
 		require.NoError(t, err)
 
 		repo.EXPECT().GetByID(gomock.Any(), "deleted-user").Return(domain.User{}, domain.ErrUserNotFound)
@@ -293,7 +293,7 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 		ts := NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore())
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, bogus, err := NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).GenerateTokenPair("uX", nil)
+		_, bogus, err := NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).GenerateTokenPair(context.Background(), "uX", nil)
 		require.NoError(t, err)
 
 		_, _, err = uc.Refresh(context.Background(), bogus)
@@ -325,7 +325,7 @@ func TestAuthUsecase_Logout(t *testing.T) {
 		ts := newTestTokenService()
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, refresh, err := ts.GenerateTokenPair("u1", nil)
+		_, refresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
 		require.NoError(t, err)
 		jti, err := jtiOf(refresh)
 		require.NoError(t, err)
@@ -333,7 +333,7 @@ func TestAuthUsecase_Logout(t *testing.T) {
 		err = uc.Logout(context.Background(), refresh)
 		is.NoError(err)
 
-		if _, ok := ts.ConsumeRefresh(jti); ok {
+		if _, ok := ts.ConsumeRefresh(context.Background(), jti); ok {
 			t.Errorf("jti %q should have been deleted after logout", jti)
 		}
 	})

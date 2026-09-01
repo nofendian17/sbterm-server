@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -50,7 +51,7 @@ func NewTokenService(secret string, accessTTL, refreshTTL time.Duration, store r
 // GenerateTokenPair issues a signed access JWT and a signed refresh JWT for
 // userID. The refresh jti is persisted in the RefreshStore. The expiresAt
 // argument is reserved and ignored.
-func (s *TokenService) GenerateTokenPair(userID string, _ *time.Time) (access, refresh string, err error) {
+func (s *TokenService) GenerateTokenPair(ctx context.Context, userID string, _ *time.Time) (access, refresh string, err error) {
 	now := time.Now()
 
 	access, err = s.signToken(userID, claimTypeAccess, s.accessTTL, now)
@@ -64,7 +65,7 @@ func (s *TokenService) GenerateTokenPair(userID string, _ *time.Time) (access, r
 	}
 
 	// Refresh jti is persisted so the auth usecase can verify presence.
-	if err := s.refreshStore.StoreRefresh(refreshJTIFrom(refresh), userID, s.refreshTTL); err != nil {
+	if err := s.refreshStore.StoreRefresh(ctx, refreshJTIFrom(refresh), userID, s.refreshTTL); err != nil {
 		return "", "", err
 	}
 	return access, refresh, nil
@@ -99,19 +100,19 @@ func (s *TokenService) VerifyRefresh(token string) (userID, jti string, err erro
 }
 
 // StoreRefresh persists a refresh jti. See repository.RefreshStore.
-func (s *TokenService) StoreRefresh(jti, userID string, ttl time.Duration) error {
-	return s.refreshStore.StoreRefresh(jti, userID, ttl)
+func (s *TokenService) StoreRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error {
+	return s.refreshStore.StoreRefresh(ctx, jti, userID, ttl)
 }
 
 // ConsumeRefresh returns the userID for a stored refresh jti. See
 // repository.RefreshStore.
-func (s *TokenService) ConsumeRefresh(jti string) (string, bool) {
-	return s.refreshStore.ConsumeRefresh(jti)
+func (s *TokenService) ConsumeRefresh(ctx context.Context, jti string) (string, bool) {
+	return s.refreshStore.ConsumeRefresh(ctx, jti)
 }
 
 // DeleteRefresh removes a stored refresh jti. See repository.RefreshStore.
-func (s *TokenService) DeleteRefresh(jti string) error {
-	return s.refreshStore.DeleteRefresh(jti)
+func (s *TokenService) DeleteRefresh(ctx context.Context, jti string) error {
+	return s.refreshStore.DeleteRefresh(ctx, jti)
 }
 
 func (s *TokenService) signToken(userID, typ string, ttl time.Duration, now time.Time) (string, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 func TestWatchlistHandler_List(t *testing.T) {
@@ -58,7 +59,7 @@ func TestWatchlistHandler_List(t *testing.T) {
 			uc := mocks.NewMockWatchlistUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewWatchlistHandler(uc)
+			handler := NewWatchlistHandler(uc, validator.New())
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/watchlists", nil)
 			if tt.userID != "" {
 				ctx := context.WithValue(req.Context(), middleware.CtxUserID, tt.userID)
@@ -104,6 +105,13 @@ func TestWatchlistHandler_Add(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "validation failed - empty symbol",
+			userID:   "u1",
+			body:     addWatchlistRequest{Symbol: "", Label: "Bank"},
+			setup:    func(uc *mocks.MockWatchlistUsecase) {},
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
 			name:   "duplicate",
 			userID: "u1",
 			body:   addWatchlistRequest{Symbol: "BBCA"},
@@ -130,7 +138,7 @@ func TestWatchlistHandler_Add(t *testing.T) {
 			uc := mocks.NewMockWatchlistUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewWatchlistHandler(uc)
+			handler := NewWatchlistHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)
@@ -194,7 +202,7 @@ func TestWatchlistHandler_Remove(t *testing.T) {
 			uc := mocks.NewMockWatchlistUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewWatchlistHandler(uc)
+			handler := NewWatchlistHandler(uc, validator.New())
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/watchlists/"+tt.symbol, nil)
 			if tt.userID != "" {
 				ctx := context.WithValue(req.Context(), middleware.CtxUserID, tt.userID)

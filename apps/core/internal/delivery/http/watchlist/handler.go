@@ -11,18 +11,20 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 type WatchlistHandler struct {
 	uc usecase.WatchlistUsecase
+	v  validator.Validator
 }
 
-func NewWatchlistHandler(uc usecase.WatchlistUsecase) *WatchlistHandler {
-	return &WatchlistHandler{uc: uc}
+func NewWatchlistHandler(uc usecase.WatchlistUsecase, v validator.Validator) *WatchlistHandler {
+	return &WatchlistHandler{uc: uc, v: v}
 }
 
 type addWatchlistRequest struct {
-	Symbol string `json:"symbol"`
+	Symbol string `json:"symbol" validate:"required"`
 	Label  string `json:"label,omitempty"`
 }
 
@@ -52,6 +54,15 @@ func (h *WatchlistHandler) Add(w http.ResponseWriter, r *http.Request) {
 	var req addWatchlistRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 

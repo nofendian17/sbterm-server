@@ -16,6 +16,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 func TestAdminHandler_ListUsers(t *testing.T) {
@@ -60,7 +61,7 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 			uc := mocks.NewMockAdminUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAdminHandler(uc)
+			handler := NewAdminHandler(uc, validator.New())
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users"+tt.query, nil)
 			rec := httptest.NewRecorder()
 			handler.ListUsers(rec, req)
@@ -102,7 +103,7 @@ func TestAdminHandler_GetUser(t *testing.T) {
 			uc := mocks.NewMockAdminUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAdminHandler(uc)
+			handler := NewAdminHandler(uc, validator.New())
 			rctx := chi.NewRouteContext()
 			rctx.URLParams.Add("id", tt.userID)
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/"+tt.userID, nil)
@@ -121,7 +122,7 @@ func TestAdminHandler_SuspendUser(t *testing.T) {
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().SuspendUser(gomock.Any(), "u1").Return(nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "u1")
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/u1/suspend", nil)
@@ -138,7 +139,7 @@ func TestAdminHandler_DeleteUser(t *testing.T) {
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().DeleteUser(gomock.Any(), "u1").Return(nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "u1")
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/users/u1", nil)
@@ -157,7 +158,7 @@ func TestAdminHandler_ListRoles(t *testing.T) {
 		{ID: "r1", Name: "admin"},
 	}, nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/roles", nil)
 	rec := httptest.NewRecorder()
 	handler.ListRoles(rec, req)
@@ -171,7 +172,7 @@ func TestAdminHandler_CreateRole(t *testing.T) {
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().CreateRole(gomock.Any(), gomock.Any()).Return(domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"}, nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	body, _ := json.Marshal(createRoleRequest{Name: "moderator", Description: "Moderator"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/roles", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -181,13 +182,28 @@ func TestAdminHandler_CreateRole(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, rec.Code)
 }
 
+func TestAdminHandler_CreateRole_Validation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	uc := mocks.NewMockAdminUsecase(ctrl)
+
+	handler := NewAdminHandler(uc, validator.New())
+	body, _ := json.Marshal(createRoleRequest{Name: "", Description: "desc"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/roles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.CreateRole(rec, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
 func TestAdminHandler_DeleteRole(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().DeleteRole(gomock.Any(), "r1").Return(nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "r1")
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/roles/r1", nil)
@@ -227,6 +243,18 @@ func TestAdminHandler_SetExpiry(t *testing.T) {
 			setup:    func(uc *mocks.MockAdminUsecase) {},
 			wantCode: http.StatusBadRequest,
 		},
+		{
+			name:     "validation failed - invalid expires_at format",
+			body:     expiryRequest{ExpiresAt: ptrString("not-a-date")},
+			setup:    func(uc *mocks.MockAdminUsecase) {},
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:     "validation failed - extend_days less than 1",
+			body:     expiryRequest{ExtendDays: ptrInt(0)},
+			setup:    func(uc *mocks.MockAdminUsecase) {},
+			wantCode: http.StatusUnprocessableEntity,
+		},
 	}
 
 	for _, tt := range tests {
@@ -236,7 +264,7 @@ func TestAdminHandler_SetExpiry(t *testing.T) {
 			uc := mocks.NewMockAdminUsecase(ctrl)
 			tt.setup(uc)
 
-			handler := NewAdminHandler(uc)
+			handler := NewAdminHandler(uc, validator.New())
 			var body bytes.Buffer
 			if s, ok := tt.body.(string); ok {
 				body.WriteString(s)
@@ -263,7 +291,7 @@ func TestAdminHandler_AssignRoleToUser(t *testing.T) {
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().AssignRoleToUser(gomock.Any(), "u1", "r1").Return(nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	body, _ := json.Marshal(roleRequest{RoleID: "r1"})
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "u1")
@@ -276,13 +304,31 @@ func TestAdminHandler_AssignRoleToUser(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestAdminHandler_AssignRoleToUser_Validation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	uc := mocks.NewMockAdminUsecase(ctrl)
+
+	handler := NewAdminHandler(uc, validator.New())
+	body, _ := json.Marshal(roleRequest{RoleID: ""})
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", "u1")
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/u1/roles", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	rec := httptest.NewRecorder()
+	handler.AssignRoleToUser(rec, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
 func TestAdminHandler_RevokeRoleFromUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	uc := mocks.NewMockAdminUsecase(ctrl)
 	uc.EXPECT().RevokeRoleFromUser(gomock.Any(), "u1", "r1").Return(nil)
 
-	handler := NewAdminHandler(uc)
+	handler := NewAdminHandler(uc, validator.New())
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "u1")
 	rctx.URLParams.Add("roleId", "r1")

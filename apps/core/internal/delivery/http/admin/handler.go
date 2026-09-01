@@ -12,14 +12,16 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
+	"github.com/nofendian17/sbterm/libs/pkg/validator"
 )
 
 type AdminHandler struct {
 	uc usecase.AdminUsecase
+	v  validator.Validator
 }
 
-func NewAdminHandler(uc usecase.AdminUsecase) *AdminHandler {
-	return &AdminHandler{uc: uc}
+func NewAdminHandler(uc usecase.AdminUsecase, v validator.Validator) *AdminHandler {
+	return &AdminHandler{uc: uc, v: v}
 }
 
 // --- User management ---
@@ -90,8 +92,8 @@ func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type expiryRequest struct {
-	ExpiresAt  *string `json:"expires_at,omitempty"`
-	ExtendDays *int    `json:"extend_days,omitempty"`
+	ExpiresAt  *string `json:"expires_at,omitempty" validate:"omitempty,datetime=2006-01-02T15:04:05Z07:00"`
+	ExtendDays *int    `json:"extend_days,omitempty" validate:"omitempty,gte=1"`
 }
 
 func (h *AdminHandler) SetExpiry(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +101,15 @@ func (h *AdminHandler) SetExpiry(w http.ResponseWriter, r *http.Request) {
 	var req expiryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 
@@ -131,7 +142,7 @@ func (h *AdminHandler) SetExpiry(w http.ResponseWriter, r *http.Request) {
 // --- Role management ---
 
 type createRoleRequest struct {
-	Name        string `json:"name"`
+	Name        string `json:"name" validate:"required"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -158,6 +169,15 @@ func (h *AdminHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 	var req createRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 
@@ -189,7 +209,7 @@ func (h *AdminHandler) DeleteRole(w http.ResponseWriter, r *http.Request) {
 // --- Permission assignment ---
 
 type permissionRequest struct {
-	PermissionID string `json:"permission_id"`
+	PermissionID string `json:"permission_id" validate:"required"`
 }
 
 func (h *AdminHandler) AssignPermissionToRole(w http.ResponseWriter, r *http.Request) {
@@ -197,6 +217,15 @@ func (h *AdminHandler) AssignPermissionToRole(w http.ResponseWriter, r *http.Req
 	var req permissionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 
@@ -221,7 +250,7 @@ func (h *AdminHandler) RevokePermissionFromRole(w http.ResponseWriter, r *http.R
 // --- User role assignment ---
 
 type roleRequest struct {
-	RoleID string `json:"role_id"`
+	RoleID string `json:"role_id" validate:"required"`
 }
 
 func (h *AdminHandler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +258,15 @@ func (h *AdminHandler) AssignRoleToUser(w http.ResponseWriter, r *http.Request) 
 	var req roleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 

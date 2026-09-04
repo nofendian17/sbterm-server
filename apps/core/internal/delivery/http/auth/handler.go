@@ -23,9 +23,9 @@ func NewAuthHandler(uc usecase.AuthUsecase, v validator.Validator) *AuthHandler 
 }
 
 type registerRequest struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"display_name"`
+	Email       string `json:"email" validate:"required,email"`
+	Password    string `json:"password" validate:"required,min=8"`
+	DisplayName string `json:"display_name" validate:"required"`
 }
 
 type loginRequest struct {
@@ -46,6 +46,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.v.Validate(req); err != nil {
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}
 
@@ -143,7 +152,11 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 func mapAuthError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidInput):
-		response.Error(w, http.StatusUnprocessableEntity, response.CodeBadRequest, "validation failed")
+		if verr, ok := validator.AsValidationError(err); ok {
+			response.ValidationError(w, "validation failed", verr.Fields)
+			return
+		}
+		response.Error(w, http.StatusUnprocessableEntity, response.CodeValidation, "validation failed")
 	case errors.Is(err, domain.ErrInvalidCredentials):
 		response.Error(w, http.StatusUnauthorized, response.CodeUnauthorized, "invalid email or password")
 	case errors.Is(err, domain.ErrExpired):

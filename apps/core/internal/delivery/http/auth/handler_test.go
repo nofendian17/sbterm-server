@@ -61,6 +61,20 @@ func TestAuthHandler_Register(t *testing.T) {
 			},
 			wantCode: http.StatusInternalServerError,
 		},
+		{
+			name: "validation failed - empty fields",
+			body: registerRequest{Email: "", Password: "", DisplayName: ""},
+			setup: func(uc *mocks.MockAuthUsecase) {
+			},
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "validation failed - weak password",
+			body: registerRequest{Email: "a@b.co", Password: "short", DisplayName: "Test"},
+			setup: func(uc *mocks.MockAuthUsecase) {
+			},
+			wantCode: http.StatusUnprocessableEntity,
+		},
 	}
 
 	for _, tt := range tests {

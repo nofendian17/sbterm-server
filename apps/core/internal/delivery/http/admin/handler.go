@@ -29,11 +29,6 @@ func NewAdminHandler(uc usecase.AdminUsecase, v validator.Validator) *AdminHandl
 
 // --- User management ---
 
-type userListResponse struct {
-	Users []dto.UserResponse `json:"users"`
-	Total int                `json:"total"`
-}
-
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	page, err := strconv.Atoi(r.URL.Query().Get("page"))
 	if err != nil || page < 1 {
@@ -55,7 +50,17 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		resp[i] = dto.ToUserResponse(u)
 	}
 
-	response.OK(w, userListResponse{Users: resp, Total: total})
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + limit - 1) / limit
+	}
+
+	response.Paginated(w, resp, &response.MetaBody{
+		Page:       page,
+		Limit:      limit,
+		TotalItems: total,
+		TotalPages: totalPages,
+	})
 }
 
 func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {

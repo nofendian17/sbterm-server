@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
@@ -25,6 +26,7 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 		query    string
 		setup    func(uc *mocks.MockAdminUsecase)
 		wantCode int
+		check    func(t *testing.T, rec *httptest.ResponseRecorder)
 	}{
 		{
 			name:  "success",
@@ -32,12 +34,35 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 			setup: func(uc *mocks.MockAdminUsecase) {
 				uc.EXPECT().ListUsers(gomock.Any(), 1, 10).Return([]domain.User{
 					{ID: "u1", Email: "a@b.co", DisplayName: "Test"},
-				}, 1, nil)
+				}, 15, nil)
 			},
 			wantCode: http.StatusOK,
+			check: func(t *testing.T, rec *httptest.ResponseRecorder) {
+				var env struct {
+					Success bool `json:"success"`
+					Data    []struct {
+						ID          string `json:"id"`
+						Email       string `json:"email"`
+						DisplayName string `json:"display_name"`
+					} `json:"data"`
+					Meta struct {
+						Page       int `json:"page"`
+						Limit      int `json:"limit"`
+						TotalItems int `json:"total_items"`
+						TotalPages int `json:"total_pages"`
+					} `json:"meta"`
+				}
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
+				assert.True(t, env.Success)
+				assert.Len(t, env.Data, 1)
+				assert.Equal(t, 1, env.Meta.Page)
+				assert.Equal(t, 10, env.Meta.Limit)
+				assert.Equal(t, 15, env.Meta.TotalItems)
+				assert.Equal(t, 2, env.Meta.TotalPages)
+			},
 		},
 		{
-			name:  "invalid page",
+			name:  "invalid page defaults to 1",
 			query: "?page=abc",
 			setup: func(uc *mocks.MockAdminUsecase) {
 				uc.EXPECT().ListUsers(gomock.Any(), 1, 20).Return(nil, 0, nil)
@@ -67,6 +92,9 @@ func TestAdminHandler_ListUsers(t *testing.T) {
 			handler.ListUsers(rec, req)
 
 			assert.Equal(t, tt.wantCode, rec.Code)
+			if tt.check != nil {
+				tt.check(t, rec)
+			}
 		})
 	}
 }

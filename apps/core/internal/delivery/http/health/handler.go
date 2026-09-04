@@ -20,7 +20,7 @@ func NewHealthHandler(uc usecase.HealthUsecase) *HealthHandler {
 type healthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database"`
-	Redis    string `json:"redis"`
+	Cache    string `json:"cache"`
 }
 
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
@@ -31,14 +31,14 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpStatus := http.StatusOK
-	if !status.DBConnected || !status.RedisConnected {
+	if !status.DBConnected || !status.CacheConnected {
 		httpStatus = http.StatusServiceUnavailable
 	}
 
 	response.Success(w, httpStatus, healthResponse{
 		Status:   status.Status,
 		Database: dbStatus(status.DBConnected),
-		Redis:    dbStatus(status.RedisConnected),
+		Cache:    dbStatus(status.CacheConnected),
 	})
 }
 

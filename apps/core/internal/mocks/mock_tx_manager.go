@@ -13,11 +13,315 @@ import (
 	context "context"
 	reflect "reflect"
 
-	pgx "github.com/jackc/pgx/v5"
-	pgconn "github.com/jackc/pgx/v5/pgconn"
 	repository "github.com/nofendian17/sbterm/apps/core/internal/repository"
 	gomock "go.uber.org/mock/gomock"
 )
+
+// MockRow is a mock of Row interface.
+type MockRow struct {
+	ctrl     *gomock.Controller
+	recorder *MockRowMockRecorder
+	isgomock struct{}
+}
+
+// MockRowMockRecorder is the mock recorder for MockRow.
+type MockRowMockRecorder struct {
+	mock *MockRow
+}
+
+// NewMockRow creates a new mock instance.
+func NewMockRow(ctrl *gomock.Controller) *MockRow {
+	mock := &MockRow{ctrl: ctrl}
+	mock.recorder = &MockRowMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRow) EXPECT() *MockRowMockRecorder {
+	return m.recorder
+}
+
+// Scan mocks base method.
+func (m *MockRow) Scan(dest ...any) error {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range dest {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Scan", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Scan indicates an expected call of Scan.
+func (mr *MockRowMockRecorder) Scan(dest ...any) *MockRowScanCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockRow)(nil).Scan), dest...)
+	return &MockRowScanCall{Call: call}
+}
+
+// MockRowScanCall wrap *gomock.Call
+type MockRowScanCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRowScanCall) Return(arg0 error) *MockRowScanCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRowScanCall) Do(f func(...any) error) *MockRowScanCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRowScanCall) DoAndReturn(f func(...any) error) *MockRowScanCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// MockRows is a mock of Rows interface.
+type MockRows struct {
+	ctrl     *gomock.Controller
+	recorder *MockRowsMockRecorder
+	isgomock struct{}
+}
+
+// MockRowsMockRecorder is the mock recorder for MockRows.
+type MockRowsMockRecorder struct {
+	mock *MockRows
+}
+
+// NewMockRows creates a new mock instance.
+func NewMockRows(ctrl *gomock.Controller) *MockRows {
+	mock := &MockRows{ctrl: ctrl}
+	mock.recorder = &MockRowsMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRows) EXPECT() *MockRowsMockRecorder {
+	return m.recorder
+}
+
+// Close mocks base method.
+func (m *MockRows) Close() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Close")
+}
+
+// Close indicates an expected call of Close.
+func (mr *MockRowsMockRecorder) Close() *MockRowsCloseCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockRows)(nil).Close))
+	return &MockRowsCloseCall{Call: call}
+}
+
+// MockRowsCloseCall wrap *gomock.Call
+type MockRowsCloseCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRowsCloseCall) Return() *MockRowsCloseCall {
+	c.Call = c.Call.Return()
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRowsCloseCall) Do(f func()) *MockRowsCloseCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRowsCloseCall) DoAndReturn(f func()) *MockRowsCloseCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Err mocks base method.
+func (m *MockRows) Err() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Err indicates an expected call of Err.
+func (mr *MockRowsMockRecorder) Err() *MockRowsErrCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Err", reflect.TypeOf((*MockRows)(nil).Err))
+	return &MockRowsErrCall{Call: call}
+}
+
+// MockRowsErrCall wrap *gomock.Call
+type MockRowsErrCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRowsErrCall) Return(arg0 error) *MockRowsErrCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRowsErrCall) Do(f func() error) *MockRowsErrCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRowsErrCall) DoAndReturn(f func() error) *MockRowsErrCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Next mocks base method.
+func (m *MockRows) Next() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Next indicates an expected call of Next.
+func (mr *MockRowsMockRecorder) Next() *MockRowsNextCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockRows)(nil).Next))
+	return &MockRowsNextCall{Call: call}
+}
+
+// MockRowsNextCall wrap *gomock.Call
+type MockRowsNextCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRowsNextCall) Return(arg0 bool) *MockRowsNextCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRowsNextCall) Do(f func() bool) *MockRowsNextCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRowsNextCall) DoAndReturn(f func() bool) *MockRowsNextCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// Scan mocks base method.
+func (m *MockRows) Scan(dest ...any) error {
+	m.ctrl.T.Helper()
+	varargs := []any{}
+	for _, a := range dest {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Scan", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Scan indicates an expected call of Scan.
+func (mr *MockRowsMockRecorder) Scan(dest ...any) *MockRowsScanCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockRows)(nil).Scan), dest...)
+	return &MockRowsScanCall{Call: call}
+}
+
+// MockRowsScanCall wrap *gomock.Call
+type MockRowsScanCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRowsScanCall) Return(arg0 error) *MockRowsScanCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRowsScanCall) Do(f func(...any) error) *MockRowsScanCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRowsScanCall) DoAndReturn(f func(...any) error) *MockRowsScanCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// MockCommandResult is a mock of CommandResult interface.
+type MockCommandResult struct {
+	ctrl     *gomock.Controller
+	recorder *MockCommandResultMockRecorder
+	isgomock struct{}
+}
+
+// MockCommandResultMockRecorder is the mock recorder for MockCommandResult.
+type MockCommandResultMockRecorder struct {
+	mock *MockCommandResult
+}
+
+// NewMockCommandResult creates a new mock instance.
+func NewMockCommandResult(ctrl *gomock.Controller) *MockCommandResult {
+	mock := &MockCommandResult{ctrl: ctrl}
+	mock.recorder = &MockCommandResultMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCommandResult) EXPECT() *MockCommandResultMockRecorder {
+	return m.recorder
+}
+
+// RowsAffected mocks base method.
+func (m *MockCommandResult) RowsAffected() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RowsAffected")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// RowsAffected indicates an expected call of RowsAffected.
+func (mr *MockCommandResultMockRecorder) RowsAffected() *MockCommandResultRowsAffectedCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RowsAffected", reflect.TypeOf((*MockCommandResult)(nil).RowsAffected))
+	return &MockCommandResultRowsAffectedCall{Call: call}
+}
+
+// MockCommandResultRowsAffectedCall wrap *gomock.Call
+type MockCommandResultRowsAffectedCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockCommandResultRowsAffectedCall) Return(arg0 int64) *MockCommandResultRowsAffectedCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockCommandResultRowsAffectedCall) Do(f func() int64) *MockCommandResultRowsAffectedCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockCommandResultRowsAffectedCall) DoAndReturn(f func() int64) *MockCommandResultRowsAffectedCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
 
 // MockQuerier is a mock of Querier interface.
 type MockQuerier struct {
@@ -44,14 +348,14 @@ func (m *MockQuerier) EXPECT() *MockQuerierMockRecorder {
 }
 
 // Exec mocks base method.
-func (m *MockQuerier) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+func (m *MockQuerier) Exec(ctx context.Context, sql string, args ...any) (repository.CommandResult, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, sql}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Exec", varargs...)
-	ret0, _ := ret[0].(pgconn.CommandTag)
+	ret0, _ := ret[0].(repository.CommandResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -70,32 +374,32 @@ type MockQuerierExecCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockQuerierExecCall) Return(arg0 pgconn.CommandTag, arg1 error) *MockQuerierExecCall {
+func (c *MockQuerierExecCall) Return(arg0 repository.CommandResult, arg1 error) *MockQuerierExecCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockQuerierExecCall) Do(f func(context.Context, string, ...any) (pgconn.CommandTag, error)) *MockQuerierExecCall {
+func (c *MockQuerierExecCall) Do(f func(context.Context, string, ...any) (repository.CommandResult, error)) *MockQuerierExecCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockQuerierExecCall) DoAndReturn(f func(context.Context, string, ...any) (pgconn.CommandTag, error)) *MockQuerierExecCall {
+func (c *MockQuerierExecCall) DoAndReturn(f func(context.Context, string, ...any) (repository.CommandResult, error)) *MockQuerierExecCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // Query mocks base method.
-func (m *MockQuerier) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+func (m *MockQuerier) Query(ctx context.Context, sql string, args ...any) (repository.Rows, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, sql}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "Query", varargs...)
-	ret0, _ := ret[0].(pgx.Rows)
+	ret0, _ := ret[0].(repository.Rows)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -114,32 +418,32 @@ type MockQuerierQueryCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockQuerierQueryCall) Return(arg0 pgx.Rows, arg1 error) *MockQuerierQueryCall {
+func (c *MockQuerierQueryCall) Return(arg0 repository.Rows, arg1 error) *MockQuerierQueryCall {
 	c.Call = c.Call.Return(arg0, arg1)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockQuerierQueryCall) Do(f func(context.Context, string, ...any) (pgx.Rows, error)) *MockQuerierQueryCall {
+func (c *MockQuerierQueryCall) Do(f func(context.Context, string, ...any) (repository.Rows, error)) *MockQuerierQueryCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockQuerierQueryCall) DoAndReturn(f func(context.Context, string, ...any) (pgx.Rows, error)) *MockQuerierQueryCall {
+func (c *MockQuerierQueryCall) DoAndReturn(f func(context.Context, string, ...any) (repository.Rows, error)) *MockQuerierQueryCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // QueryRow mocks base method.
-func (m *MockQuerier) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+func (m *MockQuerier) QueryRow(ctx context.Context, sql string, args ...any) repository.Row {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, sql}
 	for _, a := range args {
 		varargs = append(varargs, a)
 	}
 	ret := m.ctrl.Call(m, "QueryRow", varargs...)
-	ret0, _ := ret[0].(pgx.Row)
+	ret0, _ := ret[0].(repository.Row)
 	return ret0
 }
 
@@ -157,19 +461,19 @@ type MockQuerierQueryRowCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockQuerierQueryRowCall) Return(arg0 pgx.Row) *MockQuerierQueryRowCall {
+func (c *MockQuerierQueryRowCall) Return(arg0 repository.Row) *MockQuerierQueryRowCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockQuerierQueryRowCall) Do(f func(context.Context, string, ...any) pgx.Row) *MockQuerierQueryRowCall {
+func (c *MockQuerierQueryRowCall) Do(f func(context.Context, string, ...any) repository.Row) *MockQuerierQueryRowCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockQuerierQueryRowCall) DoAndReturn(f func(context.Context, string, ...any) pgx.Row) *MockQuerierQueryRowCall {
+func (c *MockQuerierQueryRowCall) DoAndReturn(f func(context.Context, string, ...any) repository.Row) *MockQuerierQueryRowCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -237,7 +541,7 @@ func (c *MockTxManagerWithTxCall) DoAndReturn(f func(context.Context, func(repos
 }
 
 // WithTxOptions mocks base method.
-func (m *MockTxManager) WithTxOptions(ctx context.Context, txOptions pgx.TxOptions, fn func(repository.Querier) error) error {
+func (m *MockTxManager) WithTxOptions(ctx context.Context, txOptions repository.TxOptions, fn func(repository.Querier) error) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "WithTxOptions", ctx, txOptions, fn)
 	ret0, _ := ret[0].(error)
@@ -263,13 +567,13 @@ func (c *MockTxManagerWithTxOptionsCall) Return(arg0 error) *MockTxManagerWithTx
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockTxManagerWithTxOptionsCall) Do(f func(context.Context, pgx.TxOptions, func(repository.Querier) error) error) *MockTxManagerWithTxOptionsCall {
+func (c *MockTxManagerWithTxOptionsCall) Do(f func(context.Context, repository.TxOptions, func(repository.Querier) error) error) *MockTxManagerWithTxOptionsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockTxManagerWithTxOptionsCall) DoAndReturn(f func(context.Context, pgx.TxOptions, func(repository.Querier) error) error) *MockTxManagerWithTxOptionsCall {
+func (c *MockTxManagerWithTxOptionsCall) DoAndReturn(f func(context.Context, repository.TxOptions, func(repository.Querier) error) error) *MockTxManagerWithTxOptionsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

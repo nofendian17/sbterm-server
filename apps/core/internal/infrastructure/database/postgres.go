@@ -112,6 +112,27 @@ func (p *Postgres) Shutdown() error {
 	return nil
 }
 
+// poolQuerier adapts *pgxpool.Pool to repository.Querier without leaking pgx
+// types into the port. pgconn.CommandTag/pgx.Rows/pgx.Row already satisfy the
+// port's CommandResult/Rows/Row, so this is structural only.
+type poolQuerier struct {
+	pool *pgxpool.Pool
+}
+
+func (q poolQuerier) Exec(ctx context.Context, sql string, args ...any) (repository.CommandResult, error) {
+	return q.pool.Exec(ctx, sql, args...)
+}
+
+func (q poolQuerier) Query(ctx context.Context, sql string, args ...any) (repository.Rows, error) {
+	return q.pool.Query(ctx, sql, args...)
+}
+
+func (q poolQuerier) QueryRow(ctx context.Context, sql string, args ...any) repository.Row {
+	return q.pool.QueryRow(ctx, sql, args...)
+}
+
+var _ repository.Querier = poolQuerier{}
+
 // Querier returns the underlying pgxpool.Pool as a repository.Querier.
 // Returns an error if the pool is not a *pgxpool.Pool (e.g. in tests with a mock).
 func (p *Postgres) Querier() (repository.Querier, error) {
@@ -119,5 +140,5 @@ func (p *Postgres) Querier() (repository.Querier, error) {
 	if !ok {
 		return nil, errors.New("database: pool is not *pgxpool.Pool")
 	}
-	return pool, nil
+	return poolQuerier{pool: pool}, nil
 }

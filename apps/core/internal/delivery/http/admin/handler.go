@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/dto"
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
@@ -29,8 +30,8 @@ func NewAdminHandler(uc usecase.AdminUsecase, v validator.Validator) *AdminHandl
 // --- User management ---
 
 type userListResponse struct {
-	Users []usecase.UserResponse `json:"users"`
-	Total int                    `json:"total"`
+	Users []dto.UserResponse `json:"users"`
+	Total int                `json:"total"`
 }
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +50,9 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]usecase.UserResponse, len(users))
+	resp := make([]dto.UserResponse, len(users))
 	for i, u := range users {
-		resp[i] = usecase.ToResponse(u)
+		resp[i] = dto.ToUserResponse(u)
 	}
 
 	response.OK(w, userListResponse{Users: resp, Total: total})
@@ -64,7 +65,7 @@ func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, http.StatusNotFound, response.CodeNotFound, "user not found")
 		return
 	}
-	response.OK(w, usecase.ToResponse(user))
+	response.OK(w, dto.ToUserResponse(user))
 }
 
 func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {

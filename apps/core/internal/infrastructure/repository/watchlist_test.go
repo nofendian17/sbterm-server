@@ -47,7 +47,7 @@ func TestWatchlistRepository_ListByUser(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewWatchlistRepository(mock)
+			repo := NewWatchlistRepository(AdaptQuerier(mock))
 			got, err := repo.ListByUser(context.Background(), tt.userID)
 			require.NoError(t, err)
 			if tt.name == "empty" {
@@ -99,7 +99,7 @@ func TestWatchlistRepository_Add(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewWatchlistRepository(mock)
+			repo := NewWatchlistRepository(AdaptQuerier(mock))
 			err := repo.Add(context.Background(), tt.w)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -118,7 +118,7 @@ func TestWatchlistRepository_RemoveBySymbol(t *testing.T) {
 		WithArgs("u1", "BBCA").
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	repo := NewWatchlistRepository(mock)
+	repo := NewWatchlistRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RemoveBySymbol(context.Background(), "u1", "BBCA"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

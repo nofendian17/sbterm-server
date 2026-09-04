@@ -1,6 +1,7 @@
-// Package usecase implements the business logic for the core domain.
+// Package token implements JWT access/refresh token issuance backed by a
+// RefreshStore.
 
-package usecase
+package token
 
 import (
 	"context"
@@ -35,6 +36,8 @@ type TokenService struct {
 	refreshTTL   time.Duration
 	refreshStore repository.RefreshStore
 }
+
+var _ repository.TokenIssuer = (*TokenService)(nil)
 
 // NewTokenService builds a TokenService.
 //

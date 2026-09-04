@@ -37,12 +37,32 @@ func (m *TxManagerImpl) WithTx(ctx context.Context, fn func(tx repository.Querie
 }
 
 // WithTxOptions runs fn inside one Postgres transaction with custom options.
-func (m *TxManagerImpl) WithTxOptions(ctx context.Context, txOptions pgx.TxOptions, fn func(tx repository.Querier) error) error {
-	tx, err := m.pool.BeginTx(ctx, txOptions)
+func (m *TxManagerImpl) WithTxOptions(ctx context.Context, txOptions repository.TxOptions, fn func(tx repository.Querier) error) error {
+	tx, err := m.pool.BeginTx(ctx, toPgxTxOptions(txOptions))
 	if err != nil {
 		return fmt.Errorf("tx: begin: %w", err)
 	}
 	return m.execTx(ctx, tx, fn)
+}
+
+// toPgxTxOptions maps the driver-free repository.TxOptions onto pgx.
+func toPgxTxOptions(o repository.TxOptions) pgx.TxOptions {
+	return pgx.TxOptions{IsoLevel: toPgxIsoLevel(o.Isolation)}
+}
+
+func toPgxIsoLevel(l repository.IsolationLevel) pgx.TxIsoLevel {
+	switch l {
+	case repository.IsolationReadUncommitted:
+		return pgx.ReadUncommitted
+	case repository.IsolationReadCommitted:
+		return pgx.ReadCommitted
+	case repository.IsolationRepeatableRead:
+		return pgx.RepeatableRead
+	case repository.IsolationSerializable:
+		return pgx.Serializable
+	default:
+		return ""
+	}
 }
 
 func (m *TxManagerImpl) execTx(ctx context.Context, tx pgx.Tx, fn func(tx repository.Querier) error) (retErr error) {
@@ -56,7 +76,7 @@ func (m *TxManagerImpl) execTx(ctx context.Context, tx pgx.Tx, fn func(tx reposi
 		}
 	}()
 
-	if err := fn(tx); err != nil {
+	if err := fn(AdaptQuerier(tx)); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

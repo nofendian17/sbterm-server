@@ -28,7 +28,7 @@ func TestHealthHandler_Health(t *testing.T) {
 				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{
 					Status:         "ok",
 					DBConnected:    true,
-					RedisConnected: true,
+					CacheConnected: true,
 				}, nil)
 			},
 			wantCode:   http.StatusOK,
@@ -40,7 +40,7 @@ func TestHealthHandler_Health(t *testing.T) {
 				uc.EXPECT().GetHealth(gomock.Any()).Return(&domain.HealthStatus{
 					Status:         "degraded",
 					DBConnected:    false,
-					RedisConnected: true,
+					CacheConnected: true,
 				}, nil)
 			},
 			wantCode:   http.StatusServiceUnavailable,

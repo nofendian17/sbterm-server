@@ -18,47 +18,47 @@ func TestHealthUsecase_GetHealth(t *testing.T) {
 		setup     func(repo *mocks.MockHealthRepository)
 		want      string
 		wantDB    bool
-		wantRedis bool
+		wantCache bool
 	}{
 		{
 			name: "all healthy",
 			setup: func(repo *mocks.MockHealthRepository) {
 				repo.EXPECT().Ping(gomock.Any()).Return(nil)
-				repo.EXPECT().PingRedis(gomock.Any()).Return(nil)
+				repo.EXPECT().PingCache(gomock.Any()).Return(nil)
 			},
 			want:      "ok",
 			wantDB:    true,
-			wantRedis: true,
+			wantCache: true,
 		},
 		{
 			name: "db down",
 			setup: func(repo *mocks.MockHealthRepository) {
 				repo.EXPECT().Ping(gomock.Any()).Return(errors.New("db error"))
-				repo.EXPECT().PingRedis(gomock.Any()).Return(nil)
+				repo.EXPECT().PingCache(gomock.Any()).Return(nil)
 			},
 			want:      "degraded",
 			wantDB:    false,
-			wantRedis: true,
+			wantCache: true,
 		},
 		{
-			name: "redis down",
+			name: "cache down",
 			setup: func(repo *mocks.MockHealthRepository) {
 				repo.EXPECT().Ping(gomock.Any()).Return(nil)
-				repo.EXPECT().PingRedis(gomock.Any()).Return(errors.New("redis error"))
+				repo.EXPECT().PingCache(gomock.Any()).Return(errors.New("cache error"))
 			},
 			want:      "degraded",
 			wantDB:    true,
-			wantRedis: false,
+			wantCache: false,
 		},
 		{
 			name: "both down",
 			setup: func(repo *mocks.MockHealthRepository) {
 				repo.EXPECT().Ping(gomock.Any()).Return(errors.New("db error"))
-				repo.EXPECT().PingRedis(gomock.Any()).Return(errors.New("redis error"))
+				repo.EXPECT().PingCache(gomock.Any()).Return(errors.New("cache error"))
 			},
 			want:      "degraded",
 			wantDB:    false,
-			wantRedis: false,
+			wantCache: false,
 		},
 	}
 
@@ -74,7 +74,7 @@ func TestHealthUsecase_GetHealth(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Status)
 			assert.Equal(t, tt.wantDB, got.DBConnected)
-			assert.Equal(t, tt.wantRedis, got.RedisConnected)
+			assert.Equal(t, tt.wantCache, got.CacheConnected)
 		})
 	}
 }

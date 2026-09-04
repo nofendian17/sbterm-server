@@ -3,26 +3,61 @@ package usecase
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
+	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/token"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 )
 
+// fakeRefreshStore is a concurrent-safe in-memory RefreshStore for auth usecase
+// tests so token issuance/verification/rotation can be exercised without Redis.
+type fakeRefreshStore struct {
+	mu sync.Mutex
+	m  map[string]string
+}
+
+func newFakeRefreshStore() *fakeRefreshStore {
+	return &fakeRefreshStore{m: make(map[string]string)}
+}
+
+func (f *fakeRefreshStore) StoreRefresh(_ context.Context, jti, userID string, _ time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.m[jti] = userID
+	return nil
+}
+
+func (f *fakeRefreshStore) ConsumeRefresh(_ context.Context, jti string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.m[jti]
+	return v, ok
+}
+
+func (f *fakeRefreshStore) DeleteRefresh(_ context.Context, jti string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.m, jti)
+	return nil
+}
+
+var _ repository.RefreshStore = (*fakeRefreshStore)(nil)
+
 // newTestTokenService returns a real TokenService backed by an in-memory
 // RefreshStore so token issuance/verification/rotation can be exercised without
 // Redis.
-func newTestTokenService() *TokenService {
-	return NewTokenService("test-secret", 15*time.Minute, time.Hour, newFakeRefreshStore())
+func newTestTokenService() *token.TokenService {
+	return token.NewTokenService("test-secret", 15*time.Minute, time.Hour, newFakeRefreshStore())
 }
 
 // commitTxManager is a TxManager stub that runs fn in a "transaction" with a nil
@@ -34,7 +69,7 @@ func (commitTxManager) WithTx(ctx context.Context, fn func(repository.Querier) e
 	return fn(nil)
 }
 
-func (commitTxManager) WithTxOptions(ctx context.Context, _ pgx.TxOptions, fn func(repository.Querier) error) error {
+func (commitTxManager) WithTxOptions(ctx context.Context, _ repository.TxOptions, fn func(repository.Querier) error) error {
 	return fn(nil)
 }
 
@@ -290,10 +325,10 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 
 		repo := mocks.NewMockUserRepository(ctrl)
 		// Separate store that never received the jti.
-		ts := NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore())
+		ts := token.NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore())
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, bogus, err := NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).GenerateTokenPair(context.Background(), "uX", nil)
+		_, bogus, err := token.NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).GenerateTokenPair(context.Background(), "uX", nil)
 		require.NoError(t, err)
 
 		_, _, err = uc.Refresh(context.Background(), bogus)
@@ -405,10 +440,10 @@ func bcryptCompare(hash, pw string) error {
 
 // jtiOf extracts the jti claim from a JWT without verifying it — used in tests
 // solely to track store keys.
-func jtiOf(token string) (string, error) {
-	claims := &tokenClaims{}
+func jtiOf(tok string) (string, error) {
+	claims := &jwt.RegisteredClaims{}
 	parser := jwt.NewParser()
-	if _, _, err := parser.ParseUnverified(token, claims); err != nil {
+	if _, _, err := parser.ParseUnverified(tok, claims); err != nil {
 		return "", err
 	}
 	return claims.ID, nil

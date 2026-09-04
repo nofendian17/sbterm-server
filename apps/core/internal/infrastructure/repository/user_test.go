@@ -53,7 +53,7 @@ func TestUserRepository_Create(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewUserRepository(mock)
+			repo := NewUserRepository(AdaptQuerier(mock))
 			err := repo.Create(context.Background(), tt.user)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -102,7 +102,7 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewUserRepository(mock)
+			repo := NewUserRepository(AdaptQuerier(mock))
 			got, err := repo.GetByEmail(context.Background(), tt.email)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -152,7 +152,7 @@ func TestUserRepository_GetByID(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewUserRepository(mock)
+			repo := NewUserRepository(AdaptQuerier(mock))
 			got, err := repo.GetByID(context.Background(), tt.id)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -173,7 +173,7 @@ func TestUserRepository_Update(t *testing.T) {
 		WithArgs("u1", "NewName", expiry).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	repo := NewUserRepository(mock)
+	repo := NewUserRepository(AdaptQuerier(mock))
 	err := repo.Update(context.Background(), "u1", "NewName", &expiry)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -186,7 +186,7 @@ func TestUserRepository_SoftDelete(t *testing.T) {
 		WithArgs("u1").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	repo := NewUserRepository(mock)
+	repo := NewUserRepository(AdaptQuerier(mock))
 	err := repo.SoftDelete(context.Background(), "u1")
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -200,7 +200,7 @@ func TestUserRepository_SetExpiry(t *testing.T) {
 		WithArgs(expiry, "u1").
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
-	repo := NewUserRepository(mock)
+	repo := NewUserRepository(AdaptQuerier(mock))
 	err := repo.SetExpiry(context.Background(), "u1", &expiry)
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -213,7 +213,7 @@ func TestUserRepository_AssignDefaultRole(t *testing.T) {
 		WithArgs("u1").
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	repo := NewUserRepository(mock)
+	repo := NewUserRepository(AdaptQuerier(mock))
 	err := repo.AssignDefaultRole(context.Background(), "u1")
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())

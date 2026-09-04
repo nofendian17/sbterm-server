@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/dto"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
@@ -38,7 +39,7 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.OK(w, usecase.ToResponse(user))
+	response.OK(w, dto.ToUserResponse(user))
 }
 
 func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {

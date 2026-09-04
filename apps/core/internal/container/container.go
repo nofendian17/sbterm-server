@@ -23,6 +23,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/database"
 	infraRepo "github.com/nofendian17/sbterm/apps/core/internal/infrastructure/repository"
+	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/token"
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
@@ -139,16 +140,17 @@ func provideRepositories(injector *do.RootScope) {
 }
 
 func provideUsecases(injector *do.RootScope) {
-	do.Provide(injector, func(i do.Injector) (*usecase.TokenService, error) {
+	do.Provide(injector, func(i do.Injector) (*token.TokenService, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		store := do.MustInvoke[repository.RefreshStore](i)
-		return usecase.NewTokenService(
+		return token.NewTokenService(
 			cfg.Auth.JWTSecret,
 			cfg.Auth.AccessTokenTTL,
 			cfg.Auth.RefreshTokenTTL,
 			store,
 		), nil
 	})
+	do.MustAs[*token.TokenService, repository.TokenIssuer](injector)
 
 	do.Provide(injector, func(i do.Injector) (usecase.HealthUsecase, error) {
 		return usecase.NewHealthUsecase(do.MustInvoke[repository.HealthRepository](i)), nil
@@ -158,7 +160,7 @@ func provideUsecases(injector *do.RootScope) {
 		cfg := do.MustInvoke[*config.Config](i)
 		return usecase.NewAuthUsecase(
 			do.MustInvoke[repository.UserRepository](i),
-			do.MustInvoke[*usecase.TokenService](i),
+			do.MustInvoke[repository.TokenIssuer](i),
 			do.MustInvoke[repository.TxManager](i),
 			usecase.AuthConfig{
 				DefaultUserTTL: cfg.Auth.DefaultUserTTL,
@@ -228,7 +230,7 @@ func provideHandlers(injector *do.RootScope) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 
-		tokenService := do.MustInvoke[*usecase.TokenService](i)
+		tokenService := do.MustInvoke[*token.TokenService](i)
 		userRepo := do.MustInvoke[repository.UserRepository](i)
 		rbacUc := do.MustInvoke[usecase.RBACUsecase](i)
 

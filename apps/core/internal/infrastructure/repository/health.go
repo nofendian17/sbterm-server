@@ -32,7 +32,7 @@ func (r *HealthRepository) Ping(ctx context.Context) error {
 	return r.db.Ping(ctx)
 }
 
-func (r *HealthRepository) PingRedis(ctx context.Context) error {
+func (r *HealthRepository) PingCache(ctx context.Context) error {
 	return r.redis.Ping(ctx)
 }
 

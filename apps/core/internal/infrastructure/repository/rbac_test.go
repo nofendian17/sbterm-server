@@ -56,7 +56,7 @@ func TestRBACRepository_CreateRole(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewRBACRepository(mock)
+			repo := NewRBACRepository(AdaptQuerier(mock))
 			err := repo.CreateRole(context.Background(), tt.role)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -103,7 +103,7 @@ func TestRBACRepository_GetRole(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewRBACRepository(mock)
+			repo := NewRBACRepository(AdaptQuerier(mock))
 			got, err := repo.GetRole(context.Background(), tt.id)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -125,7 +125,7 @@ func TestRBACRepository_ListRoles(t *testing.T) {
 		AddRow("r2", "user", "User")
 	mock.ExpectQuery(`SELECT id, name, description FROM roles`).WillReturnRows(rows)
 
-	repo := NewRBACRepository(mock)
+	repo := NewRBACRepository(AdaptQuerier(mock))
 	roles, err := repo.ListRoles(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, roles, 2)
@@ -164,7 +164,7 @@ func TestRBACRepository_DeleteRole(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewRBACRepository(mock)
+			repo := NewRBACRepository(AdaptQuerier(mock))
 			err := repo.DeleteRole(context.Background(), tt.id)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -183,7 +183,7 @@ func TestRBACRepository_AssignPermissionToRole(t *testing.T) {
 		WithArgs("r1", "p1").
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	repo := NewRBACRepository(mock)
+	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.AssignPermissionToRole(context.Background(), "r1", "p1"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -195,7 +195,7 @@ func TestRBACRepository_RevokePermissionFromRole(t *testing.T) {
 		WithArgs("r1", "p1").
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	repo := NewRBACRepository(mock)
+	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RevokePermissionFromRole(context.Background(), "r1", "p1"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -207,7 +207,7 @@ func TestRBACRepository_AssignRoleToUser(t *testing.T) {
 		WithArgs("u1", "r1").
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 
-	repo := NewRBACRepository(mock)
+	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.AssignRoleToUser(context.Background(), "u1", "r1"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -219,7 +219,7 @@ func TestRBACRepository_RevokeRoleFromUser(t *testing.T) {
 		WithArgs("u1", "r1").
 		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
-	repo := NewRBACRepository(mock)
+	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RevokeRoleFromUser(context.Background(), "u1", "r1"))
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
@@ -260,7 +260,7 @@ func TestRBACRepository_ListUserPermissions(t *testing.T) {
 			defer mock.Close()
 			tt.setup(mock)
 
-			repo := NewRBACRepository(mock)
+			repo := NewRBACRepository(AdaptQuerier(mock))
 			got, err := repo.ListUserPermissions(context.Background(), tt.userID)
 			if tt.wantErr {
 				assert.Error(t, err)

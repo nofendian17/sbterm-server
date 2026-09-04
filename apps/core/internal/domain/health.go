@@ -4,5 +4,5 @@ package domain
 type HealthStatus struct {
 	Status         string
 	DBConnected    bool
-	RedisConnected bool
+	CacheConnected bool
 }

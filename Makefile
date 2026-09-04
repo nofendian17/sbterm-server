@@ -67,6 +67,7 @@ install-hooks: ## Install git hooks (core.hooksPath -> .githooks)
 
 mock: ## Generate mocks with uber-go/mock (go generate)
 	cd apps/api && go generate ./...
+	cd apps/core && go generate ./...
 
 tidy: ## Tidy every module's go.mod and go.sum
 	go work sync

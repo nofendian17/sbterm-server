@@ -7,5 +7,5 @@ import "context"
 // HealthRepository checks connectivity to external dependencies.
 type HealthRepository interface {
 	Ping(ctx context.Context) error
-	PingRedis(ctx context.Context) error
+	PingCache(ctx context.Context) error
 }

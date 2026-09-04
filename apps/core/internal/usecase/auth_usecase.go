@@ -48,7 +48,7 @@ type AuthConfig struct {
 // authUsecase is the default AuthUsecase implementation.
 type authUsecase struct {
 	repo   repository.UserRepository
-	tokens *TokenService
+	tokens repository.TokenIssuer
 	txm    repository.TxManager
 	cfg    AuthConfig
 }
@@ -56,7 +56,7 @@ type authUsecase struct {
 // NewAuthUsecase wires up the auth usecase.
 func NewAuthUsecase(
 	repo repository.UserRepository,
-	tokens *TokenService,
+	tokens repository.TokenIssuer,
 	txm repository.TxManager,
 	cfg AuthConfig,
 ) AuthUsecase {

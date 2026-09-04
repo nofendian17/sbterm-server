@@ -83,11 +83,16 @@ func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, opts ...Router
 			// Auth (public)
 			r.Post("/auth/register", hs.Auth.Register)
 			r.Post("/auth/login", hs.Auth.Login)
+			// /auth/refresh is public: by design it must work even when the
+			// access token has expired, otherwise the refresh token has no
+			// way to do its job. The refresh handler validates the refresh
+			// token itself (which carries the user identity) before issuing
+			// a new pair.
+			r.Post("/auth/refresh", hs.Auth.Refresh)
 
 			// Auth (authenticated)
 			r.Group(func(r chi.Router) {
 				r.Use(appmw.AuthMiddleware(authDeps.Verifier, authDeps.Loader, authDeps.Checker))
-				r.Post("/auth/refresh", hs.Auth.Refresh)
 				r.Post("/auth/logout", hs.Auth.Logout)
 
 				// Users

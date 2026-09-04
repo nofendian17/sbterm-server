@@ -9,11 +9,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
+	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
 )
 
-// mockTokenVerifier implements TokenVerifier for tests.
+// mockTokenVerifier implements the narrow TokenVerifier interface for tests.
 type mockTokenVerifier struct {
 	userID string
 	err    error
@@ -23,90 +25,96 @@ func (m *mockTokenVerifier) VerifyAccess(token string) (string, error) {
 	return m.userID, m.err
 }
 
-// mockUserLoader implements UserLoader for tests.
-type mockUserLoader struct {
-	user domain.User
-	err  error
-}
-
-func (m *mockUserLoader) GetByID(_ context.Context, _ string) (domain.User, error) {
-	return m.user, m.err
-}
-
-// mockPermissionChecker implements PermissionChecker for tests.
-type mockPermissionChecker struct {
-	perms map[string]bool
-	err   error
-}
-
-func (m *mockPermissionChecker) HasPermission(_ context.Context, _ string, perm string) (bool, error) {
-	if m.err != nil {
-		return false, m.err
-	}
-	return m.perms[perm], nil
-}
-
 func TestAuthMiddleware(t *testing.T) {
 	tests := []struct {
 		name     string
 		token    string
 		verifier *mockTokenVerifier
-		loader   *mockUserLoader
-		checker  *mockPermissionChecker
+		loader   func(ctrl *gomock.Controller) *mocks.MockUserRepository
+		checker  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase
 		wantCode int
 		checkCtx func(t *testing.T, r *http.Request)
 	}{
 		{
 			name:     "no header",
 			verifier: &mockTokenVerifier{},
-			loader:   &mockUserLoader{},
-			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			loader:   func(ctrl *gomock.Controller) *mocks.MockUserRepository { return mocks.NewMockUserRepository(ctrl) },
+			checker:  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase { return mocks.NewMockRBACUsecase(ctrl) },
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "invalid token",
 			token:    "invalid-token",
 			verifier: &mockTokenVerifier{err: assert.AnError},
-			loader:   &mockUserLoader{},
-			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			loader:   func(ctrl *gomock.Controller) *mocks.MockUserRepository { return mocks.NewMockUserRepository(ctrl) },
+			checker:  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase { return mocks.NewMockRBACUsecase(ctrl) },
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "user not found",
 			token:    "valid-token",
 			verifier: &mockTokenVerifier{userID: "u1"},
-			loader:   &mockUserLoader{err: domain.ErrUserNotFound},
-			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			loader: func(ctrl *gomock.Controller) *mocks.MockUserRepository {
+				m := mocks.NewMockUserRepository(ctrl)
+				m.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{}, domain.ErrUserNotFound)
+				return m
+			},
+			checker:  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase { return mocks.NewMockRBACUsecase(ctrl) },
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "expired account",
 			token:    "valid-token",
 			verifier: &mockTokenVerifier{userID: "u1"},
-			loader: &mockUserLoader{user: domain.User{
-				ID:        "u1",
-				ExpiresAt: ptrTime(time.Now().Add(-time.Hour)),
-			}},
-			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			loader: func(ctrl *gomock.Controller) *mocks.MockUserRepository {
+				m := mocks.NewMockUserRepository(ctrl)
+				m.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+					ID:        "u1",
+					ExpiresAt: ptrTime(time.Now().Add(-time.Hour)),
+				}, nil)
+				return m
+			},
+			checker:  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase { return mocks.NewMockRBACUsecase(ctrl) },
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "suspended account",
 			token:    "valid-token",
 			verifier: &mockTokenVerifier{userID: "u1"},
-			loader: &mockUserLoader{user: domain.User{
-				ID:        "u1",
-				DeletedAt: ptrTime(time.Now()),
-			}},
-			checker:  &mockPermissionChecker{perms: map[string]bool{}},
+			loader: func(ctrl *gomock.Controller) *mocks.MockUserRepository {
+				m := mocks.NewMockUserRepository(ctrl)
+				m.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+					ID:        "u1",
+					DeletedAt: ptrTime(time.Now()),
+				}, nil)
+				return m
+			},
+			checker:  func(ctrl *gomock.Controller) *mocks.MockRBACUsecase { return mocks.NewMockRBACUsecase(ctrl) },
 			wantCode: http.StatusUnauthorized,
 		},
 		{
 			name:     "success",
 			token:    "valid-token",
 			verifier: &mockTokenVerifier{userID: "u1"},
-			loader:   &mockUserLoader{user: domain.User{ID: "u1"}},
-			checker:  &mockPermissionChecker{perms: map[string]bool{"profile:read": true}},
+			loader: func(ctrl *gomock.Controller) *mocks.MockUserRepository {
+				m := mocks.NewMockUserRepository(ctrl)
+				m.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{ID: "u1"}, nil)
+				return m
+			},
+			checker: func(ctrl *gomock.Controller) *mocks.MockRBACUsecase {
+				m := mocks.NewMockRBACUsecase(ctrl)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "auth:login").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "profile:read").Return(true, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "profile:write").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "watchlist:read").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "watchlist:write").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:roles:read").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:roles:write").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:users:read").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:users:manage").Return(false, nil)
+				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:rbac:assign").Return(false, nil)
+				return m
+			},
 			wantCode: http.StatusOK,
 			checkCtx: func(t *testing.T, r *http.Request) {
 				t.Helper()
@@ -123,7 +131,15 @@ func TestAuthMiddleware(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mw := AuthMiddleware(tt.verifier, tt.loader, tt.checker)
+			ctrl := gomock.NewController(t)
+			loader := tt.loader(ctrl)
+			checker := tt.checker(ctrl)
+
+			mw := AuthMiddleware(AuthDeps{
+				Verifier: tt.verifier,
+				Loader:   loader,
+				Checker:  checker,
+			})
 			handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if tt.checkCtx != nil {
 					tt.checkCtx(t, r)

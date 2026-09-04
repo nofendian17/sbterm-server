@@ -17,6 +17,7 @@ import (
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/admin"
 	authhandler "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/auth"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/health"
+	appmw "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/user"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/watchlist"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/cache"
@@ -140,17 +141,17 @@ func provideRepositories(injector *do.RootScope) {
 }
 
 func provideUsecases(injector *do.RootScope) {
-	do.Provide(injector, func(i do.Injector) (*token.TokenService, error) {
+	do.Provide(injector, func(i do.Injector) (*token.JWTTokenService, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		store := do.MustInvoke[repository.RefreshStore](i)
-		return token.NewTokenService(
+		return token.NewJWTTokenService(
 			cfg.Auth.JWTSecret,
 			cfg.Auth.AccessTokenTTL,
 			cfg.Auth.RefreshTokenTTL,
 			store,
 		), nil
 	})
-	do.MustAs[*token.TokenService, repository.TokenIssuer](injector)
+	do.MustAs[*token.JWTTokenService, repository.TokenIssuer](injector)
 
 	do.Provide(injector, func(i do.Injector) (usecase.HealthUsecase, error) {
 		return usecase.NewHealthUsecase(do.MustInvoke[repository.HealthRepository](i)), nil
@@ -230,20 +231,16 @@ func provideHandlers(injector *do.RootScope) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 
-		tokenService := do.MustInvoke[*token.TokenService](i)
-		userRepo := do.MustInvoke[repository.UserRepository](i)
-		rbacUc := do.MustInvoke[usecase.RBACUsecase](i)
-
 		router := deliveryhttp.NewRouter(deliveryhttp.Handlers{
 			Health:    do.MustInvoke[*health.HealthHandler](i),
 			Auth:      do.MustInvoke[*authhandler.AuthHandler](i),
 			User:      do.MustInvoke[*user.UserHandler](i),
 			Watchlist: do.MustInvoke[*watchlist.WatchlistHandler](i),
 			Admin:     do.MustInvoke[*admin.AdminHandler](i),
-		}, deliveryhttp.AuthDeps{
-			Verifier: tokenService,
-			Loader:   userRepo,
-			Checker:  rbacUc,
+		}, appmw.AuthDeps{
+			Verifier: do.MustInvoke[*token.JWTTokenService](i),
+			Loader:   do.MustInvoke[repository.UserRepository](i),
+			Checker:  do.MustInvoke[usecase.RBACUsecase](i),
 		}, logger,
 			deliveryhttp.WithRateLimit(cfg.RateLimit.Rate, cfg.RateLimit.Burst),
 		)

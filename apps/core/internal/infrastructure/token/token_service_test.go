@@ -48,12 +48,12 @@ var _ repository.RefreshStore = (*fakeRefreshStore)(nil)
 func TestTokenService(t *testing.T) {
 	tests := []struct {
 		name    string
-		actions func(t *testing.T, ts *TokenService)
+		actions func(t *testing.T, ts *JWTTokenService)
 	}{
 		{
 			name: "round trip generate and verify",
-			actions: func(t *testing.T, ts *TokenService) {
-				access, refresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
+			actions: func(t *testing.T, ts *JWTTokenService) {
+				access, refresh, err := ts.Sign(context.Background(), "u1", nil)
 				require.NoError(t, err)
 				require.NotEmpty(t, access)
 				require.NotEmpty(t, refresh)
@@ -65,20 +65,20 @@ func TestTokenService(t *testing.T) {
 		},
 		{
 			name: "wrong secret fails verification",
-			actions: func(t *testing.T, ts *TokenService) {
-				access, _, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
+			actions: func(t *testing.T, ts *JWTTokenService) {
+				access, _, err := ts.Sign(context.Background(), "u1", nil)
 				require.NoError(t, err)
 
-				bad := NewTokenService("other", time.Minute, time.Minute, newFakeRefreshStore())
+				bad := NewJWTTokenService("other", time.Minute, time.Minute, newFakeRefreshStore())
 				_, err = bad.VerifyAccess(access)
 				require.Error(t, err)
 			},
 		},
 		{
 			name: "expired token rejected",
-			actions: func(t *testing.T, ts *TokenService) {
-				shortLived := NewTokenService("secret", 1*time.Nanosecond, time.Hour, newFakeRefreshStore())
-				access, _, err := shortLived.GenerateTokenPair(context.Background(), "u3", nil)
+			actions: func(t *testing.T, ts *JWTTokenService) {
+				shortLived := NewJWTTokenService("secret", 1*time.Nanosecond, time.Hour, newFakeRefreshStore())
+				access, _, err := shortLived.Sign(context.Background(), "u3", nil)
 				require.NoError(t, err)
 
 				time.Sleep(2 * time.Nanosecond)
@@ -88,8 +88,8 @@ func TestTokenService(t *testing.T) {
 		},
 		{
 			name: "refresh token has correct claims",
-			actions: func(t *testing.T, ts *TokenService) {
-				_, refresh, err := ts.GenerateTokenPair(context.Background(), "u2", nil)
+			actions: func(t *testing.T, ts *JWTTokenService) {
+				_, refresh, err := ts.Sign(context.Background(), "u2", nil)
 				require.NoError(t, err)
 
 				type withTyp struct {
@@ -112,8 +112,8 @@ func TestTokenService(t *testing.T) {
 		},
 		{
 			name: "verify rejects refresh token as access",
-			actions: func(t *testing.T, ts *TokenService) {
-				_, refresh, err := ts.GenerateTokenPair(context.Background(), "u4", nil)
+			actions: func(t *testing.T, ts *JWTTokenService) {
+				_, refresh, err := ts.Sign(context.Background(), "u4", nil)
 				require.NoError(t, err)
 
 				_, err = ts.VerifyAccess(refresh)
@@ -122,7 +122,7 @@ func TestTokenService(t *testing.T) {
 		},
 		{
 			name: "jti is random and unique",
-			actions: func(t *testing.T, ts *TokenService) {
+			actions: func(t *testing.T, ts *JWTTokenService) {
 				a := newJTI()
 				b := newJTI()
 				require.NotEmpty(t, a)
@@ -134,7 +134,7 @@ func TestTokenService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ts := NewTokenService("s", time.Minute, time.Hour, newFakeRefreshStore())
+			ts := NewJWTTokenService("s", time.Minute, time.Hour, newFakeRefreshStore())
 			tt.actions(t, ts)
 		})
 	}

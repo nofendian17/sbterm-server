@@ -42,14 +42,7 @@ type Handlers struct {
 	Admin     *admin.AdminHandler
 }
 
-// AuthDeps are the dependencies the auth middleware needs.
-type AuthDeps struct {
-	Verifier appmw.TokenVerifier
-	Loader   appmw.UserLoader
-	Checker  appmw.PermissionChecker
-}
-
-func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, opts ...RouterOption) chi.Router {
+func NewRouter(hs Handlers, authDeps appmw.AuthDeps, logger log.Logger, opts ...RouterOption) chi.Router {
 	o := &routerOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -92,7 +85,7 @@ func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, opts ...Router
 
 			// Auth (authenticated)
 			r.Group(func(r chi.Router) {
-				r.Use(appmw.AuthMiddleware(authDeps.Verifier, authDeps.Loader, authDeps.Checker))
+				r.Use(appmw.AuthMiddleware(authDeps))
 				r.Post("/auth/logout", hs.Auth.Logout)
 
 				// Users

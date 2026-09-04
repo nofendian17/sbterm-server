@@ -57,11 +57,11 @@ func (f *fakeRefreshStore) DeleteRefresh(_ context.Context, jti string) error {
 
 var _ repository.RefreshStore = (*fakeRefreshStore)(nil)
 
-// newTestTokenService returns a real TokenService backed by an in-memory
+// newTestTokenService returns a real JWTTokenService backed by an in-memory
 // RefreshStore so token issuance/verification/rotation can be exercised without
 // Redis.
-func newTestTokenService() *token.TokenService {
-	return token.NewTokenService("test-secret", 15*time.Minute, time.Hour, newFakeRefreshStore())
+func newTestTokenService() *token.JWTTokenService {
+	return token.NewJWTTokenService("test-secret", 15*time.Minute, time.Hour, newFakeRefreshStore())
 }
 
 // commitTxManager is a TxManager stub that runs fn in a "transaction" with a nil
@@ -329,10 +329,10 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 
 		repo := mocks.NewMockUserRepository(ctrl)
 		// Separate store that never received the jti.
-		ts := token.NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore())
+		ts := token.NewJWTTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore())
 		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
 
-		_, bogus, err := token.NewTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).GenerateTokenPair(context.Background(), "uX", nil)
+		_, bogus, err := token.NewJWTTokenService("test-secret", time.Minute, time.Hour, newFakeRefreshStore()).Sign(context.Background(), "uX", nil)
 		require.NoError(t, err)
 
 		_, _, err = uc.Refresh(context.Background(), bogus)

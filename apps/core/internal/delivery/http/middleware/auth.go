@@ -6,10 +6,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
+	"github.com/nofendian17/sbterm/apps/core/internal/repository"
+	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
 	"github.com/nofendian17/sbterm/libs/pkg/response"
 )
 
@@ -38,24 +41,22 @@ var KnownPermissions = []string{
 }
 
 // TokenVerifier verifies an access token and returns the user ID.
+// Implemented by *token.JWTTokenService.
 type TokenVerifier interface {
 	VerifyAccess(token string) (userID string, err error)
 }
 
-// UserLoader loads a user by ID.
-type UserLoader interface {
-	GetByID(ctx context.Context, id string) (domain.User, error)
-}
-
-// PermissionChecker checks whether a user has a specific permission.
-type PermissionChecker interface {
-	HasPermission(ctx context.Context, userID string, perm string) (bool, error)
+// AuthDeps holds the dependencies the auth middleware needs.
+type AuthDeps struct {
+	Verifier TokenVerifier             // interface — narrow, only what middleware needs
+	Loader   repository.UserRepository // full interface from repository port
+	Checker  usecase.RBACUsecase       // full interface from usecase layer
 }
 
 // AuthMiddleware validates the Bearer token, loads the user, enforces
 // account expiry and suspension, and injects the user ID and permission set
 // into the request context.
-func AuthMiddleware(verifier TokenVerifier, loader UserLoader, checker PermissionChecker) func(http.Handler) http.Handler {
+func AuthMiddleware(deps AuthDeps) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractBearerToken(r)
@@ -64,13 +65,13 @@ func AuthMiddleware(verifier TokenVerifier, loader UserLoader, checker Permissio
 				return
 			}
 
-			userID, err := verifier.VerifyAccess(token)
+			userID, err := deps.Verifier.VerifyAccess(token)
 			if err != nil {
 				response.Error(w, http.StatusUnauthorized, response.CodeUnauthorized, "invalid or expired token")
 				return
 			}
 
-			user, err := loader.GetByID(r.Context(), userID)
+			user, err := deps.Loader.GetByID(r.Context(), userID)
 			if err != nil {
 				if errors.Is(err, domain.ErrUserNotFound) {
 					response.Error(w, http.StatusUnauthorized, response.CodeUnauthorized, "user not found")
@@ -93,7 +94,7 @@ func AuthMiddleware(verifier TokenVerifier, loader UserLoader, checker Permissio
 			}
 
 			// Resolve permissions (uses cache under the hood)
-			perms, err := resolvePermissions(checker, r.Context(), userID)
+			perms, err := resolvePermissions(deps.Checker, r.Context(), userID)
 			if err != nil {
 				response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 				return
@@ -117,11 +118,9 @@ func RequirePermission(perm string) func(http.Handler) http.Handler {
 				response.Error(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
 				return
 			}
-			for _, p := range perms {
-				if p == perm {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if slices.Contains(perms, perm) {
+				next.ServeHTTP(w, r)
+				return
 			}
 			response.Error(w, http.StatusForbidden, response.CodeForbidden, "forbidden")
 		})
@@ -150,7 +149,7 @@ func extractBearerToken(r *http.Request) string {
 }
 
 // resolvePermissions resolves the user's permission set using the checker.
-func resolvePermissions(checker PermissionChecker, ctx context.Context, userID string) ([]string, error) {
+func resolvePermissions(checker usecase.RBACUsecase, ctx context.Context, userID string) ([]string, error) {
 	perms := make([]string, 0, len(KnownPermissions))
 	for _, p := range KnownPermissions {
 		ok, err := checker.HasPermission(ctx, userID, p)

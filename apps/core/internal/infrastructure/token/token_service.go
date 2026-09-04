@@ -28,24 +28,37 @@ type tokenClaims struct {
 	Typ string `json:"typ"`
 }
 
-// TokenService issues and verifies signed JWT access/refresh pairs and
-// persists refresh JTIs through a RefreshStore.
-type TokenService struct {
+// TokenService issues and verifies signed access/refresh token pairs. The
+// interface keeps callers (and tests) decoupled from the JWT implementation.
+type TokenService interface {
+	// Sign issues a signed access JWT and a signed refresh JWT for userID.
+	Sign(ctx context.Context, userID string, expiresAt *time.Time) (access, refresh string, err error)
+	// VerifyAccess verifies an access JWT and returns the userID.
+	VerifyAccess(token string) (userID string, err error)
+	// VerifyRefresh verifies a refresh JWT and returns the userID and the token jti.
+	VerifyRefresh(token string) (userID, jti string, err error)
+}
+
+// JWTTokenService is the JWT-based implementation of TokenService. It issues
+// and verifies signed access/refresh pairs and persists refresh JTIs through
+// a RefreshStore.
+type JWTTokenService struct {
 	secret       string
 	accessTTL    time.Duration
 	refreshTTL   time.Duration
 	refreshStore repository.RefreshStore
 }
 
-var _ repository.TokenIssuer = (*TokenService)(nil)
+var _ TokenService = (*JWTTokenService)(nil)
+var _ repository.TokenIssuer = (*JWTTokenService)(nil)
 
-// NewTokenService builds a TokenService.
+// NewJWTTokenService builds a JWTTokenService.
 //
-// The expiresAt *time.Time parameter of GenerateTokenPair is reserved (per-user
-// expiry is enforced server-side in a later task) and currently ignored; the
-// signature is kept for forward compatibility.
-func NewTokenService(secret string, accessTTL, refreshTTL time.Duration, store repository.RefreshStore) *TokenService {
-	return &TokenService{
+// The expiresAt *time.Time parameter of Sign is reserved (per-user expiry is
+// enforced server-side in a later task) and currently ignored; the signature
+// is kept for forward compatibility.
+func NewJWTTokenService(secret string, accessTTL, refreshTTL time.Duration, store repository.RefreshStore) *JWTTokenService {
+	return &JWTTokenService{
 		secret:       secret,
 		accessTTL:    accessTTL,
 		refreshTTL:   refreshTTL,
@@ -53,10 +66,8 @@ func NewTokenService(secret string, accessTTL, refreshTTL time.Duration, store r
 	}
 }
 
-// GenerateTokenPair issues a signed access JWT and a signed refresh JWT for
-// userID. The refresh jti is persisted in the RefreshStore. The expiresAt
-// argument is reserved and ignored.
-func (s *TokenService) GenerateTokenPair(ctx context.Context, userID string, _ *time.Time) (access, refresh string, err error) {
+// Sign implements TokenService.
+func (s *JWTTokenService) Sign(ctx context.Context, userID string, _ *time.Time) (access, refresh string, err error) {
 	now := time.Now()
 
 	access, err = s.signToken(
@@ -91,9 +102,16 @@ func (s *TokenService) GenerateTokenPair(ctx context.Context, userID string, _ *
 	return access, refresh, nil
 }
 
+// GenerateTokenPair is an alias for Sign. It exists so the JWTTokenService
+// continues to satisfy repository.TokenIssuer (which is the wider port the
+// auth usecase depends on). New code should call Sign.
+func (s *JWTTokenService) GenerateTokenPair(ctx context.Context, userID string, expiresAt *time.Time) (access, refresh string, err error) {
+	return s.Sign(ctx, userID, expiresAt)
+}
+
 // VerifyAccess verifies a signed access JWT (correct secret, HS256, valid
 // typ, not expired) and returns the subject userID.
-func (s *TokenService) VerifyAccess(token string) (string, error) {
+func (s *JWTTokenService) VerifyAccess(token string) (string, error) {
 	claims, err := s.parse(token, claimTypeAccess)
 	if err != nil {
 		return "", err
@@ -108,7 +126,7 @@ func (s *TokenService) VerifyAccess(token string) (string, error) {
 // typ="refresh", not expired) and returns the subject userID and the refresh
 // jti. The auth usecase uses the jti to consume/rotate/delete the refresh
 // token in the RefreshStore.
-func (s *TokenService) VerifyRefresh(token string) (userID, jti string, err error) {
+func (s *JWTTokenService) VerifyRefresh(token string) (userID, jti string, err error) {
 	claims, err := s.parse(token, claimTypeRefresh)
 	if err != nil {
 		return "", "", err
@@ -120,22 +138,22 @@ func (s *TokenService) VerifyRefresh(token string) (userID, jti string, err erro
 }
 
 // StoreRefresh persists a refresh jti. See repository.RefreshStore.
-func (s *TokenService) StoreRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error {
+func (s *JWTTokenService) StoreRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error {
 	return s.refreshStore.StoreRefresh(ctx, jti, userID, ttl)
 }
 
 // ConsumeRefresh atomically reads the userID for a stored refresh jti and
 // deletes the key. See repository.RefreshStore for semantics.
-func (s *TokenService) ConsumeRefresh(ctx context.Context, jti string) (string, bool) {
+func (s *JWTTokenService) ConsumeRefresh(ctx context.Context, jti string) (string, bool) {
 	return s.refreshStore.ConsumeRefresh(ctx, jti)
 }
 
 // DeleteRefresh removes a stored refresh jti. See repository.RefreshStore.
-func (s *TokenService) DeleteRefresh(ctx context.Context, jti string) error {
+func (s *JWTTokenService) DeleteRefresh(ctx context.Context, jti string) error {
 	return s.refreshStore.DeleteRefresh(ctx, jti)
 }
 
-func (s *TokenService) signToken(userID, typ string, ttl time.Duration, now time.Time) (string, error) {
+func (s *JWTTokenService) signToken(userID, typ string, ttl time.Duration, now time.Time) (string, error) {
 	claims := tokenClaims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
@@ -153,7 +171,7 @@ func (s *TokenService) signToken(userID, typ string, ttl time.Duration, now time
 	return signed, nil
 }
 
-func (s *TokenService) parse(token, wantTyp string) (*tokenClaims, error) {
+func (s *JWTTokenService) parse(token, wantTyp string) (*tokenClaims, error) {
 	claims := &tokenClaims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

@@ -26,17 +26,15 @@ func NewHealthUsecase(repo repository.HealthRepository) *healthUsecase {
 }
 
 func (u *healthUsecase) GetHealth(ctx context.Context) (*domain.HealthStatus, error) {
-	dbConnected := u.repo.Ping(ctx) == nil
-	redisConnected := u.repo.PingRedis(ctx) == nil
+	cacheConnected := u.repo.PingCache(ctx) == nil
 
 	status := statusOK
-	if !dbConnected || !redisConnected {
+	if !cacheConnected {
 		status = statusDegraded
 	}
 
 	return &domain.HealthStatus{
 		Status:         status,
-		DBConnected:    dbConnected,
-		RedisConnected: redisConnected,
+		CacheConnected: cacheConnected,
 	}, nil
 }

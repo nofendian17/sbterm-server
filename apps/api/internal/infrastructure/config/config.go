@@ -22,7 +22,6 @@ var version = "dev"
 type Config struct {
 	App       AppConfig       `mapstructure:"app"`
 	Port      string          `mapstructure:"port"`
-	Database  DatabaseConfig  `mapstructure:"database"`
 	Redis     RedisConfig     `mapstructure:"redis"`
 	Stockbit  StockbitConfig  `mapstructure:"stockbit"`
 	Log       LogConfig       `mapstructure:"log"`
@@ -33,14 +32,6 @@ type Config struct {
 type AppConfig struct {
 	Name    string `mapstructure:"name"`
 	Version string `mapstructure:"version"`
-}
-
-type DatabaseConfig struct {
-	URL             string        `mapstructure:"url"`
-	MaxConns        int32         `mapstructure:"max_conns"`
-	MinConns        int32         `mapstructure:"min_conns"`
-	MaxConnLifetime time.Duration `mapstructure:"max_conn_lifetime"`
-	MaxConnIdleTime time.Duration `mapstructure:"max_conn_idle_time"`
 }
 
 type RedisConfig struct {
@@ -108,11 +99,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.name", "sbterm-server")
 	v.SetDefault("app.version", version)
 	v.SetDefault("port", ":8080")
-	v.SetDefault("database.url", "")
-	v.SetDefault("database.max_conns", 10)
-	v.SetDefault("database.min_conns", 0)
-	v.SetDefault("database.max_conn_lifetime", 30*time.Minute)
-	v.SetDefault("database.max_conn_idle_time", 5*time.Minute)
 	v.SetDefault("redis.url", "redis://localhost:6379/0")
 	v.SetDefault("redis.max_retries", 3)
 	v.SetDefault("redis.pool_size", 10)

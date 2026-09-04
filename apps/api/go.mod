@@ -9,10 +9,8 @@ replace github.com/nofendian17/sbterm/libs/stockbit => ../../libs/stockbit
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/go-chi/chi/v5 v5.3.2
-	github.com/jackc/pgx/v5 v5.10.0
 	github.com/nofendian17/sbterm/libs/pkg v0.0.0
 	github.com/nofendian17/sbterm/libs/stockbit v0.0.0-00010101000000-000000000000
-	github.com/pashagolub/pgxmock/v5 v5.1.0
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/samber/do/v2 v2.1.0
 	github.com/samber/slog-chi v1.19.1
@@ -32,9 +30,6 @@ require (
 	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/gojek/heimdall/v8 v8.0.0 // indirect
-	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect

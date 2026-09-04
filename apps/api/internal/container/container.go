@@ -47,7 +47,6 @@ import (
 	"github.com/nofendian17/sbterm/apps/api/internal/delivery/http/trending"
 	"github.com/nofendian17/sbterm/apps/api/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm/apps/api/internal/infrastructure/config"
-	"github.com/nofendian17/sbterm/apps/api/internal/infrastructure/database"
 	infraRepo "github.com/nofendian17/sbterm/apps/api/internal/infrastructure/repository"
 	"github.com/nofendian17/sbterm/apps/api/internal/repository"
 	"github.com/nofendian17/sbterm/apps/api/internal/usecase"
@@ -81,18 +80,6 @@ func provideCommon(injector *do.RootScope) {
 }
 
 func provideInfrastructure(injector *do.RootScope) {
-	do.Provide(injector, func(i do.Injector) (*database.Postgres, error) {
-		cfg := do.MustInvoke[*config.Config](i)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		return database.New(ctx, cfg.Database.URL,
-			database.WithMaxConns(cfg.Database.MaxConns),
-			database.WithMinConns(cfg.Database.MinConns),
-			database.WithMaxConnLifetime(cfg.Database.MaxConnLifetime),
-			database.WithMaxConnIdleTime(cfg.Database.MaxConnIdleTime),
-		)
-	})
-
 	do.Provide(injector, func(i do.Injector) (*cache.Redis, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -109,14 +96,8 @@ func provideInfrastructure(injector *do.RootScope) {
 }
 
 func provideRepositories(injector *do.RootScope) {
-	do.Provide(injector, func(i do.Injector) (*infraRepo.TxManagerImpl, error) {
-		return infraRepo.NewTxManager(do.MustInvoke[*database.Postgres](i)), nil
-	})
-	do.MustAs[*infraRepo.TxManagerImpl, repository.TxManager](injector)
-
 	do.Provide(injector, func(i do.Injector) (*infraRepo.HealthRepository, error) {
 		return infraRepo.NewHealthRepository(
-			do.MustInvoke[*database.Postgres](i),
 			do.MustInvoke[*cache.Redis](i),
 		), nil
 	})
@@ -772,16 +753,13 @@ func pingService[T pinger](ctx context.Context, injector *do.RootScope, name str
 	return nil
 }
 
-// pingInfra verifies database and Redis connectivity before the server starts.
+// pingInfra verifies Redis connectivity before the server starts.
 func pingInfra(injector *do.RootScope) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error {
-		return pingService[*database.Postgres](ctx, injector, "postgres")
-	})
 	g.Go(func() error {
 		return pingService[*cache.Redis](ctx, injector, "redis")
 	})

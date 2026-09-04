@@ -15,39 +15,20 @@ import (
 func TestHealthUsecaseGetHealth(t *testing.T) {
 	tests := []struct {
 		name               string
-		pingErr            error
-		pingRedisErr       error
+		pingCacheErr       error
 		wantStatus         string
-		wantDBConnected    bool
-		wantRedisConnected bool
+		wantCacheConnected bool
 	}{
 		{
-			name:               "database and redis connected",
+			name:               "cache connected",
 			wantStatus:         statusOK,
-			wantDBConnected:    true,
-			wantRedisConnected: true,
+			wantCacheConnected: true,
 		},
 		{
-			name:               "database unavailable",
-			pingErr:            errors.New("connection refused"),
+			name:               "cache unavailable",
+			pingCacheErr:       errors.New("connection refused"),
 			wantStatus:         statusDegraded,
-			wantDBConnected:    false,
-			wantRedisConnected: true,
-		},
-		{
-			name:               "redis unavailable",
-			pingRedisErr:       errors.New("connection refused"),
-			wantStatus:         statusDegraded,
-			wantDBConnected:    true,
-			wantRedisConnected: false,
-		},
-		{
-			name:               "database and redis unavailable",
-			pingErr:            errors.New("db down"),
-			pingRedisErr:       errors.New("redis down"),
-			wantStatus:         statusDegraded,
-			wantDBConnected:    false,
-			wantRedisConnected: false,
+			wantCacheConnected: false,
 		},
 	}
 
@@ -57,15 +38,13 @@ func TestHealthUsecaseGetHealth(t *testing.T) {
 			defer ctrl.Finish()
 
 			repo := mocks.NewMockHealthRepository(ctrl)
-			repo.EXPECT().Ping(gomock.Any()).Return(tt.pingErr)
-			repo.EXPECT().PingRedis(gomock.Any()).Return(tt.pingRedisErr)
+			repo.EXPECT().PingCache(gomock.Any()).Return(tt.pingCacheErr)
 
 			uc := NewHealthUsecase(repo)
 			status, err := uc.GetHealth(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, status.Status)
-			assert.Equal(t, tt.wantDBConnected, status.DBConnected)
-			assert.Equal(t, tt.wantRedisConnected, status.RedisConnected)
+			assert.Equal(t, tt.wantCacheConnected, status.CacheConnected)
 		})
 	}
 }

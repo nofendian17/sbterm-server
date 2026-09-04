@@ -17,12 +17,6 @@ func defaultConfig() *Config {
 			Version: "dev",
 		},
 		Port: ":8080",
-		Database: DatabaseConfig{
-			MaxConns:        10,
-			MinConns:        0,
-			MaxConnLifetime: 30 * time.Minute,
-			MaxConnIdleTime: 5 * time.Minute,
-		},
 		Redis: RedisConfig{
 			URL:          "redis://localhost:6379/0",
 			MaxRetries:   3,
@@ -72,8 +66,6 @@ func TestLoadFromConfigFile(t *testing.T) {
   name: custom-app
   version: 2.0.0
 port: ":9090"
-database:
-  max_conns: 42
 redis:
   pool_size: 25
 log:
@@ -83,7 +75,6 @@ log:
 				c.App.Name = "custom-app"
 				c.App.Version = "2.0.0"
 				c.Port = ":9090"
-				c.Database.MaxConns = 42
 				c.Redis.PoolSize = 25
 				c.Log.Format = "json"
 			},
@@ -94,12 +85,6 @@ log:
   name: sbterm
   version: 1.2.3
 port: ":9090"
-database:
-  url: postgres://u:p@host:5432/db
-  max_conns: 25
-  min_conns: 2
-  max_conn_idle_time: 1m
-  max_conn_lifetime: 10m
 redis:
   url: redis://cache:6379/1
   max_retries: 5
@@ -131,13 +116,6 @@ http:
 				c.App.Name = "sbterm"
 				c.App.Version = "1.2.3"
 				c.Port = ":9090"
-				c.Database = DatabaseConfig{
-					URL:             "postgres://u:p@host:5432/db",
-					MaxConns:        25,
-					MinConns:        2,
-					MaxConnIdleTime: 1 * time.Minute,
-					MaxConnLifetime: 10 * time.Minute,
-				}
 				c.Redis = RedisConfig{
 					URL:          "redis://cache:6379/1",
 					MaxRetries:   5,

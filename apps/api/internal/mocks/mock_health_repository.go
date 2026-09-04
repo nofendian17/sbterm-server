@@ -40,78 +40,40 @@ func (m *MockHealthRepository) EXPECT() *MockHealthRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Ping mocks base method.
-func (m *MockHealthRepository) Ping(ctx context.Context) error {
+// PingCache mocks base method.
+func (m *MockHealthRepository) PingCache(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Ping", ctx)
+	ret := m.ctrl.Call(m, "PingCache", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Ping indicates an expected call of Ping.
-func (mr *MockHealthRepositoryMockRecorder) Ping(ctx any) *MockHealthRepositoryPingCall {
+// PingCache indicates an expected call of PingCache.
+func (mr *MockHealthRepositoryMockRecorder) PingCache(ctx any) *MockHealthRepositoryPingCacheCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockHealthRepository)(nil).Ping), ctx)
-	return &MockHealthRepositoryPingCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PingCache", reflect.TypeOf((*MockHealthRepository)(nil).PingCache), ctx)
+	return &MockHealthRepositoryPingCacheCall{Call: call}
 }
 
-// MockHealthRepositoryPingCall wrap *gomock.Call
-type MockHealthRepositoryPingCall struct {
+// MockHealthRepositoryPingCacheCall wrap *gomock.Call
+type MockHealthRepositoryPingCacheCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockHealthRepositoryPingCall) Return(arg0 error) *MockHealthRepositoryPingCall {
+func (c *MockHealthRepositoryPingCacheCall) Return(arg0 error) *MockHealthRepositoryPingCacheCall {
 	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockHealthRepositoryPingCall) Do(f func(context.Context) error) *MockHealthRepositoryPingCall {
+func (c *MockHealthRepositoryPingCacheCall) Do(f func(context.Context) error) *MockHealthRepositoryPingCacheCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHealthRepositoryPingCall) DoAndReturn(f func(context.Context) error) *MockHealthRepositoryPingCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
-// PingRedis mocks base method.
-func (m *MockHealthRepository) PingRedis(ctx context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PingRedis", ctx)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// PingRedis indicates an expected call of PingRedis.
-func (mr *MockHealthRepositoryMockRecorder) PingRedis(ctx any) *MockHealthRepositoryPingRedisCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PingRedis", reflect.TypeOf((*MockHealthRepository)(nil).PingRedis), ctx)
-	return &MockHealthRepositoryPingRedisCall{Call: call}
-}
-
-// MockHealthRepositoryPingRedisCall wrap *gomock.Call
-type MockHealthRepositoryPingRedisCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockHealthRepositoryPingRedisCall) Return(arg0 error) *MockHealthRepositoryPingRedisCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockHealthRepositoryPingRedisCall) Do(f func(context.Context) error) *MockHealthRepositoryPingRedisCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockHealthRepositoryPingRedisCall) DoAndReturn(f func(context.Context) error) *MockHealthRepositoryPingRedisCall {
+func (c *MockHealthRepositoryPingCacheCall) DoAndReturn(f func(context.Context) error) *MockHealthRepositoryPingCacheCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

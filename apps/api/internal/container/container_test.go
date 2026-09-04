@@ -2,12 +2,10 @@ package container
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"syscall"
@@ -25,20 +23,13 @@ import (
 	"github.com/nofendian17/sbterm/libs/stockbit"
 )
 
-func testConfig(databaseURL, redisURL string) *config.Config {
+func testConfig(redisURL string) *config.Config {
 	return &config.Config{
 		App: config.AppConfig{
 			Name:    "test-app",
 			Version: "1.0.0",
 		},
 		Port: ":9999",
-		Database: config.DatabaseConfig{
-			URL:             databaseURL,
-			MaxConns:        10,
-			MinConns:        0,
-			MaxConnLifetime: 30 * time.Minute,
-			MaxConnIdleTime: 5 * time.Minute,
-		},
 		Redis: config.RedisConfig{
 			URL:          redisURL,
 			MaxRetries:   1,
@@ -78,36 +69,8 @@ func TestNew(t *testing.T) {
 		check        func(t *testing.T, srv *deliveryhttp.Server)
 	}{
 		{
-			name: "dead database returns 503 degraded with database down",
-			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
-			check: func(t *testing.T, srv *deliveryhttp.Server) {
-				rec := httptest.NewRecorder()
-				req := httptest.NewRequest(http.MethodGet, "/health", nil)
-				srv.Handler().ServeHTTP(rec, req)
-
-				assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
-
-				var env struct {
-					Data struct {
-						Status   string `json:"status"`
-						Database string `json:"database"`
-						Redis    string `json:"redis"`
-					} `json:"data"`
-				}
-				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env))
-				assert.Equal(t, "degraded", env.Data.Status)
-				assert.Equal(t, "down", env.Data.Database)
-				assert.Equal(t, "up", env.Data.Redis)
-			},
-		},
-		{
-			name:         "malformed database url fails to build server",
-			cfg:          testConfig("://broken", testRedisURL(t)),
-			wantBuildErr: true,
-		},
-		{
 			name:         "malformed redis url fails to build server",
-			cfg:          testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", "://broken"),
+			cfg:          testConfig("://broken"),
 			wantBuildErr: true,
 		},
 	}
@@ -123,21 +86,23 @@ func TestNew(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			tt.check(t, srv)
+			if tt.check != nil {
+				tt.check(t, srv)
+			}
 		})
 	}
 }
 
-func TestPingInfraFailsWhenDatabaseUnreachable(t *testing.T) {
+func TestPingInfraFailsWhenRedisUnreachable(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     *config.Config
 		wantErr string
 	}{
 		{
-			name:    "dead database makes ping infra fail",
-			cfg:     testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
-			wantErr: "postgres unreachable",
+			name:    "dead redis makes ping infra fail",
+			cfg:     testConfig("redis://127.0.0.1:1/0?dial_timeout=1ms"),
+			wantErr: "redis unreachable",
 		},
 	}
 
@@ -163,14 +128,13 @@ func TestShutdownReportIncludesServices(t *testing.T) {
 		}
 	}{
 		{
-			name: "shutdown report includes http server, database, and redis",
-			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
+			name: "shutdown report includes http server and redis",
+			cfg:  testConfig(testRedisURL(t)),
 			wants: []struct {
 				service string
 				msg     string
 			}{
 				{service: "delivery/http.Server", msg: "shutdown report should include the http server, got: %v"},
-				{service: "database.Postgres", msg: "shutdown report should include the database, got: %v"},
 				{service: "cache.Redis", msg: "shutdown report should include redis, got: %v"},
 			},
 		},
@@ -328,7 +292,7 @@ func TestStockbitClientIsAuthenticatedWhenResolvedFirst(t *testing.T) {
 	}{
 		{
 			name: "resolving client directly matches refresher client",
-			cfg:  testConfig("postgres://user:pass@127.0.0.1:1/db?sslmode=disable&connect_timeout=1", testRedisURL(t)),
+			cfg:  testConfig(testRedisURL(t)),
 		},
 	}
 

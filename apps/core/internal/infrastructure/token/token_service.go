@@ -124,8 +124,8 @@ func (s *TokenService) StoreRefresh(ctx context.Context, jti, userID string, ttl
 	return s.refreshStore.StoreRefresh(ctx, jti, userID, ttl)
 }
 
-// ConsumeRefresh returns the userID for a stored refresh jti. See
-// repository.RefreshStore.
+// ConsumeRefresh atomically reads the userID for a stored refresh jti and
+// deletes the key. See repository.RefreshStore for semantics.
 func (s *TokenService) ConsumeRefresh(ctx context.Context, jti string) (string, bool) {
 	return s.refreshStore.ConsumeRefresh(ctx, jti)
 }

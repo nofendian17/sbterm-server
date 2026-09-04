@@ -218,3 +218,78 @@ func TestWatchlistHandler_Remove(t *testing.T) {
 		})
 	}
 }
+
+func TestWatchlistHandler_ListByAdmin(t *testing.T) {
+	tests := []struct {
+		name       string
+		pathID     string
+		callerID   string
+		setup      func(uc *mocks.MockWatchlistUsecase)
+		wantCode   int
+		wantCalled bool
+	}{
+		{
+			name:     "success - admin views target user watchlists",
+			pathID:   "target-uuid",
+			callerID: "admin-uuid",
+			setup: func(uc *mocks.MockWatchlistUsecase) {
+				uc.EXPECT().List(gomock.Any(), "target-uuid").Return([]domain.Watchlist{
+					{Symbol: "BBCA"},
+				}, nil)
+			},
+			wantCode:   http.StatusOK,
+			wantCalled: true,
+		},
+		{
+			name:       "missing path id",
+			pathID:     "",
+			callerID:   "admin-uuid",
+			setup:      func(uc *mocks.MockWatchlistUsecase) {},
+			wantCode:   http.StatusBadRequest,
+			wantCalled: false,
+		},
+		{
+			name:     "internal error",
+			pathID:   "target-uuid",
+			callerID: "admin-uuid",
+			setup: func(uc *mocks.MockWatchlistUsecase) {
+				uc.EXPECT().List(gomock.Any(), "target-uuid").Return(nil, errors.New("db error"))
+			},
+			wantCode: http.StatusInternalServerError,
+		},
+		{
+			name:     "path id overrides caller id (regression for IDOR-like misdirection)",
+			pathID:   "other-user",
+			callerID: "admin-caller",
+			setup: func(uc *mocks.MockWatchlistUsecase) {
+				uc.EXPECT().List(gomock.Any(), "other-user").Return([]domain.Watchlist{
+					{Symbol: "TLKM"},
+				}, nil)
+			},
+			wantCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			uc := mocks.NewMockWatchlistUsecase(ctrl)
+			tt.setup(uc)
+
+			handler := NewWatchlistHandler(uc, validator.New())
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/"+tt.pathID+"/watchlists", nil)
+			if tt.callerID != "" {
+				ctx := context.WithValue(req.Context(), middleware.CtxUserID, tt.callerID)
+				req = req.WithContext(ctx)
+			}
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", tt.pathID)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+			rec := httptest.NewRecorder()
+			handler.ListByAdmin(rec, req)
+
+			assert.Equal(t, tt.wantCode, rec.Code)
+		})
+	}
+}

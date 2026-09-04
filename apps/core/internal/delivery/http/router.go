@@ -125,7 +125,7 @@ func NewRouter(hs Handlers, authDeps AuthDeps, logger log.Logger, opts ...Router
 						r.Use(appmw.RequirePermission("admin:users:read"))
 						r.Get("/users", hs.Admin.ListUsers)
 						r.Get("/users/{id}", hs.Admin.GetUser)
-						r.Get("/users/{id}/watchlists", hs.Watchlist.List) // admin view of user watchlists
+						r.Get("/users/{id}/watchlists", hs.Watchlist.ListByAdmin) // admin view of user watchlists
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(appmw.RequirePermission("admin:users:manage"))

@@ -21,6 +21,7 @@ import (
 
 // fakeRefreshStore is a concurrent-safe in-memory RefreshStore for auth usecase
 // tests so token issuance/verification/rotation can be exercised without Redis.
+// ConsumeRefresh atomically reads and deletes to match the production contract.
 type fakeRefreshStore struct {
 	mu sync.Mutex
 	m  map[string]string
@@ -41,6 +42,9 @@ func (f *fakeRefreshStore) ConsumeRefresh(_ context.Context, jti string) (string
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	v, ok := f.m[jti]
+	if ok {
+		delete(f.m, jti)
+	}
 	return v, ok
 }
 
@@ -347,6 +351,36 @@ func TestAuthUsecase_Refresh(t *testing.T) {
 
 		_, _, err := uc.Refresh(context.Background(), "not.a.jwt")
 		is.Error(err)
+	})
+
+	t.Run("replay of already-rotated refresh token -> ErrInvalidCredentials", func(t *testing.T) {
+		// Once a refresh token has been rotated, a second use of the SAME token
+		// must fail. This guards against the TOCTOU race where two concurrent
+		// /auth/refresh requests with the same token could both issue a pair.
+		is := assert.New(t)
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		repo := mocks.NewMockUserRepository(ctrl)
+		// Allow up to 2 GetByID calls: one per concurrent refresh attempt below.
+		repo.EXPECT().GetByID(gomock.Any(), "u1").Return(domain.User{
+			ID: "u1", Email: "a@b.co",
+		}, nil).AnyTimes()
+
+		ts := newTestTokenService()
+		uc := NewAuthUsecase(repo, ts, commitTxManager{}, AuthConfig{})
+
+		_, oldRefresh, err := ts.GenerateTokenPair(context.Background(), "u1", nil)
+		require.NoError(t, err)
+
+		// First refresh succeeds.
+		_, _, err = uc.Refresh(context.Background(), oldRefresh)
+		is.NoError(err)
+
+		// Replay of the same (now-consumed) token must fail.
+		_, _, err = uc.Refresh(context.Background(), oldRefresh)
+		is.Error(err)
+		is.ErrorIs(err, domain.ErrInvalidCredentials)
 	})
 }
 

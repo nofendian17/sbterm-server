@@ -11,6 +11,17 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// consumeScript atomically GETs the value and DELetes the key in a single
+// round-trip, preventing a TOCTOU race between separate GET and DEL calls.
+var consumeScript = redis.NewScript(`
+	local v = redis.call('GET', KEYS[1])
+	if v then
+		redis.call('DEL', KEYS[1])
+		return v
+	end
+	return nil
+`)
+
 // refreshKeyPrefix is the Redis key prefix for stored refresh JTIs.
 const refreshKeyPrefix = "refresh:"
 
@@ -38,15 +49,20 @@ func (s *RedisRefreshStore) StoreRefresh(ctx context.Context, jti, userID string
 	return nil
 }
 
+// ConsumeRefresh atomically reads the userID for a stored refresh JTI and
+// deletes the key in a single Redis round-trip. This prevents a TOCTOU race
+// where concurrent requests could both pass a GET check before either's DEL
+// completes, defeating single-use rotation.
 func (s *RedisRefreshStore) ConsumeRefresh(ctx context.Context, jti string) (string, bool) {
-	v, err := s.client.Get(ctx, refreshKeyPrefix+jti).Result()
+	result, err := consumeScript.Run(ctx, s.client, []string{refreshKeyPrefix + jti}).Result()
 	if errors.Is(err, redis.Nil) {
 		return "", false
 	}
 	if err != nil {
 		return "", false
 	}
-	return v, true
+	userID, ok := result.(string)
+	return userID, ok
 }
 
 func (s *RedisRefreshStore) DeleteRefresh(ctx context.Context, jti string) error {

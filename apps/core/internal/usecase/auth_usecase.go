@@ -153,13 +153,10 @@ func (u *authUsecase) Refresh(ctx context.Context, refreshToken string) (string,
 		return "", "", domain.ErrInvalidCredentials
 	}
 
-	// Single-use: the jti must exist (it was stored when the pair was issued).
+	// Single-use: the jti must exist and is atomically consumed (read + delete)
+	// in one Redis round-trip, preventing concurrent replay via a TOCTOU race.
 	if _, ok := u.tokens.ConsumeRefresh(ctx, jti); !ok {
 		return "", "", domain.ErrInvalidCredentials
-	}
-	// Delete the old jti so it cannot be replayed (rotation).
-	if err := u.tokens.DeleteRefresh(ctx, jti); err != nil {
-		return "", "", fmt.Errorf("auth refresh: delete old jti: %w", err)
 	}
 
 	// Verify the user still exists and is not suspended/expired.

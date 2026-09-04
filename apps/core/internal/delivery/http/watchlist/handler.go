@@ -46,6 +46,25 @@ func (h *WatchlistHandler) List(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, items)
 }
 
+// ListByAdmin returns the watchlists for the user identified by the {id}
+// path parameter. It is used by the admin route to view another user's
+// watchlists instead of the requesting admin's own data.
+func (h *WatchlistHandler) ListByAdmin(w http.ResponseWriter, r *http.Request) {
+	targetUserID := chi.URLParam(r, "id")
+	if targetUserID == "" {
+		response.Error(w, http.StatusBadRequest, response.CodeBadRequest, "user id is required")
+		return
+	}
+
+	items, err := h.uc.List(r.Context(), targetUserID)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
+		return
+	}
+
+	response.OK(w, items)
+}
+
 func (h *WatchlistHandler) Add(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

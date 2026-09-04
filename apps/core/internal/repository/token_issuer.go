@@ -15,7 +15,8 @@ type TokenIssuer interface {
 	// VerifyRefresh verifies a refresh token and returns the subject userID
 	// and the token jti.
 	VerifyRefresh(token string) (userID, jti string, err error)
-	// ConsumeRefresh returns the userID for a stored refresh jti.
+	// ConsumeRefresh atomically reads the userID for a stored refresh JTI and
+	// deletes the key. See repository.RefreshStore for semantics.
 	ConsumeRefresh(ctx context.Context, jti string) (userID string, ok bool)
 	// DeleteRefresh removes a stored refresh jti (logout / rotation).
 	DeleteRefresh(ctx context.Context, jti string) error

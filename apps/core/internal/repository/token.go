@@ -13,8 +13,10 @@ type RefreshStore interface {
 	// StoreRefresh persists the mapping refresh:<jti> -> userID with the
 	// given TTL.
 	StoreRefresh(ctx context.Context, jti, userID string, ttl time.Duration) error
-	// ConsumeRefresh returns the userID for a stored jti and whether it
-	// existed. Later tasks may delete the jti on a successful consume.
+	// ConsumeRefresh atomically reads the userID for a stored refresh JTI and
+	// deletes the key. Returns the userID and true if the JTI existed, or
+	// ("", false) if it was already consumed or expired. The atomic read+delete
+	// prevents TOCTOU races on concurrent refresh attempts.
 	ConsumeRefresh(ctx context.Context, jti string) (userID string, ok bool)
 	// DeleteRefresh removes a stored jti (logout / rotation).
 	DeleteRefresh(ctx context.Context, jti string) error

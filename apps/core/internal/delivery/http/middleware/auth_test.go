@@ -103,16 +103,7 @@ func TestAuthMiddleware(t *testing.T) {
 			},
 			checker: func(ctrl *gomock.Controller) *mocks.MockRBACUsecase {
 				m := mocks.NewMockRBACUsecase(ctrl)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "auth:login").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "profile:read").Return(true, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "profile:write").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "watchlist:read").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "watchlist:write").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:roles:read").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:roles:write").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:users:read").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:users:manage").Return(false, nil)
-				m.EXPECT().HasPermission(gomock.Any(), "u1", "admin:rbac:assign").Return(false, nil)
+				m.EXPECT().ListPermissions(gomock.Any(), "u1").Return([]string{"profile:read"}, nil)
 				return m
 			},
 			wantCode: http.StatusOK,

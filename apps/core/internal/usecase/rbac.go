@@ -37,4 +37,9 @@ type RBACUsecase interface {
 	// HasPermission checks whether the given user holds the specified permission.
 	// Uses the permission cache to avoid repeated DB joins.
 	HasPermission(ctx context.Context, userID string, perm string) (bool, error)
+
+	// ListPermissions returns the full set of permission names granted to the
+	// user via all their assigned roles. Uses the permission cache to avoid
+	// repeated DB joins. Prefer this over calling HasPermission in a loop.
+	ListPermissions(ctx context.Context, userID string) ([]string, error)
 }

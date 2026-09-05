@@ -271,6 +271,45 @@ func (c *MockRBACRepositoryListRolesCall) DoAndReturn(f func(context.Context) ([
 	return c
 }
 
+// ListUserIDsByRole mocks base method.
+func (m *MockRBACRepository) ListUserIDsByRole(ctx context.Context, roleID string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListUserIDsByRole", ctx, roleID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListUserIDsByRole indicates an expected call of ListUserIDsByRole.
+func (mr *MockRBACRepositoryMockRecorder) ListUserIDsByRole(ctx, roleID any) *MockRBACRepositoryListUserIDsByRoleCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUserIDsByRole", reflect.TypeOf((*MockRBACRepository)(nil).ListUserIDsByRole), ctx, roleID)
+	return &MockRBACRepositoryListUserIDsByRoleCall{Call: call}
+}
+
+// MockRBACRepositoryListUserIDsByRoleCall wrap *gomock.Call
+type MockRBACRepositoryListUserIDsByRoleCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRBACRepositoryListUserIDsByRoleCall) Return(arg0 []string, arg1 error) *MockRBACRepositoryListUserIDsByRoleCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRBACRepositoryListUserIDsByRoleCall) Do(f func(context.Context, string) ([]string, error)) *MockRBACRepositoryListUserIDsByRoleCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRBACRepositoryListUserIDsByRoleCall) DoAndReturn(f func(context.Context, string) ([]string, error)) *MockRBACRepositoryListUserIDsByRoleCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListUserPermissions mocks base method.
 func (m *MockRBACRepository) ListUserPermissions(ctx context.Context, userID string) ([]string, error) {
 	m.ctrl.T.Helper()

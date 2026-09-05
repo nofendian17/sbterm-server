@@ -70,6 +70,30 @@ func TestPermissionCache(t *testing.T) {
 			wantOK:    true,
 			wantPerms: []string{},
 		},
+		{
+			name:   "invalidate users removes multiple entries",
+			userID: "u1",
+			perms:  []string{},
+			ttl:    5 * time.Minute,
+			setup: func(t *testing.T, cache *RedisPermissionCache) {
+				require.NoError(t, cache.Set(context.Background(), "u1", []string{"profile:read"}, 5*time.Minute))
+				require.NoError(t, cache.Set(context.Background(), "u2", []string{"admin:roles:read"}, 5*time.Minute))
+				require.NoError(t, cache.Invalidate(context.Background(), "u1", "u2"))
+			},
+			wantOK: false,
+		},
+		{
+			name:   "invalidate with no user ids is a no-op",
+			userID: "u1",
+			perms:  []string{"profile:read"},
+			ttl:    5 * time.Minute,
+			setup: func(t *testing.T, cache *RedisPermissionCache) {
+				require.NoError(t, cache.Set(context.Background(), "u1", []string{"profile:read"}, 5*time.Minute))
+				require.NoError(t, cache.Invalidate(context.Background()))
+			},
+			wantOK:    true,
+			wantPerms: []string{"profile:read"},
+		},
 	}
 
 	for _, tt := range tests {

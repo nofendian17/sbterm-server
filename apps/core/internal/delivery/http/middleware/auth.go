@@ -25,21 +25,6 @@ const (
 	CtxPermissions contextKey = "permissions"
 )
 
-// KnownPermissions is the list of all permissions resolved by AuthMiddleware.
-// To add a new permission, add it here and to the RBAC seed migration.
-var KnownPermissions = []string{
-	"auth:login",
-	"profile:read",
-	"profile:write",
-	"watchlist:read",
-	"watchlist:write",
-	"admin:roles:read",
-	"admin:roles:write",
-	"admin:users:read",
-	"admin:users:manage",
-	"admin:rbac:assign",
-}
-
 // TokenVerifier verifies an access token and returns the user ID.
 // Implemented by *token.JWTTokenService.
 type TokenVerifier interface {
@@ -93,8 +78,8 @@ func AuthMiddleware(deps AuthDeps) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Resolve permissions (uses cache under the hood)
-			perms, err := resolvePermissions(deps.Checker, r.Context(), userID)
+			// Resolve permissions (single cache lookup or DB join on miss)
+			perms, err := deps.Checker.ListPermissions(r.Context(), userID)
 			if err != nil {
 				response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 				return
@@ -146,19 +131,4 @@ func extractBearerToken(r *http.Request) string {
 		return ""
 	}
 	return strings.TrimPrefix(auth, "Bearer ")
-}
-
-// resolvePermissions resolves the user's permission set using the checker.
-func resolvePermissions(checker usecase.RBACUsecase, ctx context.Context, userID string) ([]string, error) {
-	perms := make([]string, 0, len(KnownPermissions))
-	for _, p := range KnownPermissions {
-		ok, err := checker.HasPermission(ctx, userID, p)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			perms = append(perms, p)
-		}
-	}
-	return perms, nil
 }

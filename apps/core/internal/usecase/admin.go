@@ -11,6 +11,7 @@ import (
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
 
 //go:generate go run go.uber.org/mock/mockgen -source=admin.go -destination=../mocks/mock_admin_usecase.go -package=mocks -typed
@@ -21,9 +22,7 @@ type AdminUsecase interface {
 	ListUsers(ctx context.Context, page, limit int) ([]domain.User, int, error)
 	// GetUser returns a single user by ID.
 	GetUser(ctx context.Context, id string) (domain.User, error)
-	// SuspendUser soft-deletes a user.
-	SuspendUser(ctx context.Context, id string) error
-	// DeleteUser soft-deletes a user (alias for suspend in M1).
+	// DeleteUser soft-deletes a user.
 	DeleteUser(ctx context.Context, id string) error
 	// SetExpiry updates or extends a user's expires_at.
 	SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error
@@ -53,32 +52,44 @@ type AdminUsecase interface {
 type adminUsecase struct {
 	userRepo    repository.UserRepository
 	rbacUsecase RBACUsecase
+	cache       repository.PermissionCache
+	log         log.Logger
 }
 
 // NewAdminUsecase wires up the admin usecase.
-func NewAdminUsecase(userRepo repository.UserRepository, rbac RBACUsecase) AdminUsecase {
-	return &adminUsecase{userRepo: userRepo, rbacUsecase: rbac}
+func NewAdminUsecase(userRepo repository.UserRepository, rbac RBACUsecase, cache repository.PermissionCache, logger log.Logger) AdminUsecase {
+	return &adminUsecase{userRepo: userRepo, rbacUsecase: rbac, cache: cache, log: logger}
 }
 
 func (u *adminUsecase) ListUsers(ctx context.Context, page, limit int) ([]domain.User, int, error) {
-	// For M1, we return all non-deleted users (pagination is a TODO).
-	users, err := u.userRepo.ListAll(ctx)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	users, total, err := u.userRepo.ListUsersPage(ctx, page, limit)
 	if err != nil {
 		return nil, 0, fmt.Errorf("admin list users: %w", err)
 	}
-	return users, len(users), nil
+	return users, total, nil
 }
 
 func (u *adminUsecase) GetUser(ctx context.Context, id string) (domain.User, error) {
 	return u.userRepo.GetByID(ctx, id)
 }
 
-func (u *adminUsecase) SuspendUser(ctx context.Context, id string) error {
-	return u.userRepo.SoftDelete(ctx, id)
-}
-
 func (u *adminUsecase) DeleteUser(ctx context.Context, id string) error {
-	return u.userRepo.SoftDelete(ctx, id)
+	if err := u.userRepo.SoftDelete(ctx, id); err != nil {
+		return fmt.Errorf("admin delete user: %w", err)
+	}
+	if err := u.cache.Invalidate(ctx, id); err != nil {
+		u.log.Warn("admin: failed to invalidate permission cache after delete", "user_id", id, "error", err)
+	}
+	return nil
 }
 
 func (u *adminUsecase) SetExpiry(ctx context.Context, id string, expiresAt *time.Time) error {

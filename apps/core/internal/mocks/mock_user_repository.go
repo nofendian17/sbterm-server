@@ -196,41 +196,42 @@ func (c *MockUserRepositoryGetByIDCall) DoAndReturn(f func(context.Context, stri
 	return c
 }
 
-// ListAll mocks base method.
-func (m *MockUserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
+// ListUsersPage mocks base method.
+func (m *MockUserRepository) ListUsersPage(ctx context.Context, page, limit int) ([]domain.User, int, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAll", ctx)
+	ret := m.ctrl.Call(m, "ListUsersPage", ctx, page, limit)
 	ret0, _ := ret[0].([]domain.User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
-// ListAll indicates an expected call of ListAll.
-func (mr *MockUserRepositoryMockRecorder) ListAll(ctx any) *MockUserRepositoryListAllCall {
+// ListUsersPage indicates an expected call of ListUsersPage.
+func (mr *MockUserRepositoryMockRecorder) ListUsersPage(ctx, page, limit any) *MockUserRepositoryListUsersPageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockUserRepository)(nil).ListAll), ctx)
-	return &MockUserRepositoryListAllCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListUsersPage", reflect.TypeOf((*MockUserRepository)(nil).ListUsersPage), ctx, page, limit)
+	return &MockUserRepositoryListUsersPageCall{Call: call}
 }
 
-// MockUserRepositoryListAllCall wrap *gomock.Call
-type MockUserRepositoryListAllCall struct {
+// MockUserRepositoryListUsersPageCall wrap *gomock.Call
+type MockUserRepositoryListUsersPageCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockUserRepositoryListAllCall) Return(arg0 []domain.User, arg1 error) *MockUserRepositoryListAllCall {
-	c.Call = c.Call.Return(arg0, arg1)
+func (c *MockUserRepositoryListUsersPageCall) Return(arg0 []domain.User, arg1 int, arg2 error) *MockUserRepositoryListUsersPageCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockUserRepositoryListAllCall) Do(f func(context.Context) ([]domain.User, error)) *MockUserRepositoryListAllCall {
+func (c *MockUserRepositoryListUsersPageCall) Do(f func(context.Context, int, int) ([]domain.User, int, error)) *MockUserRepositoryListUsersPageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockUserRepositoryListAllCall) DoAndReturn(f func(context.Context) ([]domain.User, error)) *MockUserRepositoryListAllCall {
+func (c *MockUserRepositoryListUsersPageCall) DoAndReturn(f func(context.Context, int, int) ([]domain.User, int, error)) *MockUserRepositoryListUsersPageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

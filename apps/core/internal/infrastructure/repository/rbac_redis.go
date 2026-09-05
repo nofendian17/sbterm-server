@@ -57,9 +57,18 @@ func (c *RedisPermissionCache) Set(ctx context.Context, userID string, perms []s
 	return nil
 }
 
-// Invalidate removes the cached permission set for the given user.
-func (c *RedisPermissionCache) Invalidate(ctx context.Context, userID string) error {
-	if err := c.client.Del(ctx, permCacheKeyPrefix+userID).Err(); err != nil {
+// Invalidate removes the cached permission sets for the given user IDs. It
+// accepts one or many user IDs in a single round-trip. An empty call is a
+// no-op.
+func (c *RedisPermissionCache) Invalidate(ctx context.Context, userIDs ...string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	keys := make([]string, len(userIDs))
+	for i, id := range userIDs {
+		keys[i] = permCacheKeyPrefix + id
+	}
+	if err := c.client.Del(ctx, keys...).Err(); err != nil {
 		return fmt.Errorf("perm cache invalidate: %w", err)
 	}
 	return nil

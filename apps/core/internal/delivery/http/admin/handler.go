@@ -73,19 +73,6 @@ func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	response.OK(w, dto.ToUserResponse(user))
 }
 
-func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if err := h.uc.SuspendUser(r.Context(), id); err != nil {
-		if errors.Is(err, domain.ErrUserNotFound) {
-			response.Error(w, http.StatusNotFound, response.CodeNotFound, "user not found")
-			return
-		}
-		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
-		return
-	}
-	response.Message(w, http.StatusOK, "user suspended")
-}
-
 func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if err := h.uc.DeleteUser(r.Context(), id); err != nil {

@@ -127,7 +127,6 @@ func NewRouter(hs Handlers, authDeps appmw.AuthDeps, logger log.Logger, opts ...
 					})
 					r.Group(func(r chi.Router) {
 						r.Use(appmw.RequirePermission("admin:users:manage"))
-						r.Post("/users/{id}/suspend", hs.Admin.SuspendUser)
 						r.Patch("/users/{id}/expiry", hs.Admin.SetExpiry)
 						r.Delete("/users/{id}", hs.Admin.DeleteUser)
 					})

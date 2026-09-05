@@ -36,4 +36,7 @@ type RBACRepository interface {
 	// ListUserPermissions returns the deduplicated set of permission names
 	// (e.g. "profile:read") granted to the user via all their assigned roles.
 	ListUserPermissions(ctx context.Context, userID string) ([]string, error)
+	// ListUserIDsByRole returns the set of user IDs that hold the given role.
+	// Used for cache invalidation when a role or its permission grants change.
+	ListUserIDsByRole(ctx context.Context, roleID string) ([]string, error)
 }

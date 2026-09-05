@@ -77,6 +77,11 @@ func TestWatchlistRepository_Add(t *testing.T) {
 			name: "success",
 			w:    domain.Watchlist{UserID: "u1", Symbol: "BBCA", Label: "Bank"},
 			setup: func(mock pgxmock.PgxPoolIface) {
+				// Step 1: no soft-deleted row to reactivate.
+				mock.ExpectExec(`UPDATE watchlists SET deleted_at = NULL`).
+					WithArgs("u1", "BBCA", "Bank").
+					WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+				// Step 2: insert succeeds.
 				mock.ExpectExec(`INSERT INTO watchlists`).
 					WithArgs("u1", "BBCA", "Bank").
 					WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -86,6 +91,11 @@ func TestWatchlistRepository_Add(t *testing.T) {
 			name: "duplicate symbol",
 			w:    domain.Watchlist{UserID: "u1", Symbol: "BBCA", Label: "Bank"},
 			setup: func(mock pgxmock.PgxPoolIface) {
+				// Step 1: no soft-deleted row to reactivate.
+				mock.ExpectExec(`UPDATE watchlists SET deleted_at = NULL`).
+					WithArgs("u1", "BBCA", "Bank").
+					WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+				// Step 2: insert fails on the unique constraint.
 				mock.ExpectExec(`INSERT INTO watchlists`).
 					WithArgs("u1", "BBCA", "Bank").
 					WillReturnError(pgUniqueViolation())
@@ -114,9 +124,9 @@ func TestWatchlistRepository_Add(t *testing.T) {
 func TestWatchlistRepository_RemoveBySymbol(t *testing.T) {
 	mock, _ := pgxmock.NewPool()
 	defer mock.Close()
-	mock.ExpectExec(`DELETE FROM watchlists`).
+	mock.ExpectExec(`UPDATE watchlists SET deleted_at`).
 		WithArgs("u1", "BBCA").
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewWatchlistRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RemoveBySymbol(context.Background(), "u1", "BBCA"))

@@ -144,16 +144,18 @@ func TestRBACRepository_DeleteRole(t *testing.T) {
 			name: "success",
 			id:   "r1",
 			setup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectExec(`DELETE FROM roles`).WithArgs("r1").
-					WillReturnResult(pgxmock.NewResult("DELETE", 1))
+				mock.ExpectExec(`UPDATE roles SET deleted_at`).
+					WithArgs("r1").
+					WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 			},
 		},
 		{
 			name: "not found",
 			id:   "missing",
 			setup: func(mock pgxmock.PgxPoolIface) {
-				mock.ExpectExec(`DELETE FROM roles`).WithArgs("missing").
-					WillReturnResult(pgxmock.NewResult("DELETE", 0))
+				mock.ExpectExec(`UPDATE roles SET deleted_at`).
+					WithArgs("missing").
+					WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 			},
 			wantErr: domain.ErrRoleNotFound,
 		},
@@ -191,9 +193,9 @@ func TestRBACRepository_AssignPermissionToRole(t *testing.T) {
 func TestRBACRepository_RevokePermissionFromRole(t *testing.T) {
 	mock, _ := pgxmock.NewPool()
 	defer mock.Close()
-	mock.ExpectExec(`DELETE FROM role_permissions`).
+	mock.ExpectExec(`UPDATE role_permissions SET deleted_at`).
 		WithArgs("r1", "p1").
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RevokePermissionFromRole(context.Background(), "r1", "p1"))
@@ -215,9 +217,9 @@ func TestRBACRepository_AssignRoleToUser(t *testing.T) {
 func TestRBACRepository_RevokeRoleFromUser(t *testing.T) {
 	mock, _ := pgxmock.NewPool()
 	defer mock.Close()
-	mock.ExpectExec(`DELETE FROM user_roles`).
+	mock.ExpectExec(`UPDATE user_roles SET deleted_at`).
 		WithArgs("u1", "r1").
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewRBACRepository(AdaptQuerier(mock))
 	assert.NoError(t, repo.RevokeRoleFromUser(context.Background(), "u1", "r1"))
@@ -262,6 +264,55 @@ func TestRBACRepository_ListUserPermissions(t *testing.T) {
 
 			repo := NewRBACRepository(AdaptQuerier(mock))
 			got, err := repo.ListUserPermissions(context.Background(), tt.userID)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestRBACRepository_ListUserIDsByRole(t *testing.T) {
+	tests := []struct {
+		name    string
+		roleID  string
+		setup   func(mock pgxmock.PgxPoolIface)
+		want    []string
+		wantErr bool
+	}{
+		{
+			name:   "returns user ids",
+			roleID: "r1",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"user_id"}).
+					AddRow("u1").
+					AddRow("u2").
+					AddRow("u3")
+				mock.ExpectQuery(`SELECT user_id FROM user_roles WHERE role_id`).WithArgs("r1").WillReturnRows(rows)
+			},
+			want: []string{"u1", "u2", "u3"},
+		},
+		{
+			name:   "no users with role",
+			roleID: "r2",
+			setup: func(mock pgxmock.PgxPoolIface) {
+				rows := pgxmock.NewRows([]string{"user_id"})
+				mock.ExpectQuery(`SELECT user_id FROM user_roles WHERE role_id`).WithArgs("r2").WillReturnRows(rows)
+			},
+			want: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, _ := pgxmock.NewPool()
+			defer mock.Close()
+			tt.setup(mock)
+
+			repo := NewRBACRepository(AdaptQuerier(mock))
+			got, err := repo.ListUserIDsByRole(context.Background(), tt.roleID)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

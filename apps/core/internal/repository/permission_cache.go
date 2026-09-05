@@ -15,6 +15,8 @@ type PermissionCache interface {
 	Get(ctx context.Context, userID string) ([]string, bool)
 	// Set stores the permission set for the given user with the specified TTL.
 	Set(ctx context.Context, userID string, perms []string, ttl time.Duration) error
-	// Invalidate removes the cached permission set for the given user.
-	Invalidate(ctx context.Context, userID string) error
+	// Invalidate removes the cached permission sets for the given user IDs.
+	// It is variadic so a single call can drop many users at once (e.g. all
+	// users holding a role whose permissions just changed).
+	Invalidate(ctx context.Context, userIDs ...string) error
 }

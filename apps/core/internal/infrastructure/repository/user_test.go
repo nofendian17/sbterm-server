@@ -218,3 +218,70 @@ func TestUserRepository_AssignDefaultRole(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestUserRepository_ListUsersPage(t *testing.T) {
+	tests := []struct {
+		name      string
+		page      int
+		limit     int
+		setup     func(mock pgxmock.PgxPoolIface)
+		wantTotal int
+		wantLen   int
+		wantErr   bool
+	}{
+		{
+			name:  "first page returns rows",
+			page:  1,
+			limit: 2,
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+					WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(5))
+				now := time.Now()
+				rows := pgxmock.NewRows([]string{
+					"id", "email", "password_hash", "display_name",
+					"expires_at", "created_at", "updated_at", "deleted_at",
+				}).
+					AddRow("u1", "a@b.co", "h", "A", nil, now, now, nil).
+					AddRow("u2", "c@d.co", "h", "B", nil, now, now, nil)
+				mock.ExpectQuery(`SELECT id, email.* FROM users`).WithArgs(2, 0).WillReturnRows(rows)
+			},
+			wantTotal: 5,
+			wantLen:   2,
+		},
+		{
+			name:  "empty page beyond end",
+			page:  10,
+			limit: 10,
+			setup: func(mock pgxmock.PgxPoolIface) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) FROM users`).
+					WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
+				mock.ExpectQuery(`SELECT id, email.* FROM users`).WithArgs(10, 90).
+					WillReturnRows(pgxmock.NewRows([]string{
+						"id", "email", "password_hash", "display_name",
+						"expires_at", "created_at", "updated_at", "deleted_at",
+					}))
+			},
+			wantTotal: 3,
+			wantLen:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock, _ := pgxmock.NewPool()
+			defer mock.Close()
+			tt.setup(mock)
+
+			repo := NewUserRepository(AdaptQuerier(mock))
+			users, total, err := repo.ListUsersPage(context.Background(), tt.page, tt.limit)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantTotal, total)
+				require.Len(t, users, tt.wantLen)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}

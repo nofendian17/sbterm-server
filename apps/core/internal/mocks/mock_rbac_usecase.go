@@ -271,6 +271,45 @@ func (c *MockRBACUsecaseHasPermissionCall) DoAndReturn(f func(context.Context, s
 	return c
 }
 
+// ListPermissions mocks base method.
+func (m *MockRBACUsecase) ListPermissions(ctx context.Context, userID string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPermissions", ctx, userID)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPermissions indicates an expected call of ListPermissions.
+func (mr *MockRBACUsecaseMockRecorder) ListPermissions(ctx, userID any) *MockRBACUsecaseListPermissionsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPermissions", reflect.TypeOf((*MockRBACUsecase)(nil).ListPermissions), ctx, userID)
+	return &MockRBACUsecaseListPermissionsCall{Call: call}
+}
+
+// MockRBACUsecaseListPermissionsCall wrap *gomock.Call
+type MockRBACUsecaseListPermissionsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRBACUsecaseListPermissionsCall) Return(arg0 []string, arg1 error) *MockRBACUsecaseListPermissionsCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRBACUsecaseListPermissionsCall) Do(f func(context.Context, string) ([]string, error)) *MockRBACUsecaseListPermissionsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRBACUsecaseListPermissionsCall) DoAndReturn(f func(context.Context, string) ([]string, error)) *MockRBACUsecaseListPermissionsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListRoles mocks base method.
 func (m *MockRBACUsecase) ListRoles(ctx context.Context) ([]domain.Role, error) {
 	m.ctrl.T.Helper()

@@ -144,23 +144,6 @@ func TestAdminHandler_GetUser(t *testing.T) {
 	}
 }
 
-func TestAdminHandler_SuspendUser(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	uc := mocks.NewMockAdminUsecase(ctrl)
-	uc.EXPECT().SuspendUser(gomock.Any(), "u1").Return(nil)
-
-	handler := NewAdminHandler(uc, validator.New())
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "u1")
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/users/u1/suspend", nil)
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-	rec := httptest.NewRecorder()
-	handler.SuspendUser(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
-
 func TestAdminHandler_DeleteUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -182,6 +182,7 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewRBACUsecase(
 			do.MustInvoke[repository.RBACRepository](i),
 			do.MustInvoke[repository.PermissionCache](i),
+			do.MustInvoke[log.Logger](i),
 		), nil
 	})
 
@@ -189,6 +190,8 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewAdminUsecase(
 			do.MustInvoke[repository.UserRepository](i),
 			do.MustInvoke[usecase.RBACUsecase](i),
+			do.MustInvoke[repository.PermissionCache](i),
+			do.MustInvoke[log.Logger](i),
 		), nil
 	})
 }

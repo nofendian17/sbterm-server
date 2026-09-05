@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -12,7 +13,13 @@ import (
 
 	"github.com/nofendian17/sbterm/apps/core/internal/domain"
 	"github.com/nofendian17/sbterm/apps/core/internal/mocks"
+	"github.com/nofendian17/sbterm/libs/pkg/log"
 )
+
+// testLogger is a discard logger for unit tests.
+func testLogger() log.Logger {
+	return log.New(log.WithWriter(io.Discard))
+}
 
 func TestRBACUsecase_HasPermission(t *testing.T) {
 	tests := []struct {
@@ -82,7 +89,7 @@ func TestRBACUsecase_HasPermission(t *testing.T) {
 
 			cache := mocks.NewMockPermissionCache(ctrl)
 			repo := mocks.NewMockRBACRepository(ctrl)
-			uc := NewRBACUsecase(repo, cache)
+			uc := NewRBACUsecase(repo, cache, testLogger())
 			tt.setup(cache, repo)
 
 			ok, err := uc.HasPermission(context.Background(), tt.userID, tt.perm)
@@ -124,6 +131,38 @@ func TestRBACUsecase_AssignmentOps(t *testing.T) {
 			},
 		},
 		{
+			name: "assign permission to role invalidates users with role",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().AssignPermissionToRole(gomock.Any(), "r1", "p1").Return(nil)
+				repo.EXPECT().ListUserIDsByRole(gomock.Any(), "r1").Return([]string{"u1", "u2"}, nil)
+				cache.EXPECT().Invalidate(gomock.Any(), "u1", "u2").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.AssignPermissionToRole(context.Background(), "r1", "p1")
+			},
+		},
+		{
+			name: "revoke permission from role invalidates users with role",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().RevokePermissionFromRole(gomock.Any(), "r1", "p1").Return(nil)
+				repo.EXPECT().ListUserIDsByRole(gomock.Any(), "r1").Return([]string{"u1", "u2"}, nil)
+				cache.EXPECT().Invalidate(gomock.Any(), "u1", "u2").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.RevokePermissionFromRole(context.Background(), "r1", "p1")
+			},
+		},
+		{
+			name: "assign permission to role with no users is a no-op",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().AssignPermissionToRole(gomock.Any(), "r1", "p1").Return(nil)
+				repo.EXPECT().ListUserIDsByRole(gomock.Any(), "r1").Return(nil, nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.AssignPermissionToRole(context.Background(), "r1", "p1")
+			},
+		},
+		{
 			name: "create role delegates to repo",
 			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
 				role := domain.Role{ID: "r1", Name: "moderator", Description: "Moderator"}
@@ -147,6 +186,18 @@ func TestRBACUsecase_AssignmentOps(t *testing.T) {
 		{
 			name: "delete role delegates to repo",
 			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().ListUserIDsByRole(gomock.Any(), "r1").Return([]string{"u1", "u2"}, nil)
+				repo.EXPECT().DeleteRole(gomock.Any(), "r1").Return(nil)
+				cache.EXPECT().Invalidate(gomock.Any(), "u1", "u2").Return(nil)
+			},
+			call: func(uc RBACUsecase) error {
+				return uc.DeleteRole(context.Background(), "r1")
+			},
+		},
+		{
+			name: "delete role with no affected users is a no-op for cache",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				repo.EXPECT().ListUserIDsByRole(gomock.Any(), "r1").Return(nil, nil)
 				repo.EXPECT().DeleteRole(gomock.Any(), "r1").Return(nil)
 			},
 			call: func(uc RBACUsecase) error {
@@ -162,11 +213,65 @@ func TestRBACUsecase_AssignmentOps(t *testing.T) {
 
 			cache := mocks.NewMockPermissionCache(ctrl)
 			repo := mocks.NewMockRBACRepository(ctrl)
-			uc := NewRBACUsecase(repo, cache)
+			uc := NewRBACUsecase(repo, cache, testLogger())
 			tt.setup(cache, repo)
 
 			err := tt.call(uc)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestRBACUsecase_ListPermissions(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository)
+		want    []string
+		wantErr bool
+	}{
+		{
+			name: "cache hit returns cached perms",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return([]string{"profile:read", "watchlist:read"}, true)
+			},
+			want: []string{"profile:read", "watchlist:read"},
+		},
+		{
+			name: "cache miss resolves from DB and caches",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
+				repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return([]string{"profile:read"}, nil)
+				cache.EXPECT().Set(gomock.Any(), "u1", []string{"profile:read"}, 5*time.Minute).Return(nil)
+			},
+			want: []string{"profile:read"},
+		},
+		{
+			name: "DB error propagates",
+			setup: func(cache *mocks.MockPermissionCache, repo *mocks.MockRBACRepository) {
+				cache.EXPECT().Get(gomock.Any(), "u1").Return(nil, false)
+				repo.EXPECT().ListUserPermissions(gomock.Any(), "u1").Return(nil, errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			cache := mocks.NewMockPermissionCache(ctrl)
+			repo := mocks.NewMockRBACRepository(ctrl)
+			uc := NewRBACUsecase(repo, cache, testLogger())
+			tt.setup(cache, repo)
+
+			got, err := uc.ListPermissions(context.Background(), "u1")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
 		})
 	}
 }

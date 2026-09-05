@@ -23,11 +23,11 @@ func NewWatchlistRepository(q repository.Querier) *WatchlistRepository {
 	return &WatchlistRepository{q: q}
 }
 
-// ListByUser returns all watchlist entries for the given user.
+// ListByUser returns all non-deleted watchlist entries for the given user.
 func (r *WatchlistRepository) ListByUser(ctx context.Context, userID string) ([]domain.Watchlist, error) {
 	rows, err := r.q.Query(ctx,
 		`SELECT id, user_id, symbol, label, created_at
-		 FROM watchlists WHERE user_id = $1 ORDER BY created_at`, userID)
+		 FROM watchlists WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("watchlist list: %w", err)
 	}
@@ -47,21 +47,32 @@ func (r *WatchlistRepository) ListByUser(ctx context.Context, userID string) ([]
 	return items, nil
 }
 
-// Add inserts a new watchlist entry. A conflicting (user_id, symbol) maps to
-// domain.ErrDuplicateWatchlist.
+// Add inserts a new watchlist entry. A live conflict (the user already has
+// a non-deleted entry for the same symbol) returns domain.ErrDuplicateWatchlist.
+// A soft-deleted conflict is reactivated — a user who removed BBCA and
+// re-adds it gets the row back, not a 409.
 func (r *WatchlistRepository) Add(ctx context.Context, w domain.Watchlist) error {
-	const q = `
-		INSERT INTO watchlists (user_id, symbol, label)
-		VALUES ($1, $2, $3)
-	`
-	_, err := r.q.Exec(
-		ctx,
-		q,
-		w.UserID,
-		w.Symbol,
-		w.Label,
+	// Step 1: try to reactivate a soft-deleted row at this slot. If one
+	// exists, we're done.
+	res, err := r.q.Exec(ctx,
+		`UPDATE watchlists
+		 SET deleted_at = NULL, label = $3, updated_at = now()
+		 WHERE user_id = $1 AND symbol = $2 AND deleted_at IS NOT NULL`,
+		w.UserID, w.Symbol, w.Label,
 	)
 	if err != nil {
+		return fmt.Errorf("watchlist add: %w", err)
+	}
+	if res.RowsAffected() > 0 {
+		return nil
+	}
+
+	// Step 2: no soft-deleted row to reactivate. Try to insert a fresh one.
+	// A live row at the same (user_id, symbol) triggers a unique violation
+	// (the constraint treats (user_id, symbol) as the key, regardless of
+	// deleted_at), which we map to ErrDuplicateWatchlist.
+	const q = `INSERT INTO watchlists (user_id, symbol, label) VALUES ($1, $2, $3)`
+	if _, err := r.q.Exec(ctx, q, w.UserID, w.Symbol, w.Label); err != nil {
 		if isWatchlistUniqueViolation(err) {
 			return fmt.Errorf("watchlist add: %w", domain.ErrDuplicateWatchlist)
 		}
@@ -70,9 +81,14 @@ func (r *WatchlistRepository) Add(ctx context.Context, w domain.Watchlist) error
 	return nil
 }
 
-// RemoveBySymbol deletes the watchlist entry for the given user and symbol.
+// RemoveBySymbol soft-deletes the watchlist entry for the given user and
+// symbol.
 func (r *WatchlistRepository) RemoveBySymbol(ctx context.Context, userID, symbol string) error {
-	const q = `DELETE FROM watchlists WHERE user_id = $1 AND symbol = $2`
+	const q = `
+		UPDATE watchlists
+		SET deleted_at = now()
+		WHERE user_id = $1 AND symbol = $2 AND deleted_at IS NULL
+	`
 	if _, err := r.q.Exec(ctx, q, userID, symbol); err != nil {
 		return fmt.Errorf("watchlist remove: %w", err)
 	}

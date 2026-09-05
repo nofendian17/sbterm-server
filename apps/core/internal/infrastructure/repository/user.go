@@ -56,19 +56,21 @@ func (r *UserRepository) Create(ctx context.Context, user domain.User) error {
 }
 
 // GetByEmail returns the user matching email, or domain.ErrUserNotFound.
+// Soft-deleted users are treated as not found.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (domain.User, error) {
 	return r.scanUser(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
-		 FROM users WHERE email = $1`,
+		 FROM users WHERE email = $1 AND deleted_at IS NULL`,
 		email,
 	)
 }
 
 // GetByID returns the user matching id, or domain.ErrUserNotFound.
+// Soft-deleted users are treated as not found.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (domain.User, error) {
 	return r.scanUser(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
-		 FROM users WHERE id = $1`,
+		 FROM users WHERE id = $1 AND deleted_at IS NULL`,
 		id,
 	)
 }
@@ -113,7 +115,7 @@ func (r *UserRepository) Update(ctx context.Context, id, displayName string, exp
 
 // SoftDelete sets deleted_at instead of deleting the row.
 func (r *UserRepository) SoftDelete(ctx context.Context, id string) error {
-	const q = `UPDATE users SET deleted_at = now(), updated_at = now() WHERE id = $1`
+	const q = `UPDATE users SET deleted_at = now() WHERE id = $1`
 	if _, err := r.q.Exec(ctx, q, id); err != nil {
 		return fmt.Errorf("user soft delete: %w", err)
 	}
@@ -135,12 +137,14 @@ func (r *UserRepository) SetExpiry(ctx context.Context, id string, expiresAt *ti
 }
 
 // AssignDefaultRole links the user to the seeded "user" role by inserting a row
-// into user_roles. The role id is resolved from roles by name in SQL.
+// into user_roles. The role id is resolved from roles by name in SQL. Soft-
+// deleted roles are excluded.
 func (r *UserRepository) AssignDefaultRole(ctx context.Context, userID string) error {
 	const q = `
 		INSERT INTO user_roles (user_id, role_id)
-		SELECT $1, id FROM roles WHERE name = 'user'
-		ON CONFLICT (user_id, role_id) DO NOTHING
+		SELECT $1, id FROM roles WHERE name = 'user' AND deleted_at IS NULL
+		ON CONFLICT (user_id, role_id) DO UPDATE
+		SET deleted_at = NULL, updated_at = now()
 	`
 	if _, err := r.q.Exec(ctx, q, userID); err != nil {
 		return fmt.Errorf("user assign default role: %w", err)
@@ -148,13 +152,25 @@ func (r *UserRepository) AssignDefaultRole(ctx context.Context, userID string) e
 	return nil
 }
 
-// ListAll returns all non-deleted users.
-func (r *UserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
+// ListUsersPage returns a page of non-deleted users ordered by created_at, id
+// and the total count of non-deleted users.
+func (r *UserRepository) ListUsersPage(ctx context.Context, page, limit int) ([]domain.User, int, error) {
+	// Total count first.
+	var total int
+	if err := r.q.QueryRow(ctx,
+		`SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`,
+	).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("user list count: %w", err)
+	}
+
+	offset := (page - 1) * limit
 	rows, err := r.q.Query(ctx,
 		`SELECT id, email, password_hash, display_name, expires_at, created_at, updated_at, deleted_at
-		 FROM users WHERE deleted_at IS NULL ORDER BY created_at`)
+		 FROM users WHERE deleted_at IS NULL ORDER BY created_at, id LIMIT $1 OFFSET $2`,
+		limit, offset,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("user list all: %w", err)
+		return nil, 0, fmt.Errorf("user list page: %w", err)
 	}
 	defer rows.Close()
 
@@ -165,14 +181,14 @@ func (r *UserRepository) ListAll(ctx context.Context) ([]domain.User, error) {
 			&u.ID, &u.Email, &u.PasswordHash, &u.DisplayName,
 			&u.ExpiresAt, &u.CreatedAt, &u.UpdatedAt, &u.DeletedAt,
 		); err != nil {
-			return nil, fmt.Errorf("user list all scan: %w", err)
+			return nil, 0, fmt.Errorf("user list page scan: %w", err)
 		}
 		users = append(users, u)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("user list all rows: %w", err)
+		return nil, 0, fmt.Errorf("user list page rows: %w", err)
 	}
-	return users, nil
+	return users, total, nil
 }
 
 // isUniqueViolation reports whether err is (or wraps) a Postgres unique

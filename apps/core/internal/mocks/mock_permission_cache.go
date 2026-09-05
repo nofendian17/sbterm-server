@@ -81,17 +81,22 @@ func (c *MockPermissionCacheGetCall) DoAndReturn(f func(context.Context, string)
 }
 
 // Invalidate mocks base method.
-func (m *MockPermissionCache) Invalidate(ctx context.Context, userID string) error {
+func (m *MockPermissionCache) Invalidate(ctx context.Context, userIDs ...string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Invalidate", ctx, userID)
+	varargs := []any{ctx}
+	for _, a := range userIDs {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "Invalidate", varargs...)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Invalidate indicates an expected call of Invalidate.
-func (mr *MockPermissionCacheMockRecorder) Invalidate(ctx, userID any) *MockPermissionCacheInvalidateCall {
+func (mr *MockPermissionCacheMockRecorder) Invalidate(ctx any, userIDs ...any) *MockPermissionCacheInvalidateCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Invalidate", reflect.TypeOf((*MockPermissionCache)(nil).Invalidate), ctx, userID)
+	varargs := append([]any{ctx}, userIDs...)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Invalidate", reflect.TypeOf((*MockPermissionCache)(nil).Invalidate), varargs...)
 	return &MockPermissionCacheInvalidateCall{Call: call}
 }
 
@@ -107,13 +112,13 @@ func (c *MockPermissionCacheInvalidateCall) Return(arg0 error) *MockPermissionCa
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockPermissionCacheInvalidateCall) Do(f func(context.Context, string) error) *MockPermissionCacheInvalidateCall {
+func (c *MockPermissionCacheInvalidateCall) Do(f func(context.Context, ...string) error) *MockPermissionCacheInvalidateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockPermissionCacheInvalidateCall) DoAndReturn(f func(context.Context, string) error) *MockPermissionCacheInvalidateCall {
+func (c *MockPermissionCacheInvalidateCall) DoAndReturn(f func(context.Context, ...string) error) *MockPermissionCacheInvalidateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -5,6 +5,10 @@ build/
 *.out
 *.test
 
+# Node (dashboard)
+node_modules/
+apps/dashboard/dist/
+
 # Go coverage / profiling
 coverage.out
 coverage.html

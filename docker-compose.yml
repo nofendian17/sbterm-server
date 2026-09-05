@@ -79,6 +79,21 @@ services:
       retries: 3
       start_period: 10s
 
+  dashboard:
+    build:
+      context: apps/dashboard
+    image: sbterm-dashboard:${APP_VERSION:-dev}
+    container_name: sbterm-dashboard
+    restart: always
+    ports:
+      - "${DASHBOARD_HOST_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
   core:
     build:
       context: .

@@ -1,4 +1,4 @@
-.PHONY: help run-api run-ws run-ingest run-stream build test test-race vet fmt fmt-check install-hooks mock tidy
+.PHONY: help run-api run-ws run-ingest run-stream run-dashboard build test test-race vet fmt fmt-check install-hooks mock tidy
 
 MODULES := apps/api apps/ws apps/ingest apps/stream apps/core libs/pkg libs/marketdata libs/proto libs/stockbit
 
@@ -21,6 +21,9 @@ run-stream: ## Run the websocket fan-out stream service
 
 run-core: ## Run the core auth service
 	go run ./apps/core/cmd/server
+
+run-dashboard: ## Run the dashboard dev server
+	cd apps/dashboard && npm run dev
 
 build: ## Build every binary into bin/
 	mkdir -p bin

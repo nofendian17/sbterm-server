@@ -12,8 +12,11 @@ import (
 
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/admin"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/auth"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/health"
 	appmw "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/sector"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/stock"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/user"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/watchlist"
 	"github.com/nofendian17/sbterm/libs/pkg/log"
@@ -35,11 +38,14 @@ func WithRateLimit(rate, burst int) RouterOption {
 
 // Handlers groups every REST handler the router needs, one field per domain.
 type Handlers struct {
-	Health    *health.HealthHandler
-	Auth      *auth.AuthHandler
-	User      *user.UserHandler
-	Watchlist *watchlist.WatchlistHandler
-	Admin     *admin.AdminHandler
+	Health         *health.HealthHandler
+	Auth           *auth.AuthHandler
+	User           *user.UserHandler
+	Watchlist      *watchlist.WatchlistHandler
+	Admin          *admin.AdminHandler
+	Stock          *stock.StockHandler
+	CompanyProfile *companyprofile.CompanyProfileHandler
+	Sector         *sector.SectorHandler
 }
 
 func NewRouter(hs Handlers, authDeps appmw.AuthDeps, logger log.Logger, opts ...RouterOption) chi.Router {
@@ -97,6 +103,16 @@ func NewRouter(hs Handlers, authDeps appmw.AuthDeps, logger log.Logger, opts ...
 				r.Post("/watchlists", hs.Watchlist.Add)
 				r.Delete("/watchlists/{symbol}", hs.Watchlist.Remove)
 
+				// Stock catalog (user-facing reads, stocks:read)
+				r.Group(func(r chi.Router) {
+					r.Use(appmw.RequirePermission("stocks:read"))
+					r.Get("/stocks", hs.Stock.List)
+					r.Get("/stocks/{symbol}", hs.Stock.GetBySymbol)
+					r.Get("/stocks/{symbol}/profile", hs.CompanyProfile.Get)
+					r.Get("/sectors", hs.Sector.List)
+					r.Get("/sectors/{id}", hs.Sector.GetByID)
+				})
+
 				// Admin (requires specific permissions)
 				r.Route("/admin", func(r chi.Router) {
 					// Role management
@@ -129,6 +145,23 @@ func NewRouter(hs Handlers, authDeps appmw.AuthDeps, logger log.Logger, opts ...
 						r.Use(appmw.RequirePermission("admin:users:manage"))
 						r.Patch("/users/{id}/expiry", hs.Admin.SetExpiry)
 						r.Delete("/users/{id}", hs.Admin.DeleteUser)
+					})
+
+					// Stock catalog management
+					r.Group(func(r chi.Router) {
+						r.Use(appmw.RequirePermission("stocks:write"))
+						r.Post("/stocks", hs.Stock.Create)
+						r.Patch("/stocks/{symbol}", hs.Stock.Update)
+						r.Delete("/stocks/{symbol}", hs.Stock.Delete)
+						r.Post("/stocks/{symbol}/profile", hs.CompanyProfile.Save)
+						r.Post("/sectors", hs.Sector.Create)
+						r.Patch("/sectors/{id}", hs.Sector.Update)
+						r.Delete("/sectors/{id}", hs.Sector.Delete)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(appmw.RequirePermission("stocks:sync"))
+						r.Post("/stocks/sync", hs.Stock.Sync)
+						r.Post("/stocks/{symbol}/profile/sync", hs.CompanyProfile.Sync)
 					})
 				})
 			})

@@ -16,14 +16,18 @@ import (
 	deliveryhttp "github.com/nofendian17/sbterm/apps/core/internal/delivery/http"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/admin"
 	authhandler "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/auth"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/companyprofile"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/health"
 	appmw "github.com/nofendian17/sbterm/apps/core/internal/delivery/http/middleware"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/sector"
+	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/stock"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/user"
 	"github.com/nofendian17/sbterm/apps/core/internal/delivery/http/watchlist"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/cache"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/config"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/database"
 	infraRepo "github.com/nofendian17/sbterm/apps/core/internal/infrastructure/repository"
+	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/stockapi"
 	"github.com/nofendian17/sbterm/apps/core/internal/infrastructure/token"
 	"github.com/nofendian17/sbterm/apps/core/internal/repository"
 	"github.com/nofendian17/sbterm/apps/core/internal/usecase"
@@ -78,6 +82,16 @@ func provideInfrastructure(injector *do.RootScope) {
 			cache.WithWriteTimeout(cfg.Redis.WriteTimeout),
 		)
 	})
+
+	// StockSyncClient: HTTP adapter that calls apps/api (docs/api.md). The
+	// same stockapi.Client also implements CompanyProfileSyncClient, so it
+	// is provided once and aliased to both ports.
+	do.Provide(injector, func(i do.Injector) (*stockapi.Client, error) {
+		cfg := do.MustInvoke[*config.Config](i)
+		return stockapi.NewClient(cfg.StockbitAPI.BaseURL, cfg.StockbitAPI.Timeout), nil
+	})
+	do.MustAs[*stockapi.Client, repository.StockSyncClient](injector)
+	do.MustAs[*stockapi.Client, repository.CompanyProfileSyncClient](injector)
 }
 
 func provideRepositories(injector *do.RootScope) {
@@ -120,6 +134,33 @@ func provideRepositories(injector *do.RootScope) {
 		return infraRepo.NewWatchlistRepository(querier), nil
 	})
 	do.MustAs[*infraRepo.WatchlistRepository, repository.WatchlistRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.SectorRepository, error) {
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for sector repo: %w", err)
+		}
+		return infraRepo.NewSectorRepository(querier), nil
+	})
+	do.MustAs[*infraRepo.SectorRepository, repository.SectorRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.StockRepository, error) {
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for stock repo: %w", err)
+		}
+		return infraRepo.NewStockRepository(querier), nil
+	})
+	do.MustAs[*infraRepo.StockRepository, repository.StockRepository](injector)
+
+	do.Provide(injector, func(i do.Injector) (*infraRepo.CompanyProfileRepository, error) {
+		querier, err := do.MustInvoke[*database.Postgres](i).Querier()
+		if err != nil {
+			return nil, fmt.Errorf("container: get querier for company profile repo: %w", err)
+		}
+		return infraRepo.NewCompanyProfileRepository(querier, do.MustInvoke[repository.TxManager](i)), nil
+	})
+	do.MustAs[*infraRepo.CompanyProfileRepository, repository.CompanyProfileRepository](injector)
 
 	do.Provide(injector, func(i do.Injector) (*infraRepo.RedisRefreshStore, error) {
 		client := do.MustInvoke[*cache.Redis](i).Client()
@@ -178,6 +219,28 @@ func provideUsecases(injector *do.RootScope) {
 		return usecase.NewWatchlistUsecase(do.MustInvoke[repository.WatchlistRepository](i)), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (usecase.StockUsecase, error) {
+		return usecase.NewStockUsecase(
+			do.MustInvoke[repository.StockRepository](i),
+			do.MustInvoke[repository.SectorRepository](i),
+			do.MustInvoke[repository.StockSyncClient](i),
+			do.MustInvoke[log.Logger](i),
+		), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.SectorUsecase, error) {
+		return usecase.NewSectorUsecase(
+			do.MustInvoke[repository.SectorRepository](i),
+		), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (usecase.CompanyProfileUsecase, error) {
+		return usecase.NewCompanyProfileUsecase(
+			do.MustInvoke[repository.CompanyProfileRepository](i),
+			do.MustInvoke[repository.CompanyProfileSyncClient](i),
+		), nil
+	})
+
 	do.Provide(injector, func(i do.Injector) (usecase.RBACUsecase, error) {
 		return usecase.NewRBACUsecase(
 			do.MustInvoke[repository.RBACRepository](i),
@@ -229,17 +292,41 @@ func provideHandlers(injector *do.RootScope) {
 		), nil
 	})
 
+	do.Provide(injector, func(i do.Injector) (*stock.StockHandler, error) {
+		return stock.NewStockHandler(
+			do.MustInvoke[usecase.StockUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*companyprofile.CompanyProfileHandler, error) {
+		return companyprofile.NewCompanyProfileHandler(
+			do.MustInvoke[usecase.CompanyProfileUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
+	})
+
+	do.Provide(injector, func(i do.Injector) (*sector.SectorHandler, error) {
+		return sector.NewSectorHandler(
+			do.MustInvoke[usecase.SectorUsecase](i),
+			do.MustInvoke[appvalidator.Validator](i),
+		), nil
+	})
+
 	// Server
 	do.Provide(injector, func(i do.Injector) (*deliveryhttp.Server, error) {
 		cfg := do.MustInvoke[*config.Config](i)
 		logger := do.MustInvoke[log.Logger](i)
 
 		router := deliveryhttp.NewRouter(deliveryhttp.Handlers{
-			Health:    do.MustInvoke[*health.HealthHandler](i),
-			Auth:      do.MustInvoke[*authhandler.AuthHandler](i),
-			User:      do.MustInvoke[*user.UserHandler](i),
-			Watchlist: do.MustInvoke[*watchlist.WatchlistHandler](i),
-			Admin:     do.MustInvoke[*admin.AdminHandler](i),
+			Health:         do.MustInvoke[*health.HealthHandler](i),
+			Auth:           do.MustInvoke[*authhandler.AuthHandler](i),
+			User:           do.MustInvoke[*user.UserHandler](i),
+			Watchlist:      do.MustInvoke[*watchlist.WatchlistHandler](i),
+			Admin:          do.MustInvoke[*admin.AdminHandler](i),
+			Stock:          do.MustInvoke[*stock.StockHandler](i),
+			CompanyProfile: do.MustInvoke[*companyprofile.CompanyProfileHandler](i),
+			Sector:         do.MustInvoke[*sector.SectorHandler](i),
 		}, appmw.AuthDeps{
 			Verifier: do.MustInvoke[*token.JWTTokenService](i),
 			Loader:   do.MustInvoke[repository.UserRepository](i),

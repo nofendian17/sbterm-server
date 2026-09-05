@@ -1,19 +1,27 @@
+-- stocks is the master catalog table. It is created BEFORE watchlists
+-- (000005) so watchlists.symbol can carry a real inline foreign key with no
+-- placeholder backfill — a symbol must exist here before any watchlist row
+-- can reference it.
 CREATE TABLE stocks (
     symbol     TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
-    sector     TEXT,
+    -- Sector lives in its own master table (000003). sector_id is nullable:
+    -- sectors are managed manually for now, so a stock may exist without one.
+    sector_id  UUID REFERENCES sectors(id) ON DELETE RESTRICT,
     exchange   TEXT,
+    -- Stock logo/icon, filled from the GET /api/v1/stocks payload (apps/api).
+    -- company_status="STATUS_ACTIVE" in the same payload maps to is_active.
+    icon_url   TEXT,
     is_active  BOOLEAN NOT NULL DEFAULT true,
     synced_at  TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ
 );
--- Note: a separate idx_stocks_sector is intentionally NOT created. The
--- admin search endpoint combines sector with is_active + ILIKE, and the
--- partial idx_stocks_active below is a better fit for the dominant
--- read path (active user-facing list). If sector-only reports are added
--- later, add the index at that time with a real query plan to justify it.
+-- Note: the partial index below covers the dominant read path (active
+-- user-facing list, filtered by is_active + deleted_at). Sector-based
+-- filtering joins sectors by name/id and is served by sectors' UNIQUE(name)
+-- btree; no per-sector index on stocks is justified yet.
 CREATE INDEX idx_stocks_active ON stocks (is_active) WHERE deleted_at IS NULL;
 
 -- Auto-refresh updated_at on every row UPDATE. The application also sets
@@ -36,33 +44,12 @@ INSERT INTO role_permissions (role_id, permission_id)
   WHERE r.name = 'user' AND p.name = 'stocks:read'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- Link admin role to all three stock permissions (idempotent).
--- The admin role already gets all permissions from migration 000002
--- (its grant is "all"), but we re-link explicitly here to make the
--- dependency between this migration and 000002 obvious.
+-- Link admin role to all three stock permissions (idempotent). The admin
+-- role's "all permissions" grant from 000002 is a snapshot of the
+-- permissions that existed then, so new permissions must be linked here
+-- explicitly.
 INSERT INTO role_permissions (role_id, permission_id)
  SELECT r.id, p.id FROM roles r, permissions p
   WHERE r.name = 'admin'
     AND p.name IN ('stocks:read', 'stocks:write', 'stocks:sync')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
-
--- Backfill (idempotent): for every distinct symbol currently referenced
--- by a non-deleted watchlist row, make sure a corresponding row exists
--- in stocks. Inserted rows are inactive (is_active=false) so they don't
--- show up in the user-facing stock list — they're placeholders for the
--- relation, not real catalog entries. Admins can promote them later
--- (or let the next /stocks/sync replace them).
-INSERT INTO stocks (symbol, name, is_active)
- SELECT DISTINCT w.symbol, 'Unknown', false
-   FROM watchlists w
-   WHERE w.deleted_at IS NULL
-     AND NOT EXISTS (SELECT 1 FROM stocks s WHERE s.symbol = w.symbol)
-ON CONFLICT (symbol) DO NOTHING;
-
--- Attach the FK to the existing watchlists.symbol column. The column
--- name is unchanged; the backfill above guarantees every watchlist
--- row already references a valid stocks row.
-ALTER TABLE watchlists
-    ADD CONSTRAINT watchlists_symbol_fkey
-    FOREIGN KEY (symbol) REFERENCES stocks (symbol)
-    ON DELETE RESTRICT;

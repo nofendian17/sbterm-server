@@ -102,6 +102,21 @@ func TestWatchlistRepository_Add(t *testing.T) {
 			},
 			wantErr: domain.ErrDuplicateWatchlist,
 		},
+		{
+			name: "symbol not in stocks master table",
+			w:    domain.Watchlist{UserID: "u1", Symbol: "ZZZZ", Label: ""},
+			setup: func(mock pgxmock.PgxPoolIface) {
+				// Step 1: no soft-deleted row to reactivate.
+				mock.ExpectExec(`UPDATE watchlists SET deleted_at = NULL`).
+					WithArgs("u1", "ZZZZ", "").
+					WillReturnResult(pgxmock.NewResult("UPDATE", 0))
+				// Step 2: insert fails on watchlists_symbol_fkey (23503).
+				mock.ExpectExec(`INSERT INTO watchlists`).
+					WithArgs("u1", "ZZZZ", "").
+					WillReturnError(pgForeignKeyViolation())
+			},
+			wantErr: domain.ErrStockNotFound,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

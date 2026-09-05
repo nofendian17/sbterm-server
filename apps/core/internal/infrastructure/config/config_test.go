@@ -53,6 +53,10 @@ func defaultConfig() *Config {
 			WriteTimeout: 10 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		},
+		StockbitAPI: StockbitAPIConfig{
+			BaseURL: "http://localhost:8080",
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 
@@ -168,6 +172,19 @@ http:
 					ReadTimeout:  5 * time.Second,
 					WriteTimeout: 6 * time.Second,
 					IdleTimeout:  90 * time.Second,
+				}
+			},
+		},
+		{
+			name: "stockbit_api overridden",
+			yaml: `stockbit_api:
+  base_url: http://api:8080
+  timeout: 60s
+`,
+			mutate: func(c *Config) {
+				c.StockbitAPI = StockbitAPIConfig{
+					BaseURL: "http://api:8080",
+					Timeout: 60 * time.Second,
 				}
 			},
 		},

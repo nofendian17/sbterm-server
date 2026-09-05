@@ -18,6 +18,7 @@ const (
 	CodeValidation      = "VALIDATION_ERROR"
 	CodeInternalError   = "INTERNAL_ERROR"
 	CodeTooManyRequests = "TOO_MANY_REQUESTS"
+	CodeUpstreamError   = "UPSTREAM_ERROR"
 )
 
 type Envelope struct {

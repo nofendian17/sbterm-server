@@ -62,15 +62,7 @@ func NewAdminUsecase(userRepo repository.UserRepository, rbac RBACUsecase, cache
 }
 
 func (u *adminUsecase) ListUsers(ctx context.Context, page, limit int) ([]domain.User, int, error) {
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
+	page, limit = domain.NormalizePagination(page, limit)
 	users, total, err := u.userRepo.ListUsersPage(ctx, page, limit)
 	if err != nil {
 		return nil, 0, fmt.Errorf("admin list users: %w", err)

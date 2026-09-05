@@ -121,6 +121,15 @@ func TestWatchlistHandler_Add(t *testing.T) {
 			wantCode: http.StatusConflict,
 		},
 		{
+			name:   "stock not in catalog",
+			userID: "u1",
+			body:   addWatchlistRequest{Symbol: "ZZZZ"},
+			setup: func(uc *mocks.MockWatchlistUsecase) {
+				uc.EXPECT().Add(gomock.Any(), "u1", domain.AddWatchlistInput{Symbol: "ZZZZ"}).Return(domain.ErrStockNotFound)
+			},
+			wantCode: http.StatusNotFound,
+		},
+		{
 			name:   "internal error",
 			userID: "u1",
 			body:   addWatchlistRequest{Symbol: "BBCA"},

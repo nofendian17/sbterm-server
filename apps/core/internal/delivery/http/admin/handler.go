@@ -30,14 +30,9 @@ func NewAdminHandler(uc usecase.AdminUsecase, v validator.Validator) *AdminHandl
 // --- User management ---
 
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
-	if err != nil || page < 1 {
-		page = 1
-	}
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
-	if err != nil || limit < 1 {
-		limit = 20
-	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, limit = domain.NormalizePagination(page, limit)
 
 	users, total, err := h.uc.ListUsers(r.Context(), page, limit)
 	if err != nil {

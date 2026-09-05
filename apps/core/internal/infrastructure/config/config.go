@@ -20,14 +20,15 @@ const (
 var version = "dev"
 
 type Config struct {
-	App       AppConfig       `mapstructure:"app"`
-	Port      string          `mapstructure:"port"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Redis     RedisConfig     `mapstructure:"redis"`
-	Log       LogConfig       `mapstructure:"log"`
-	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
-	Auth      AuthConfig      `mapstructure:"auth"`
-	HTTP      HTTPConfig      `mapstructure:"http"`
+	App         AppConfig         `mapstructure:"app"`
+	Port        string            `mapstructure:"port"`
+	Database    DatabaseConfig    `mapstructure:"database"`
+	Redis       RedisConfig       `mapstructure:"redis"`
+	Log         LogConfig         `mapstructure:"log"`
+	RateLimit   RateLimitConfig   `mapstructure:"rate_limit"`
+	Auth        AuthConfig        `mapstructure:"auth"`
+	HTTP        HTTPConfig        `mapstructure:"http"`
+	StockbitAPI StockbitAPIConfig `mapstructure:"stockbit_api"`
 }
 
 type AppConfig struct {
@@ -76,6 +77,14 @@ type HTTPConfig struct {
 	ReadTimeout  time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout time.Duration `mapstructure:"write_timeout"`
 	IdleTimeout  time.Duration `mapstructure:"idle_timeout"`
+}
+
+// StockbitAPIConfig points at the apps/api service that proxies the Stockbit
+// (Exodus) API (see docs/api.md). apps/core uses it as the upstream source
+// for the admin-triggered catalog sync.
+type StockbitAPIConfig struct {
+	BaseURL string        `mapstructure:"base_url"`
+	Timeout time.Duration `mapstructure:"timeout"`
 }
 
 // Load reads configuration using viper with the precedence:
@@ -132,4 +141,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("http.read_timeout", 10*time.Second)
 	v.SetDefault("http.write_timeout", 10*time.Second)
 	v.SetDefault("http.idle_timeout", 60*time.Second)
+	v.SetDefault("stockbit_api.base_url", "http://localhost:8080")
+	v.SetDefault("stockbit_api.timeout", 30*time.Second)
 }

@@ -33,3 +33,9 @@ http:
   read_timeout: 10s
   write_timeout: 10s
   idle_timeout: 60s
+
+# Upstream source for the admin-triggered stock catalog sync (apps/api, see docs/api.md).
+# Use "http://api:8080" inside Docker Compose, "http://localhost:8080" when running locally.
+stockbit_api:
+  base_url: http://localhost:8080
+  timeout: 30s

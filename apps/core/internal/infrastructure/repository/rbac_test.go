@@ -23,6 +23,11 @@ func pgUniqueViolation() error {
 	return &pgconn.PgError{Code: "23505", Message: "duplicate key value violates unique constraint"}
 }
 
+// pgForeignKeyViolation simulates a Postgres foreign-key violation.
+func pgForeignKeyViolation() error {
+	return &pgconn.PgError{Code: "23503", Message: "insert or update on table \"watchlists\" violates foreign key constraint \"watchlists_symbol_fkey\""}
+}
+
 func TestRBACRepository_CreateRole(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -73,8 +73,15 @@ func (r *WatchlistRepository) Add(ctx context.Context, w domain.Watchlist) error
 	// deleted_at), which we map to ErrDuplicateWatchlist.
 	const q = `INSERT INTO watchlists (user_id, symbol, label) VALUES ($1, $2, $3)`
 	if _, err := r.q.Exec(ctx, q, w.UserID, w.Symbol, w.Label); err != nil {
-		if isWatchlistUniqueViolation(err) {
+		if isPgErrorCode(err, uniqueViolationCode) {
 			return fmt.Errorf("watchlist add: %w", domain.ErrDuplicateWatchlist)
+		}
+		if isPgErrorCode(err, foreignKeyViolationCode) {
+			// The stocks master table (000004) has no row for this symbol.
+			// Under the authenticated flow the user_id FK can never fire (the
+			// middleware loads the user first), so a FK breach here means an
+			// unknown symbol.
+			return fmt.Errorf("watchlist add: %w", domain.ErrStockNotFound)
 		}
 		return fmt.Errorf("watchlist add: %w", err)
 	}
@@ -95,11 +102,12 @@ func (r *WatchlistRepository) RemoveBySymbol(ctx context.Context, userID, symbol
 	return nil
 }
 
-// isWatchlistUniqueViolation checks if err is a Postgres unique violation.
-func isWatchlistUniqueViolation(err error) bool {
+// isPgErrorCode reports whether err is (or wraps) a Postgres error with the
+// given SQLSTATE code.
+func isPgErrorCode(err error, code string) bool {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		return pgErr.Code == uniqueViolationCode
+		return pgErr.Code == code
 	}
 	return false
 }

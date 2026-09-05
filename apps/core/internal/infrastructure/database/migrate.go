@@ -14,7 +14,8 @@ import (
 // migrationsFS holds the embedded core migration SQL files.
 var migrationsFS = coremigrations.FS
 
-// RunMigrations applies the embedded core migrations (users, rbac, watchlists)
+// RunMigrations applies the embedded core migrations in dependency order
+// (users, rbac, sectors, stocks, watchlists, company profiles).
 // against the database identified by dbURL. It is idempotent: running it again
 // after a successful apply returns nil (migrate.ErrNoChange is ignored).
 func RunMigrations(ctx context.Context, dbURL string) error {

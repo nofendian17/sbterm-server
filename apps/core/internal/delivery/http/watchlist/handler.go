@@ -96,6 +96,10 @@ func (h *WatchlistHandler) Add(w http.ResponseWriter, r *http.Request) {
 			response.Error(w, http.StatusConflict, response.CodeConflict, "symbol already in watchlist")
 			return
 		}
+		if errors.Is(err, domain.ErrStockNotFound) {
+			response.Error(w, http.StatusNotFound, response.CodeNotFound, "stock not found")
+			return
+		}
 		response.Error(w, http.StatusInternalServerError, response.CodeInternalError, "internal error")
 		return
 	}

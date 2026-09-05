@@ -18,6 +18,10 @@ import (
 // uniqueViolationCode is the Postgres SQLSTATE for a unique constraint breach.
 const uniqueViolationCode = "23505"
 
+// foreignKeyViolationCode is the Postgres SQLSTATE for a foreign-key breach
+// (an INSERT/UPDATE referenced a row that does not exist).
+const foreignKeyViolationCode = "23503"
+
 // userRepository is the pgx implementation of repository.UserRepository. It
 // runs every query through a repository.Querier so the same code works outside
 // (pool) and inside (tx) a transaction.
